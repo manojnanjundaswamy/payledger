@@ -6,7 +6,7 @@
 # Tests are NOT run here: they need Docker themselves (Testcontainers), so CI runs them before building the image.
 
 # ---- build: compile once on the builder's native platform; the jar is platform-independent ----
-FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
+FROM --platform=$BUILDPLATFORM eclipse-temurin:25-jdk AS build
 WORKDIR /workspace
 
 # Dependencies first: this layer is cached until pom.xml changes.
@@ -20,7 +20,7 @@ RUN --mount=type=cache,target=/root/.m2 ./mvnw -B -q package -DskipTests \
  && java -Djarmode=tools -jar target/ledger-service-*.jar extract --layers --launcher --destination extracted
 
 # ---- runtime: JRE only, non-root, layered for small incremental pulls ----
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 
 LABEL org.opencontainers.image.title="payledger-ledger-service" \
       org.opencontainers.image.description="Double-entry wallet ledger (Spring Boot 4, Java 21)" \
