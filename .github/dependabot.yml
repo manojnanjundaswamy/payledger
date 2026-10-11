@@ -6,9 +6,20 @@ updates:
     groups:
       spring:
         patterns: ["org.springframework*", "io.micrometer*", "org.springdoc*"]
+    ignore:
+      # Must match the Postgres major used in production (postgres:17); upgrade deliberately, not via bot.
+      - dependency-name: "io.zonky.test.postgres:embedded-postgres-binaries-bom"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: docker
     directory: /services/ledger-service
     schedule: { interval: weekly }
+    ignore:
+      # Java version is a project decision (pom java.version + CI), not a base-image bump.
+      - dependency-name: "eclipse-temurin"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
+    groups:
+      actions:
+        patterns: ["*"]
