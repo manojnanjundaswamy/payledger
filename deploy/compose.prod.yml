@@ -1,0 +1,104 @@
+# Production stack for a single VM (e.g. Oracle Cloud Always Free).
+#   cp .env.example .env   # fill in real values
+#   docker compose -f compose.prod.yml up -d
+#
+# Network layout:
+#   internet ──443──▶ caddy ──(edge)──▶ ledger-service ──(backend, no internet)──▶ postgres
+# Only Caddy publishes ports. Postgres and the actuator port are unreachable from outside.
+name: payledger
+
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+services:
+  postgres:
+    <<: *hardening
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: { memory: 1g }
+
+  ledger-service:
+    <<: *hardening
+    image: ${LEDGER_IMAGE:?set LEDGER_IMAGE in .env, e.g. ghcr.io/<you>/payledger/ledger-service:latest}
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      API_KEYS: ${API_KEYS:?set API_KEYS in .env}
+    networks: [edge, backend]
+    # Immutable container filesystem: only /tmp (Tomcat work dir) is writable.
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    deploy:
+      resources:
+        limits: { memory: 768m }
+
+  caddy:
+    <<: *hardening
+    image: caddy:2-alpine
+    depends_on: [ledger-service]
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [edge]
+
+  # Nightly logical backup, 7 days retained. Copy ./backups off the VM (rclone/object storage) for real DR.
+  db-backup:
+    <<: *hardening
+    image: postgres:17-alpine
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      PGHOST: postgres
+      PGDATABASE: ${POSTGRES_DB}
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    networks: [backend]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          f=/backups/ledger-$$(date -u +%Y%m%dT%H%M%SZ).dump
+          pg_dump -Fc -f "$$f" && echo "backup ok: $$f" || echo "backup FAILED"
+          find /backups -name 'ledger-*.dump' -mtime +7 -delete
+          sleep 86400
+        done
+
+networks:
+  edge:
+  backend:
+    internal: true   # no route to the internet
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

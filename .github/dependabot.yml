@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /services/ledger-service
+    schedule: { interval: weekly }
+    groups:
+      spring:
+        patterns: ["org.springframework*", "io.micrometer*", "org.springdoc*"]
+  - package-ecosystem: docker
+    directory: /services/ledger-service
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }

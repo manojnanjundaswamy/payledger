@@ -1,0 +1,25 @@
+# Caddy obtains and renews a Let's Encrypt certificate for $DOMAIN automatically.
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Money API requests are tiny; reject oversized bodies at the edge.
+	request_body {
+		max_size 64KB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		X-Frame-Options "DENY"
+		-Server
+	}
+
+	# Only the public port is proxied; actuator (8081) stays private.
+	reverse_proxy ledger-service:8080
+
+	log {
+		output stdout
+		format json
+	}
+}
