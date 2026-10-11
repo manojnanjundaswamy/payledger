@@ -16,9 +16,13 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [ledger-service, notification-service]
     defaults:
       run:
-        working-directory: services/ledger-service
+        working-directory: services/${{ matrix.service }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -26,6 +30,7 @@ jobs:
           distribution: temurin
           java-version: 21
           cache: maven
+          cache-dependency-path: services/${{ matrix.service }}/pom.xml
       # Testcontainers uses the Docker daemon that GitHub runners provide.
       - name: Build and test
         run: ./mvnw -B verify
@@ -33,14 +38,17 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: surefire-reports
-          path: services/ledger-service/target/surefire-reports
+          name: surefire-reports-${{ matrix.service }}
+          path: services/${{ matrix.service }}/target/surefire-reports
 
   image:
     # Publish only from main or version tags, never from pull requests.
     if: github.event_name == 'push'
     needs: test
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [ledger-service, notification-service]
     permissions:
       contents: read
       packages: write
@@ -58,7 +66,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}/ledger-service
+          images: ghcr.io/${{ github.repository }}/${{ matrix.service }}
           tags: |
             type=sha,format=short
             type=raw,value=latest,enable={{is_default_branch}}
@@ -66,12 +74,12 @@ jobs:
       - id: build
         uses: docker/build-push-action@v6
         with:
-          context: services/ledger-service
+          context: services/${{ matrix.service }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
           sbom: true
           provenance: mode=max

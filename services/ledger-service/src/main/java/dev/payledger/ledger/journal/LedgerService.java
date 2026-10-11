@@ -6,6 +6,7 @@ import dev.payledger.ledger.common.AccountNotFoundException;
 import dev.payledger.ledger.common.CurrencyMismatchException;
 import dev.payledger.ledger.common.IdempotencyKeyReusedException;
 import dev.payledger.ledger.common.InvalidPostingException;
+import dev.payledger.ledger.outbox.OutboxWriter;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -25,7 +26,8 @@ import java.util.stream.Collectors;
  *   <li>returns the stored result if the idempotency key was already used,</li>
  *   <li>locks every involved account row in a consistent order,</li>
  *   <li>applies the postings and updates cached balances,</li>
- *   <li>inserts the entry; the UNIQUE(idempotency_key) constraint catches concurrent duplicates.</li>
+ *   <li>inserts the entry; the UNIQUE(idempotency_key) constraint catches concurrent duplicates,</li>
+ *   <li>appends a {@link LedgerEntryPosted} event to the outbox, so the event commits if and only if the money moved.</li>
  * </ol>
  * Transactions are demarcated with {@link TransactionTemplate} rather than {@code @Transactional}
  * because the duplicate-key recovery needs a second, separate transaction after the first one
@@ -36,12 +38,15 @@ public class LedgerService {
 
     private final AccountRepository accounts;
     private final JournalEntryRepository entries;
+    private final OutboxWriter outbox;
     private final TransactionTemplate tx;
     private final TransactionTemplate readOnlyTx;
 
-    public LedgerService(AccountRepository accounts, JournalEntryRepository entries, PlatformTransactionManager txManager) {
+    public LedgerService(AccountRepository accounts, JournalEntryRepository entries, OutboxWriter outbox,
+                         PlatformTransactionManager txManager) {
         this.accounts = accounts;
         this.entries = entries;
+        this.outbox = outbox;
         this.tx = new TransactionTemplate(txManager);
         this.readOnlyTx = new TransactionTemplate(txManager);
         this.readOnlyTx.setReadOnly(true);
@@ -83,7 +88,10 @@ public class LedgerService {
         }
 
         entries.saveAndFlush(entry);
-        return new PostingOutcome(JournalEntryView.of(entry), false);
+        JournalEntryView view = JournalEntryView.of(entry);
+        LedgerEntryPosted event = LedgerEntryPosted.of(view, command.currency(), locked);
+        outbox.append("JournalEntry", view.id(), event.eventId(), LedgerEntryPosted.TYPE, event);
+        return new PostingOutcome(view, false);
     }
 
     private Optional<PostingOutcome> findExisting(PostingCommand command) {
