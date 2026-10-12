@@ -3,7 +3,7 @@
 A production-style **payments and wallet platform** built on a **double-entry ledger**.
 It is built to show how money systems stay correct under retries, concurrency and partial failure.
 
-> Status: **Phase 1 – Ledger core** ✅ · **Phase 2 – Kafka & outbox** ✅ · Phase 3 – Redis, gateway, React dashboard ⏳ · Phase 4 – Observability, load tests ⏳ · see [Roadmap](#roadmap)
+> Status: **Phase 1 – Ledger core** ✅ · **Phase 2 – Kafka & outbox** ✅ · Next: budgeting + splitting app, see [Roadmap](#roadmap)
 
 ## What it guarantees
 
@@ -160,10 +160,16 @@ Study guides for each phase are in [`docs/learning`](docs/learning).
 
 ## Roadmap
 
+PayLedger is becoming a **personal budgeting app with group splitting** (guests can join by link, no sign-up needed).
+The wallet features (deposits, transfers) will be retired; the ledger, outbox and Kafka pipeline become its foundation.
+Full plan: **[docs/plan/product-plan.md](docs/plan/product-plan.md)**.
+
 | Phase | Scope | Status |
 |---|---|---|
-| 1. Ledger core | Double-entry schema with DB-enforced invariants, ordered pessimistic locking, idempotency keys, statements, RFC 9457 errors, hardened image, CI | ✅ |
-| 2. Events | Transactional outbox + relay, Kafka (KRaft) topic `ledger.entries.v1`, notification-service (idempotent consumer, retries, dead-letter topic), local compose stack with profiles, Kafka UI | ✅ |
-| 3. Edge & UI | Redis (idempotency fast path, rate limiting, balance cache), API gateway (single entry point, API keys/JWT, routing to both services), React dashboard (wallets, transfers, live notification feed) | ⏳ |
-| 4. Operability | OpenTelemetry traces across HTTP and Kafka, Prometheus + Grafana dashboards (outbox lag, consumer lag, p99), structured logs, k6 load tests with published results | ⏳ |
-| Later | Cloud deployment of the full system, withdrawals and reversals, reconciliation job, Debezium CDC instead of polling | — |
+| 1. Ledger core | Double-entry schema with DB-enforced invariants, ordered locking, idempotency keys, hardened image, CI | ✅ |
+| 2. Events | Transactional outbox + relay, Kafka, notification-service (idempotent consumer, dead-letter topic), local compose stack | ✅ |
+| 3. Foundations | Ledger redesign (books, account types, reversals), Keycloak, gateway, core-service, React shell with theming | ⏳ |
+| 4. Personal budgeting | Accounts, transactions, categories, budgets, dashboard, reports, CSV import | ⏳ |
+| 5. Splitting | Groups, invites, join links, guests, split types, settle up, simplify debts | ⏳ |
+| 6. Engagement & SaaS | Notifications, budget alerts, recurring, goals, data export, account deletion | ⏳ |
+| 7. Operability | Tracing, dashboards, load tests, cloud deployment | ⏳ |
