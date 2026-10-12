@@ -2,6 +2,10 @@
 
 **Status:** Draft for review · **Replaces:** the wallet roadmap (deposits and transfers are retired)
 
+**Decided so far:** India first, global-ready data model · dashboard and analytics only (no payment gateways, no UPI
+payments, no bank sync yet) · import through our own template format · households in scope · Keycloak · one core-service ·
+web app first · product name not chosen yet (candidates in [naming.md](naming.md))
+
 ## 1. The product in one paragraph
 
 A SaaS web app where people sign up with their email, track **all of their money** (accounts, income, spending,
@@ -13,7 +17,35 @@ share** counts against your "Eating out" budget, and the ₹2,000 you fronted sh
 ### Who it's for
 - **Individuals** who want a clean budget without a spreadsheet.
 - **Flatmates, couples, trips and friend groups** who share costs and want to settle up.
+- **Households**: a spouse, children, parents living together (or supported from afar) who want one combined budget
+  while keeping some money private.
 - **Guests**: people pulled into a group by a link, who should never be forced to sign up.
+
+### The problems we solve
+Built around how money actually moves in Indian homes, not around a generic spreadsheet:
+
+| Pain point | What people do today | What we do |
+|---|---|---|
+| **Dozens of small UPI payments vanish.** ₹40 chai, ₹180 auto, ₹99 subscription; nobody knows where ₹15,000 went. | Nothing, or a notes app | Two-tap quick add, an "uncategorised" inbox to clean up weekly, bulk import from a template |
+| **"Salary came on the 1st, broke by the 20th."** | Check the bank balance and hope | **Safe to spend**: what's left today after bills, EMIs, SIPs and savings goals that are still due this cycle |
+| **Big yearly costs ambush the budget**: insurance premium, school fees, Diwali, weddings, car service, property tax | Panic month, credit card | **Annual planner**: list them once; the app sets aside a monthly amount for each and warns months ahead |
+| **EMIs and credit card bills pile up** | Separate reminders everywhere | Commitments view: every EMI, card due date and subscription in one calendar, counted before "safe to spend" |
+| **Household spending is invisible to the household.** One partner pays rent, the other groceries; nobody sees the total | Arguments, WhatsApp messages | Household space with a combined budget, per-member contributions, and private money that stays private |
+| **Monthly bills with attendance**: milk, newspaper, cook, maid; days missed change the bill | Paper calendar on the fridge | **Daily services tracker**: mark missed days, the month's bill is calculated, the payment becomes a transaction |
+| **Money lent to friends and relatives** (udhaar) is forgotten | Memory | Lending tracker on the same receivables as splitting, with polite reminders |
+| **Supporting parents or siblings** | Untracked transfers | "Family support" category and goal, visible in household reports |
+| **Tax season scramble** (80C, 80D, HRA, home loan interest) | Hunting for receipts in March | Tag tax-relevant spending as it happens; **financial-year (April–March) reports** |
+| **Splitting with friends is awkward**, and Splitwise's share doesn't reach your budget | Two apps, double counting | Split once; your share lands in your budget automatically |
+| **No idea if a big purchase is affordable** | Gut feeling | **"Can I afford it?"**: enter ₹60,000 and a date; see the effect on safe-to-spend, goals and the emergency fund |
+
+### How we help people decide better (not just record)
+- **Spending pace**: "At this rate you'll spend ₹38,000 on food this month, ₹6,000 over budget", shown from the 5th, not on the 30th.
+- **Monthly money review**: a 3-minute guided summary at the start of each cycle (what changed, what went over, one
+  suggestion), done together in a household.
+- **Budget suggestions** from your last 3 months, instead of an empty form.
+- **Subscription and price-creep finder**: repeating amounts, and bills that quietly went up.
+- **Health score** with plain-language reasons: emergency fund months covered, savings rate, share of income on EMIs.
+- **Nudges, not nagging**: at most one insight a day; every alert can be tuned or muted.
 
 ## 2. Features
 
@@ -28,7 +60,13 @@ share** counts against your "Eating out" budget, and the ₹2,000 you fronted sh
 | **Recurring** | Recurring bills and income with reminders | Auto-post |
 | **Goals** | Savings goals with a target and date | Linked to a savings account |
 | **Reports** | Spending by category, budget against actual, monthly trend, cash flow (income − spending), what you owe or are owed | Custom report builder, year in review |
-| **Import / export** | CSV import with column mapping and duplicate detection; CSV export | Bank sync (Account Aggregator in India, Plaid elsewhere), PDF statements |
+| **Import / export** | Import from our **template** (CSV, Excel or Google Sheets copy; see section 2.5) with preview, error report and duplicate detection; CSV and Excel export | Parse bank and card statements (PDF or CSV) into the template, then bank sync (Account Aggregator in India) |
+| **Commitments** | EMIs, credit card due dates, SIPs, insurance, subscriptions in one calendar; **safe to spend** | Reminders by email |
+| **Annual planner** | Yearly and one-off costs spread into monthly set-asides | Festival and wedding planning templates |
+| **Daily services** | Milk, newspaper, cook, maid: rate per day or month, mark missed days, bill calculated | |
+| **Lending (udhaar)** | Track money lent or borrowed outside groups, with due dates | Reminders |
+| **Tax tags** | Tag 80C / 80D / HRA / home-loan items; financial-year (April–March) report | Export for your CA |
+| **Insights** | Spending pace, "Can I afford it?", budget suggestions, health score | Subscription and price-creep finder, monthly review |
 
 ### 2.2 Splitting (registered users and guests)
 | Feature | MVP | Later |
@@ -49,11 +87,47 @@ share** counts against your "Eating out" budget, and the ₹2,000 you fronted sh
 - Guests have no personal book. When a guest signs up with the same email, their memberships attach to the new
   account and their shares flow into their budget from then on.
 
-### 2.4 SaaS basics
+### 2.4 Households
+A **household** is a shared space for people who manage money together: spouse, children, parents, a sibling.
+
+| Topic | Design |
+|---|---|
+| **Spaces** | Every user has a **personal space**. A household is a second space they belong to. One person can be in more than one household (their own, and their parents'). |
+| **Members** | Adults with their own login; **dependents** without a login (children, elderly parents) who can still have accounts, pocket money and spending assigned to them. A dependent can later be given a login. |
+| **Roles** | Head (manages members and settings), Partner (full access to shared money), Member (adds transactions, sees shared budgets), Viewer (e.g. a teenager: sees, cannot change). |
+| **What's shared** | Each money account is either **shared** (joint account, house cash, a card used for home costs) or **personal**. Shared accounts and their transactions belong to the household. |
+| **Privacy** | Personal accounts stay private. A member can choose to share a **summary** ("Manoj: ₹12,400 on food this month") without sharing the transactions. |
+| **Contributions** | Who paid how much into household costs this month, against an agreed split (50/50, by income ratio, fixed amounts). It uses the same engine as group balances, so "who owes the household" is exact. |
+| **Budgets** | Household budgets per category on top of personal ones. Spending from a personal account can be marked "for the household" and counts in both views, without double counting. |
+| **Reports** | Combined, per member, and per dependent ("how much does our daughter's schooling cost a year?"). |
+
+Households differ from **groups**: a group is for people who split costs and settle up (a trip, flatmates); a household
+pools money and plans together. A household can still use splitting internally through contributions.
+
+### 2.5 Import format
+We define one well-documented template, so any source (a bank statement, an old spreadsheet, another app's export)
+can be converted to it once, by the user or later by our own parsers.
+
+- **Formats**: CSV (UTF-8), Excel `.xlsx` (with dropdowns for category and account, and an instructions tab), and a
+  shareable Google Sheets copy. Download the template pre-filled with *your* accounts and categories.
+- **Columns** (required in bold): **date**, **amount**, **type** (`expense` / `income` / `transfer`), **account**,
+  category, subcategory, description, merchant, payment_mode (`UPI` / `cash` / `card` / `netbanking` / `wallet`),
+  to_account (for transfers), tags, notes, space (personal or household name), member, group, split_with, currency, external_id.
+- **Indian-friendly parsing**: dates as `DD-MM-YYYY`, `DD/MM/YY` or ISO; amounts like `₹1,00,000.50`, `1,00,000` or
+  `(500)` for negatives; Dr/Cr columns instead of signed amounts.
+- **Safe imports**: a **preview** with every row validated before anything is saved; a downloadable **error report**
+  (row, column, reason); unknown categories or accounts can be mapped or created in one step; re-importing the same
+  file is a no-op (duplicates detected by `external_id`, or by date + amount + description); every import can be **undone** as a batch.
+- The same format is available as a JSON bulk API, so future statement parsers just produce template rows.
+
+### 2.6 SaaS basics
 - Sign up and log in with email (one-time code or password) or Google; email verification; password reset.
 - Account settings, sessions, **export all my data**, **delete my account** (required under GDPR and India's DPDP Act).
-- Plans (Free / Pro) are **not** in the MVP, but data limits and feature checks go through one place, so billing
-  (Stripe or Razorpay) can be added later without touching every feature.
+- Plans are **not** charged in the MVP, but data limits and feature checks go through one place, so billing can be
+  added later without touching every feature (see section 9).
+- **India first, global-ready**: INR, `en-IN` formatting (₹1,00,000), April–March financial year and Indian categories
+  by default. Underneath, every amount carries a currency, every user has a locale, time zone and base currency, and all
+  UI text sits in translation files, so other countries and currency conversion are configuration and data, not a rewrite.
 
 ## 3. Guests and permissions
 
@@ -112,7 +186,7 @@ Keycloak (users, email login, Google)  ·  Mailpit locally / SES or Resend in pr
   (accounts, transactions, categories, recurring, import), `budget` (budgets, goals), `split` (groups, members,
   invitations, expenses, settlements), `access` (roles, guest sessions, links).
 - **ledger-service** stays the **only source of truth for balances**. It knows nothing about budgets or groups: it keeps
-  *books* (one per user, one per group), *accounts* in each book, and balanced *entries*. It answers questions like
+  *books* (one per personal space, one per household, one per group), *accounts* in each book, and balanced *entries*. It answers questions like
   "balance of these accounts" and "totals per account per month".
 - **notification-service** keeps its current role and grows from "feed of transfers" to email and in-app notifications.
 
@@ -169,6 +243,8 @@ Goal: calm, fast and personal. Three screens should feel great: **Dashboard**, *
 - **Transactions**: fast list with search, filters, saved views, bulk edit, inline category change.
 - **Budgets**: one card per category with a progress bar, colour-coded (on track / close / over), and a month switcher.
 - **Reports**: category breakdown, trends, cash flow, budget against actual; every chart drills down to its transactions.
+- **Household**: combined budget, contributions by member, shared accounts, dependents, the monthly review.
+- **Plan**: commitments calendar (EMIs, card dues, SIPs, subscriptions), annual planner, safe to spend, goals.
 - **Groups**: list with your balance in each; inside a group, expenses, balances, "settle up" and activity.
 - **Add expense** (a sheet, reachable from everywhere with one key): amount first, then description, category,
   account; one toggle turns it into a group split.
@@ -194,7 +270,7 @@ only change token values, so customisation never forks components.
 
 | Component | Change |
 |---|---|
-| ledger-service | Becomes a generic engine: **books**; account types ASSET / LIABILITY / INCOME / EXPENSE / EQUITY; balance check per currency; **reversals**; per-period balance queries. The deposit and transfer API and the "user accounts never negative" rule are retired; the database-enforced invariants (balanced entries, append-only postings, idempotency, ordered locking) all stay. |
+| ledger-service | Becomes a generic engine: **books** (personal, household, group); account types ASSET / LIABILITY / INCOME / EXPENSE / EQUITY; balance check per currency; **reversals**; per-period balance queries. The deposit and transfer API and the "user accounts never negative" rule are retired; the database-enforced invariants (balanced entries, append-only postings, idempotency, ordered locking) all stay. |
 | Outbox and Kafka | Kept as is; core-service gets the same outbox. |
 | notification-service | Consumes core events for emails and the activity feed. Its current transfer messages are replaced. |
 | docker-compose | Adds Keycloak (and its database), Redis, Mailpit, gateway, core-service, frontend. |
@@ -206,17 +282,32 @@ Budgeting first, because splitting writes into the personal book that budgeting 
 
 | Phase | Delivers | Done when |
 |---|---|---|
-| **3. Foundations** | Ledger redesign (books, account types, reversals, period queries); Keycloak; gateway; core-service skeleton; frontend shell with design system, theming, login and sign-up | You can sign up, log in, switch theme and see an empty dashboard |
-| **4. Personal budgeting** | Money accounts, transactions, categories, budgets, dashboard widgets, reports v1, CSV import and export | A month of real spending can be entered or imported and tracked against budgets |
-| **5. Splitting** | Groups, roles, email invites, join links, placeholders, guest sessions, all split types, settle up, simplify debts, link to personal budget | A guest with no account can open a link, add an expense and settle up; your share shows in your budget |
-| **6. Engagement and SaaS** | Emails and in-app notifications, budget alerts, recurring transactions, goals, activity history, data export, account deletion, plan limits scaffold | |
+| **3. Foundations** | Ledger redesign (books, account types, reversals, period queries); spaces (personal + household) in the data model; Keycloak; gateway; core-service skeleton; frontend shell with design system, theming, login and sign-up | You can sign up, log in, switch theme and see an empty dashboard |
+| **4. Personal budgeting** | Money accounts, transactions, categories, budgets, commitments and safe-to-spend, annual planner, dashboard widgets, reports v1 (incl. FY), template import and export | A month of real spending can be entered or imported and tracked against budgets |
+| **5. Households and splitting** | Households (members, dependents, shared vs personal, contributions), groups, roles, email invites, join links, placeholders, guest sessions, all split types, settle up, simplify debts, lending, daily services | A guest with no account can open a link, add an expense and settle up; your share shows in your budget |
+| **6. Engagement and SaaS** | Insights (spending pace, can I afford it, suggestions, health score), monthly review, emails and in-app notifications, budget alerts, recurring transactions, goals, tax tags, activity history, data export, account deletion, plan limits scaffold | |
 | **7. Operability** | OpenTelemetry tracing, Grafana dashboards, k6 load tests, then cloud deployment | |
 
 Each phase ends with passing tests (unit, Testcontainers, Playwright for the main flows) and an updated study guide.
 
 ## 8. Open questions
-1. **Name**: "PayLedger" describes the old wallet. Keep it as the code name, or choose a product name now?
-2. **Primary market**: India first (INR, UPI links, lakh/crore formatting, Account Aggregator later) or global from day one?
-3. **Bank data**: CSV import only for the MVP (recommended), or plan bank sync earlier?
-4. **Households**: should two registered users (a couple) be able to share one personal budget, beyond splitting? It would
-   change "one book per user" to "one book per workspace", so it is cheaper to decide now.
+1. **Name**: shortlist in [naming.md](naming.md). "PayLedger" stays as the code name until then.
+2. **Households in which phase?** Proposed: the space model (personal + household books) is built in Phase 3 so nothing
+   is redone, the household UI ships in Phase 5 together with splitting.
+3. **Pricing**: the free / paid line in section 9 is a first guess; validate it with 10–20 real users before building billing.
+
+## 9. Monetisation (later, but designed for now)
+| | Free | Plus (about ₹99/month or ₹799/year) | Family (about ₹1,499/year) |
+|---|---|---|---|
+| Personal budgeting, accounts, transactions | ✓ | ✓ | ✓ |
+| Groups and splitting, guests | ✓ unlimited (this is how new users arrive) | ✓ | ✓ |
+| Budgets and goals | up to 5 each | unlimited | unlimited |
+| History | 12 months | unlimited | unlimited |
+| Imports | 3 a month | unlimited, statement parsing when available | ✓ |
+| Insights, annual planner, "Can I afford it?" | basic | full | full |
+| Household | 2 members | 2 members | up to 6 members, dependents |
+| Reports and exports | basic | FY tax report, Excel export | ✓ |
+
+Principles: **splitting stays free** because every guest is a future user; we never sell data and never push financial
+products inside the budget (trust is the product). Later options: annual reports for CAs, a B2B version for small
+offices and hostels.
