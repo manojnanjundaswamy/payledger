@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [ledger-service, notification-service]
+        service: [ledger-service, notification-service, core-service, gateway]
     defaults:
       run:
         working-directory: services/${{ matrix.service }}
@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [ledger-service, notification-service]
+        service: [ledger-service, notification-service, core-service, gateway]
     permissions:
       contents: read
       packages: write

@@ -29,6 +29,46 @@ updates:
     ignore:
       - dependency-name: "eclipse-temurin"
         update-types: ["version-update:semver-major"]
+  - package-ecosystem: maven
+    directory: /services/core-service
+    schedule: { interval: weekly }
+    groups:
+      spring:
+        patterns: ["org.springframework*", "io.micrometer*", "org.springdoc*"]
+  - package-ecosystem: docker
+    directory: /services/core-service
+    schedule: { interval: weekly }
+    ignore:
+      - dependency-name: "eclipse-temurin"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: maven
+    directory: /services/gateway
+    schedule: { interval: weekly }
+    groups:
+      spring:
+        patterns: ["org.springframework*", "io.micrometer*"]
+    ignore:
+      # Spring Cloud 2025.1 supports Boot 4.0 only. Move to Boot 4.1 together with Spring Cloud 2026.0 GA.
+      - dependency-name: "org.springframework.boot:spring-boot-starter-parent"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "org.springframework.cloud:spring-cloud-dependencies"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: docker
+    directory: /services/gateway
+    schedule: { interval: weekly }
+    ignore:
+      - dependency-name: "eclipse-temurin"
+        update-types: ["version-update:semver-major"]
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      local-stack:
+        patterns: ["*"]
+    ignore:
+      # Postgres majors must move together with production and Testcontainers.
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }

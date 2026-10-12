@@ -1,0 +1,78 @@
+package dev.payledger.core.user;
+
+import dev.payledger.core.space.SpaceQueries;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+
+@Service
+public class ProfileService {
+
+    /** UI settings only; a dashboard layout fits comfortably. Stops the column being used as free storage. */
+    static final int MAX_PREFERENCES_BYTES = 16_384;
+
+    private static final TypeReference<Map<String, Object>> JSON_OBJECT = new TypeReference<>() {
+    };
+
+    private final JdbcClient jdbc;
+    private final JsonMapper json;
+    private final SpaceQueries spaces;
+
+    public ProfileService(JdbcClient jdbc, JsonMapper json, SpaceQueries spaces) {
+        this.jdbc = jdbc;
+        this.json = json;
+        this.spaces = spaces;
+    }
+
+    @Transactional(readOnly = true)
+    public Profile get(CurrentUser user) {
+        Row row = jdbc.sql("""
+                        select display_name, locale, time_zone, currency, budget_start_day, preferences::text as preferences
+                        from users where id = :id
+                        """)
+                .param("id", user.id())
+                .query(Row.class)
+                .single();
+        return new Profile(user.id(), user.email(), row.displayName(),
+                new Profile.Settings(row.locale(), row.timeZone(), row.currency(), row.budgetStartDay()),
+                json.readValue(row.preferences(), JSON_OBJECT),
+                spaces.spacesOf(user.id()));
+    }
+
+    /** Null fields are left unchanged. {@code preferences} replaces the stored object as a whole. */
+    @Transactional
+    public Profile update(CurrentUser user, ProfileUpdate update) {
+        String preferences = update.preferences() == null ? null : json.writeValueAsString(update.preferences());
+        if (preferences != null && preferences.getBytes(StandardCharsets.UTF_8).length > MAX_PREFERENCES_BYTES) {
+            throw new PreferencesTooLargeException(MAX_PREFERENCES_BYTES);
+        }
+        jdbc.sql("""
+                        update users set
+                            display_name     = coalesce(:displayName, display_name),
+                            locale           = coalesce(:locale, locale),
+                            time_zone        = coalesce(:timeZone, time_zone),
+                            currency         = coalesce(:currency, currency),
+                            budget_start_day = coalesce(:budgetStartDay, budget_start_day),
+                            preferences      = coalesce(cast(:preferences as jsonb), preferences),
+                            updated_at       = now()
+                        where id = :id
+                        """)
+                .param("displayName", update.displayName() == null ? null : update.displayName().strip())
+                .param("locale", update.locale())
+                .param("timeZone", update.timeZone())
+                .param("currency", update.currency())
+                .param("budgetStartDay", update.budgetStartDay())
+                .param("preferences", preferences)
+                .param("id", user.id())
+                .update();
+        return get(user);
+    }
+
+    record Row(String displayName, String locale, String timeZone, String currency, int budgetStartDay, String preferences) {
+    }
+}
