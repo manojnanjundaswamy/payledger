@@ -3,7 +3,7 @@
 A **personal budgeting app with household budgets and group splitting** (India first), built on a production-style
 **double-entry ledger**. It is built to show how money systems stay correct under retries, concurrency and partial failure.
 
-> Status: Phase 1 ledger core ✅ · Phase 2 Kafka & outbox ✅ · **Phase 3 foundations in progress** (ledger v2 ✅) · see [Roadmap](#roadmap) and the [product plan](docs/plan/product-plan.md)
+> Status: Phase 1 ledger core ✅ · Phase 2 Kafka & outbox ✅ · **Phase 3 foundations in progress** (ledger v2 ✅, sign-up/login ✅, web app ⏳) · see [Roadmap](#roadmap) and the [product plan](docs/plan/product-plan.md)
 
 ## What it guarantees
 
@@ -21,6 +21,18 @@ A **personal budgeting app with household budgets and group splitting** (India f
 ## Architecture
 
 ```
+Browser ──cookie──▶ gateway :8000 ──token──▶ core-service :8060 ──▶ PostgreSQL "core"
+   │                 │ login (PKCE), sessions in Redis, CSRF              (users, spaces; budgets next)
+   │                 ▼
+   └──── login ──▶ Keycloak :8180 (sign-up, email verification ▶ Mailpit :8025)
+
+core-service (Phase 3, next) ──▶ ledger-service :8080 (internal, no browser route)
+```
+
+The browser never holds a token: the gateway keeps them in a Redis session and relays the user's access token to
+core-service ([ADR 0006](docs/adr/0006-identity-keycloak-and-bff-gateway.md)). The ledger and its event pipeline:
+
+```
                          ┌──────────────────── ledger-service :8080 ───────────────────┐
 Client ──HTTP──▶         │ LedgerController ─▶ LedgerService (books, typed accounts)     │
                          │                                         │ one transaction:   │
@@ -34,7 +46,7 @@ Client ──HTTP──▶         │ LedgerController ─▶ LedgerService (bo
                                   consumers: core-service (Phase 3), notifications (Phase 6)
 ```
 
-Coming in Phase 3: Keycloak, an API gateway, **core-service** (spaces, accounts, transactions, budgets, groups) and the
+Coming next in Phase 3: core-service's money features (accounts, transactions, budgets) posting to the ledger, and the
 React app. notification-service is **parked**: it still reads the wallet-era `ledger.entries.v1` events, which nothing
 publishes any more, and is repurposed for emails and the activity feed in Phase 6.
 
@@ -44,6 +56,8 @@ and can be deployed, scaled or stopped on its own. They share only the documente
 
 | Service | Port (API / actuator) | Owns | Needs |
 |---|---|---|---|
+| [gateway](services/gateway) | 8000 / 8001 | login, sessions, CSRF, routing | Keycloak, Redis |
+| [core-service](services/core-service) | 8060 / 8061 | users, spaces (and soon accounts, transactions, budgets) | Postgres, Keycloak (keys) |
 | [ledger-service](services/ledger-service) | 8080 / 8081 | books, accounts, journal, outbox, topic `ledger.entries.v2` | Postgres; Kafka optional (`OUTBOX_RELAY_ENABLED=false`) |
 | [notification-service](services/notification-service) (parked) | 8090 / 8091 | per-user notification feed, its dead-letter topic | Postgres, Kafka |
 
@@ -55,21 +69,31 @@ Prerequisites: Java 21 and Docker. Everything below works with no configuration;
 **Everything in containers** (built from source, like production):
 
 ```bash
-docker compose --profile app up -d --build   # Postgres x2, Kafka, ledger-service, notification-service
-scripts/smoke-test.sh                         # end-to-end check: transfer -> outbox -> Kafka -> notification
+docker compose --profile app up -d --build   # infrastructure + gateway, core-service, ledger-service, notification-service
+scripts/login-smoke-test.sh                   # sign-in, sign-up + email verification, token relay, CSRF, logout
+scripts/smoke-test.sh                         # ledger: entries, reversal, totals, outbox -> Kafka
 docker compose --profile tools up -d          # optional: Kafka UI on http://localhost:8085
 ```
+
+| What | Where |
+|---|---|
+| Demo login | `demo@payledger.local` / `demo-password` |
+| Emails (verification, password reset) | Mailpit, http://localhost:8025 |
+| Keycloak admin console | http://localhost:8180 (`admin` / `admin`) |
+| Gateway (the web app talks to this) | http://localhost:8000, e.g. `/api/session` |
 
 **Infrastructure in Docker, services from your IDE / terminal** (fastest edit-run loop):
 
 ```bash
-docker compose up -d                                      # Postgres (5432, 5433) + Kafka (localhost:9092)
+docker compose up -d                                      # Postgres, Kafka, Keycloak, Redis, Mailpit
+cd services/gateway && ./mvnw spring-boot:run             # :8000
+cd services/core-service && ./mvnw spring-boot:run        # :8060
 cd services/ledger-service && ./mvnw spring-boot:run      # :8080
 cd services/notification-service && ./mvnw spring-boot:run   # :8090
 ```
 
 **Mix and match**: run one service in Docker and the other from the IDE with
-`docker compose --profile ledger up -d --build` or `--profile notification`.
+`docker compose --profile <gateway|core|ledger|notification> up -d --build`.
 
 **One service alone** (Testcontainers starts its Postgres and Kafka for you):
 
@@ -95,8 +119,11 @@ Stop with `docker compose --profile app --profile tools down` (add `-v` to delet
 
 | Variable | Default | Service |
 |---|---|---|
-| `DB_URL`, `DB_USER`, `DB_PASSWORD`, `DB_POOL_SIZE` | local Postgres | both |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | both |
+| `DB_URL`, `DB_USER`, `DB_PASSWORD`, `DB_POOL_SIZE` | local Postgres | all but gateway |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | ledger, notification |
+| `KEYCLOAK_PUBLIC_URL`, `KEYCLOAK_INTERNAL_URL`, `KEYCLOAK_CLIENT_SECRET` | `http://localhost:8180`, same, local secret | gateway |
+| `REDIS_HOST`, `CORE_SERVICE_URL`, `FRONTEND_URL`, `COOKIE_SECURE` | `localhost`, `http://localhost:8060`, `http://localhost:5173`, `false` | gateway |
+| `KEYCLOAK_ISSUER`, `KEYCLOAK_JWKS_URI` | `http://localhost:8180/realms/payledger`, its certs URL | core |
 | `LEDGER_EVENTS_TOPIC` | `ledger.entries.v2` (ledger), `ledger.entries.v1` (notification) | both |
 | `LEDGER_EVENTS_PARTITIONS` | `3` | ledger (topic creation) |
 | `OUTBOX_RELAY_ENABLED` | `true` | ledger |
@@ -104,7 +131,7 @@ Stop with `docker compose --profile app --profile tools down` (add `-v` to delet
 | `KAFKA_CONSUMER_GROUP`, `KAFKA_LISTENER_CONCURRENCY` | `notification-service`, `3` | notification |
 | `LEDGER_EVENTS_DLT` | `notification-service.ledger.entries.v1.dlt` | notification |
 | `EVENT_RETRY_ATTEMPTS`, `EVENT_RETRY_INTERVAL` | `4`, `1s` | notification |
-| `PORT`, `MANAGEMENT_PORT` | 8080/8081, 8090/8091 | both |
+| `PORT`, `MANAGEMENT_PORT` | 8000/8001, 8060/8061, 8080/8081, 8090/8091 | each service |
 
 ## API
 
@@ -152,6 +179,13 @@ All tests run against real PostgreSQL and Kafka in Docker (Testcontainers): `./m
 `OutboxIntegrationTest` proves a committed entry reaches Kafka keyed by its book, a rejected one leaves no event,
 an idempotent replay emits nothing, and the outbox can't be written outside the business transaction.
 
+`GatewaySecurityTest` proves anonymous API calls get 401 (not a redirect), login uses PKCE and `?signup` opens
+registration, the session cookie is `HttpOnly` + `SameSite=Lax`, signed-in calls reach core-service with a bearer token
+and without browser cookies, and logout requires the CSRF token and ends the Keycloak session.
+
+`ProfileIntegrationTest` (core-service) proves a first request creates the user with Indian defaults and one personal
+space (also under 10 concurrent first requests), settings and UI preferences are validated, and unverified emails are refused.
+
 `NotificationIntegrationTest` proves a redelivered event creates no duplicate notification, system accounts are skipped,
 unknown fields are ignored, and poison messages go to the dead-letter topic without blocking the events behind them.
 
@@ -179,7 +213,7 @@ Full plan: **[docs/plan/product-plan.md](docs/plan/product-plan.md)**.
 |---|---|---|
 | 1. Ledger core | Double-entry schema with DB-enforced invariants, ordered locking, idempotency keys, hardened image, CI | ✅ |
 | 2. Events | Transactional outbox + relay, Kafka, notification-service (idempotent consumer, dead-letter topic), local compose stack | ✅ |
-| 3. Foundations | Ledger v2 (books, account types, reversals, period totals) ✅ · Keycloak, gateway, core-service, React shell with theming ⏳ | ⏳ |
+| 3. Foundations | Ledger v2 (books, account types, reversals, period totals) ✅ · Keycloak, BFF gateway, core-service (users, spaces) ✅ · React shell with theming ⏳ | ⏳ |
 | 4. Personal budgeting | Accounts, transactions, categories, budgets, dashboard, reports, CSV import | ⏳ |
 | 5. Splitting | Groups, invites, join links, guests, split types, settle up, simplify debts | ⏳ |
 | 6. Engagement & SaaS | Notifications, budget alerts, recurring, goals, data export, account deletion | ⏳ |

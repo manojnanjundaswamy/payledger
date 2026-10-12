@@ -1,10 +1,13 @@
 # Local development stack. Every service is optional, so you can run any of them from your IDE instead.
 #
-#   docker compose up -d                                  -> infrastructure only: Postgres x2 + Kafka
-#   docker compose --profile app up -d --build            -> + ledger-service and notification-service, built from source
-#   docker compose --profile ledger up -d --build         -> + ledger-service only (run notification-service from the IDE)
-#   docker compose --profile notification up -d --build   -> + notification-service only
+#   docker compose up -d                                  -> infrastructure only: Postgres, Kafka, Keycloak, Redis, Mailpit
+#   docker compose --profile app up -d --build            -> + every service, built from source
+#   docker compose --profile <name> up -d --build         -> + one service: gateway | core | ledger | notification
 #   docker compose --profile tools up -d                  -> + Kafka UI on http://localhost:8085
+#
+# Sign in at http://localhost:8000 (via the web app later) as demo@payledger.local / demo-password.
+# Emails Keycloak sends (verification, password reset) land in Mailpit: http://localhost:8025.
+# Keycloak admin console: http://localhost:8180 (admin / admin).
 #
 # Host ports and topic settings come from .env (copy .env.example). The defaults below work without one.
 # Production deployment lives in deploy/compose.prod.yml.
@@ -40,6 +43,83 @@ services:
       - notification-pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U notifications -d notifications"]
+      interval: 5s
+      retries: 10
+
+  core-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: core
+      POSTGRES_USER: core
+      POSTGRES_PASSWORD: core
+    ports:
+      - "${CORE_DB_PORT:-5434}:5432"
+    volumes:
+      - core-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U core -d core"]
+      interval: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------- identity
+  keycloak-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    volumes:
+      - keycloak-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      retries: 10
+
+  # Sign-up, login, email verification, password reset. The "payledger" realm (client, scopes, a demo
+  # user) is imported from deploy/local/keycloak on first start; later changes made in the admin
+  # console are kept in keycloak-db.
+  keycloak:
+    image: keycloak/keycloak:26.4.2
+    command: ["start-dev", "--import-realm"]
+    depends_on:
+      keycloak-db: { condition: service_healthy }
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      # Tokens say "issued by http://localhost:8180" (what browsers see), while containers may call
+      # Keycloak at http://keycloak:8080 for tokens and keys.
+      KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8180}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "${KEYCLOAK_PORT:-8180}:8080"
+    volumes:
+      - ./deploy/local/keycloak:/opt/keycloak/data/import:ro
+    healthcheck:
+      # No curl in the image: bash's /dev/tcp against the management port.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 && grep -q UP <&3"]
+      interval: 5s
+      timeout: 5s
+      start_period: 30s
+      retries: 30
+
+  # Catches every email locally; nothing is ever really sent.
+  mailpit:
+    image: axllent/mailpit:v1.31.5
+    ports:
+      - "${MAILPIT_PORT:-8025}:8025"
+
+  # Gateway sessions (and, later, rate limits and caches).
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       retries: 10
 
@@ -103,6 +183,37 @@ services:
       - "${KAFKA_UI_PORT:-8085}:8080"
 
   # ---------------------------------------------------------------- services
+  # The only service a browser talks to: login, sessions, CSRF, routing with token relay.
+  gateway:
+    profiles: [app, gateway]
+    build: services/gateway
+    depends_on:
+      redis: { condition: service_healthy }
+      keycloak: { condition: service_healthy }
+    environment:
+      REDIS_HOST: redis
+      CORE_SERVICE_URL: http://core-service:8060
+      KEYCLOAK_PUBLIC_URL: http://localhost:${KEYCLOAK_PORT:-8180}
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+    ports:
+      - "${GATEWAY_PORT:-8000}:8000"
+      - "${GATEWAY_MANAGEMENT_PORT:-8001}:8001"
+
+  core-service:
+    profiles: [app, core]
+    build: services/core-service
+    depends_on:
+      core-db: { condition: service_healthy }
+      keycloak: { condition: service_healthy }
+    environment:
+      DB_URL: jdbc:postgresql://core-db:5432/core
+      KEYCLOAK_ISSUER: http://localhost:${KEYCLOAK_PORT:-8180}/realms/payledger
+      KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/payledger/protocol/openid-connect/certs
+    ports:
+      - "${CORE_PORT:-8060}:8060"
+      - "${CORE_MANAGEMENT_PORT:-8061}:8061"
+
   ledger-service:
     profiles: [app, ledger]
     build: services/ledger-service
@@ -138,4 +249,6 @@ services:
 volumes:
   pgdata:
   notification-pgdata:
+  core-pgdata:
+  keycloak-pgdata:
   kafkadata:
