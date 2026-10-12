@@ -48,7 +48,8 @@ export function PreferencesProvider({ initial, children }: { initial: unknown; c
       updateProfile({ preferences: prefs })
         .then(() => {
           saved.current = prefs
-          setSaveState('saved')
+          // A newer change may have arrived while this request was in flight; it is still pending.
+          if (latest.current === prefs) setSaveState('saved')
         })
         .catch(() => {
           setSaveState('error')
