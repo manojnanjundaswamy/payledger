@@ -44,6 +44,8 @@ services:
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       API_KEYS: ${API_KEYS:?set API_KEYS in .env}
+      # No Kafka in this single-VM stack yet: events are kept in outbox_events and published once a broker is added.
+      OUTBOX_RELAY_ENABLED: "false"
     networks: [edge, backend]
     # Immutable container filesystem: only /tmp (Tomcat work dir) is writable.
     read_only: true

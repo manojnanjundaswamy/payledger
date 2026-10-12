@@ -1,8 +1,17 @@
-# Local development.
-#   docker compose up -d                   -> Postgres only (run the app from your IDE / ./mvnw)
-#   docker compose --profile app up --build -> Postgres + the app built from source, like production
+# Local development stack. Every service is optional, so you can run any of them from your IDE instead.
+#
+#   docker compose up -d                                  -> infrastructure only: Postgres x2 + Kafka
+#   docker compose --profile app up -d --build            -> + ledger-service and notification-service, built from source
+#   docker compose --profile ledger up -d --build         -> + ledger-service only (run notification-service from the IDE)
+#   docker compose --profile notification up -d --build   -> + notification-service only
+#   docker compose --profile tools up -d                  -> + Kafka UI on http://localhost:8085
+#
+# Host ports and topic settings come from .env (copy .env.example). The defaults below work without one.
 # Production deployment lives in deploy/compose.prod.yml.
+name: payledger
+
 services:
+  # ---------------------------------------------------------------- infrastructure
   postgres:
     image: postgres:17-alpine
     environment:
@@ -10,7 +19,7 @@ services:
       POSTGRES_USER: ledger
       POSTGRES_PASSWORD: ledger
     ports:
-      - "5432:5432"
+      - "${LEDGER_DB_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -18,16 +27,110 @@ services:
       interval: 5s
       retries: 10
 
+  # Database-per-service: notification-service never touches the ledger's tables, only its events.
+  notification-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: notifications
+      POSTGRES_USER: notifications
+      POSTGRES_PASSWORD: notifications
+    ports:
+      - "${NOTIFICATION_DB_PORT:-5433}:5432"
+    volumes:
+      - notification-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notifications -d notifications"]
+      interval: 5s
+      retries: 10
+
+  # Single-node Kafka in KRaft mode (no ZooKeeper).
+  # Two listeners: containers connect to kafka:29092, apps on your machine to localhost:${KAFKA_PORT}.
+  kafka:
+    image: apache/kafka:4.2.1
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:${KAFKA_PORT:-9092}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      # Single broker, so every internal topic can only have one replica.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Topics are created on purpose (kafka-init, or the owning service), never by a typo in a consumer.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    volumes:
+      - kafkadata:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      start_period: 15s
+      retries: 20
+
+  # Creates the shared topic up front so consumers can subscribe before the ledger has ever started.
+  kafka-init:
+    image: apache/kafka:4.2.1
+    depends_on:
+      kafka: { condition: service_healthy }
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists
+        --topic ${LEDGER_EVENTS_TOPIC:-ledger.entries.v1} --partitions ${LEDGER_EVENTS_PARTITIONS:-3} --replication-factor 1
+        && /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --describe --topic ${LEDGER_EVENTS_TOPIC:-ledger.entries.v1}
+
+  kafka-ui:
+    profiles: [tools]
+    image: kafbat/kafka-ui:v1.4.2
+    depends_on:
+      kafka: { condition: service_healthy }
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    ports:
+      - "${KAFKA_UI_PORT:-8085}:8080"
+
+  # ---------------------------------------------------------------- services
   ledger-service:
-    profiles: [app]
+    profiles: [app, ledger]
     build: services/ledger-service
     depends_on:
       postgres: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/ledger
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      LEDGER_EVENTS_TOPIC: ${LEDGER_EVENTS_TOPIC:-ledger.entries.v1}
+      LEDGER_EVENTS_PARTITIONS: ${LEDGER_EVENTS_PARTITIONS:-3}
+      OUTBOX_RELAY_ENABLED: ${OUTBOX_RELAY_ENABLED:-true}
     ports:
-      - "8080:8080"
-      - "8081:8081"
+      - "${LEDGER_PORT:-8080}:8080"
+      - "${LEDGER_MANAGEMENT_PORT:-8081}:8081"
+
+  notification-service:
+    profiles: [app, notification]
+    build: services/notification-service
+    depends_on:
+      notification-db: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
+    environment:
+      DB_URL: jdbc:postgresql://notification-db:5432/notifications
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      LEDGER_EVENTS_TOPIC: ${LEDGER_EVENTS_TOPIC:-ledger.entries.v1}
+    ports:
+      - "${NOTIFICATION_PORT:-8090}:8090"
+      - "${NOTIFICATION_MANAGEMENT_PORT:-8091}:8091"
 
 volumes:
   pgdata:
+  notification-pgdata:
+  kafkadata:

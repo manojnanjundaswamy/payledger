@@ -12,6 +12,8 @@ import java.nio.file.Path;
  * <pre>
  * ./mvnw spring-boot:test-run -Dspring-boot.run.main-class=dev.payledger.ledger.LocalDevApplication
  * </pre>
+ * The outbox relay is off unless {@code KAFKA_BOOTSTRAP_SERVERS} is set: events queue in
+ * {@code outbox_events} and are published once a Kafka is available.
  * Dev convenience only. Production and CI use a regular Postgres (docker-compose / Testcontainers).
  */
 public class LocalDevApplication {
@@ -33,6 +35,9 @@ public class LocalDevApplication {
         System.setProperty("spring.datasource.url", postgres.getJdbcUrl("postgres", "postgres"));
         System.setProperty("spring.datasource.username", "postgres");
         System.setProperty("spring.datasource.password", "");
+        if (System.getenv("KAFKA_BOOTSTRAP_SERVERS") == null) {
+            System.setProperty("payledger.outbox.relay.enabled", "false");
+        }
 
         SpringApplication.from(LedgerServiceApplication::main).run(args);
     }
