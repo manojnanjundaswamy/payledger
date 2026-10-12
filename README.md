@@ -1,41 +1,42 @@
 # PayLedger
 
-A production-style **payments and wallet platform** built on a **double-entry ledger**.
-It is built to show how money systems stay correct under retries, concurrency and partial failure.
+A **personal budgeting app with household budgets and group splitting** (India first), built on a production-style
+**double-entry ledger**. It is built to show how money systems stay correct under retries, concurrency and partial failure.
 
-> Status: **Phase 1 – Ledger core** ✅ · **Phase 2 – Kafka & outbox** ✅ · Next: budgeting + splitting app, see [Roadmap](#roadmap)
+> Status: Phase 1 ledger core ✅ · Phase 2 Kafka & outbox ✅ · **Phase 3 foundations in progress** (ledger v2 ✅) · see [Roadmap](#roadmap) and the [product plan](docs/plan/product-plan.md)
 
 ## What it guarantees
 
 | Guarantee | How |
 |---|---|
-| Money is never created or destroyed | Every journal entry's postings sum to zero, enforced by a **deferred Postgres constraint trigger** at commit time |
-| No overdrafts, even under heavy concurrency | `SELECT … FOR UPDATE` row locks taken in a consistent order + a `CHECK (balance >= 0)` constraint |
-| No deadlocks between A→B and B→A transfers | All transactions lock accounts through one query with `ORDER BY id` |
-| A retried request never pays twice | Required `Idempotency-Key` header + `UNIQUE` constraint + request fingerprint |
-| Full audit trail | Postings are append-only (UPDATE/DELETE rejected by trigger) and store `balance_after` |
+| Money is never created or destroyed | Every entry's postings sum to zero **per currency**, and stay inside one book, enforced by a **deferred Postgres constraint trigger** at commit time |
+| Cached balances are always right, even under heavy concurrency | `SELECT … FOR UPDATE` row locks, balance updated in the same transaction as the postings |
+| No deadlocks between entries touching the same accounts in opposite order | Accounts are created and locked in one consistent order (`ORDER BY`) |
+| A retried request is never recorded twice | Required `Idempotency-Key` header + `UNIQUE` constraint + request fingerprint |
+| Full audit trail; edits never overwrite | Postings are append-only (UPDATE/DELETE rejected by trigger) and store `balance_after`; an edit is a **reversal** (at most one per entry, `UNIQUE`) plus a new entry |
 | Exact arithmetic | Amounts are `BIGINT` minor units; overflow is checked with `Math.addExact` |
 | Every committed movement is announced exactly once in effect, and only committed ones | **Transactional outbox** (event row in the same transaction) + at-least-once relay to Kafka + idempotent consumers |
-| A Kafka outage never blocks a payment | Events queue in `outbox_events` and drain when Kafka is back (`payledger.outbox.pending` metric) |
+| A Kafka outage never blocks a write | Events queue in `outbox_events` and drain when Kafka is back (`payledger.outbox.pending` metric) |
 
 ## Architecture
 
 ```
                          ┌──────────────────── ledger-service :8080 ───────────────────┐
-Client ──HTTP──▶         │ Controllers ─▶ MoneyMovementService ─▶ LedgerService         │
+Client ──HTTP──▶         │ LedgerController ─▶ LedgerService (books, typed accounts)     │
                          │                                         │ one transaction:   │
                          │                                         ├─ postings + balances ──▶ PostgreSQL "ledger"
                          │                                         └─ outbox_events ─────────▶   (same DB)
                          │ OutboxRelay (poll, SKIP LOCKED, acks=all) ◀── unpublished rows      │
                          └──────────────────────────────┬──────────────────────────────┘
                                                         ▼
-                                          Kafka topic ledger.entries.v1 (key = entry id)
+                                          Kafka topic ledger.entries.v2 (key = book)
                                                         ▼
-                         ┌──────────────── notification-service :8090 ─────────────────┐
-Client ──HTTP──▶         │ LedgerEventListener ─▶ NotificationService ─▶ PostgreSQL "notifications"
-                         │   retry ▸ dead-letter topic          UNIQUE(event_id, account_id) = idempotent
-                         └──────────────────────────────────────────────────────────────┘
+                                  consumers: core-service (Phase 3), notifications (Phase 6)
 ```
+
+Coming in Phase 3: Keycloak, an API gateway, **core-service** (spaces, accounts, transactions, budgets, groups) and the
+React app. notification-service is **parked**: it still reads the wallet-era `ledger.entries.v1` events, which nothing
+publishes any more, and is repurposed for emails and the activity feed in Phase 6.
 
 Each service has its own database, Dockerfile, CI job and configuration (environment variables with local defaults),
 and can be deployed, scaled or stopped on its own. They share only the documented event contract:
@@ -43,8 +44,8 @@ and can be deployed, scaled or stopped on its own. They share only the documente
 
 | Service | Port (API / actuator) | Owns | Needs |
 |---|---|---|---|
-| [ledger-service](services/ledger-service) | 8080 / 8081 | accounts, journal, outbox, topic `ledger.entries.v1` | Postgres; Kafka optional (`OUTBOX_RELAY_ENABLED=false`) |
-| [notification-service](services/notification-service) | 8090 / 8091 | per-user notification feed, its dead-letter topic | Postgres, Kafka |
+| [ledger-service](services/ledger-service) | 8080 / 8081 | books, accounts, journal, outbox, topic `ledger.entries.v2` | Postgres; Kafka optional (`OUTBOX_RELAY_ENABLED=false`) |
+| [notification-service](services/notification-service) (parked) | 8090 / 8091 | per-user notification feed, its dead-letter topic | Postgres, Kafka |
 
 ## Run it locally
 
@@ -96,7 +97,7 @@ Stop with `docker compose --profile app --profile tools down` (add `-v` to delet
 |---|---|---|
 | `DB_URL`, `DB_USER`, `DB_PASSWORD`, `DB_POOL_SIZE` | local Postgres | both |
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | both |
-| `LEDGER_EVENTS_TOPIC` | `ledger.entries.v1` | both |
+| `LEDGER_EVENTS_TOPIC` | `ledger.entries.v2` (ledger), `ledger.entries.v1` (notification) | both |
 | `LEDGER_EVENTS_PARTITIONS` | `3` | ledger (topic creation) |
 | `OUTBOX_RELAY_ENABLED` | `true` | ledger |
 | `OUTBOX_POLL_INTERVAL`, `OUTBOX_BATCH_SIZE`, `OUTBOX_RETENTION` | `500ms`, `100`, `7d` | ledger |
@@ -107,44 +108,54 @@ Stop with `docker compose --profile app --profile tools down` (add `-v` to delet
 
 ## API
 
+The ledger API (`/api/v2`) is internal: core-service calls it, browsers won't. Amounts are signed minor units
+(paise), **positive = debit**. Books and accounts are created by the first entry that uses them.
+
 ```bash
-# open two wallets
-curl -s -X POST localhost:8080/api/v1/accounts -H 'Content-Type: application/json' -d '{"ownerId":"alice","currency":"USD"}'
-curl -s -X POST localhost:8080/api/v1/accounts -H 'Content-Type: application/json' -d '{"ownerId":"bob","currency":"USD"}'
+# salary ₹80,000 into the bank (the book "space:demo" and both accounts are created on the fly)
+curl -s -X POST localhost:8080/api/v2/entries -H 'Content-Type: application/json' -H 'Idempotency-Key: salary-oct' \
+  -d '{"bookRef":"space:demo","bookKind":"PERSONAL","entryType":"INCOME","effectiveDate":"2026-10-01","legs":[
+       {"accountRef":"bank:hdfc","accountType":"ASSET","currency":"INR","amount":8000000},
+       {"accountRef":"income:salary","accountType":"INCOME","currency":"INR","amount":-8000000}]}'
 
-# deposit $100.00 (amounts are in minor units)
-curl -s -X POST localhost:8080/api/v1/deposits -H 'Content-Type: application/json' \
-  -H 'Idempotency-Key: dep-001' -d '{"accountId":"<alice>","amount":10000,"currency":"USD"}'
+# dinner ₹2,500 on the credit card; run it twice: the second response says "Idempotent-Replayed: true"
+curl -si -X POST localhost:8080/api/v2/entries -H 'Content-Type: application/json' -H 'Idempotency-Key: dinner-v1' \
+  -d '{"bookRef":"space:demo","bookKind":"PERSONAL","entryType":"EXPENSE","effectiveDate":"2026-10-05","legs":[
+       {"accountRef":"category:eating-out","accountType":"EXPENSE","currency":"INR","amount":250000},
+       {"accountRef":"card:icici","accountType":"LIABILITY","currency":"INR","amount":-250000}]}'
 
-# transfer $25.00, then run the same command again: the response says "Idempotent-Replayed: true" and no money moves
-curl -si -X POST localhost:8080/api/v1/transfers -H 'Content-Type: application/json' \
-  -H 'Idempotency-Key: tr-001' -d '{"fromAccountId":"<alice>","toAccountId":"<bob>","amount":2500,"currency":"USD"}'
+# edit or delete = reverse it (then post the new version with a new key)
+curl -s -X POST localhost:8080/api/v2/reversals -H 'Content-Type: application/json' -H 'Idempotency-Key: dinner-v1-rev' \
+  -d '{"reversesIdempotencyKey":"dinner-v1","description":"amount corrected"}'
 
-# statement (keyset pagination: pass nextCursor as beforeId)
-curl -s "localhost:8080/api/v1/accounts/<alice>/statement?limit=20"
-
-# notification feed, built asynchronously from the ledger's events (same pagination)
-curl -s "localhost:8090/api/v1/notifications?ownerId=bob"
+curl -s "localhost:8080/api/v2/books/space:demo/balances"
+curl -s "localhost:8080/api/v2/books/space:demo/totals?from=2026-10-01&to=2026-10-31&type=EXPENSE&byMonth=true"
+curl -s "localhost:8080/api/v2/books/space:demo/accounts/card:icici/postings?currency=INR&limit=20"
 ```
 
-Errors are returned as RFC 9457 `application/problem+json` with a stable `code` (e.g. `insufficient-funds`).
+Errors are returned as RFC 9457 `application/problem+json` with a stable `code` (e.g. `ref-conflict`, `reversal-not-allowed`).
 
 ## Tests
 
 All tests run against real PostgreSQL and Kafka in Docker (Testcontainers): `./mvnw verify` in each service.
 
 `LedgerIntegrationTest` proves:
-- 16 threads × 50 random transfers: total money is conserved, no balance goes negative, and each cached balance equals the sum of its postings
-- 20 concurrent requests with the same idempotency key move money exactly once
-- The database itself refuses unbalanced entries and edits to postings
+- 16 threads × 50 random entries on accounts that don't exist yet (so creation races too): the book still sums to zero
+  and each cached balance equals the sum of its postings
+- 20 concurrent requests with the same idempotency key are recorded exactly once
+- A reversal nets out in the original month, happens at most once, and can't itself be reversed
+- Monthly totals follow the business date, not the insert time
+- An account keeps its type and a book its kind
+- The database itself refuses unbalanced entries, postings into another book, and edits to postings
+- Wallet data from before the pivot is preserved in the legacy book
 
-`OutboxIntegrationTest` proves a committed movement reaches Kafka with every leg's owner, a rolled-back one leaves no event,
+`OutboxIntegrationTest` proves a committed entry reaches Kafka keyed by its book, a rejected one leaves no event,
 an idempotent replay emits nothing, and the outbox can't be written outside the business transaction.
 
 `NotificationIntegrationTest` proves a redelivered event creates no duplicate notification, system accounts are skipped,
 unknown fields are ignored, and poison messages go to the dead-letter topic without blocking the events behind them.
 
-## Production & deployment (ledger only, for now)
+## Production & deployment (ledger only, for now; to be revisited after the pivot)
 
 Hardened multi-arch Docker image, Caddy with automatic HTTPS, private networks, backups and CI/CD to GitHub Container Registry.
 See **[docs/deployment.md](docs/deployment.md)** for free hosting on Oracle Cloud Always Free or Render + Neon.
@@ -161,14 +172,14 @@ Study guides for each phase are in [`docs/learning`](docs/learning).
 ## Roadmap
 
 PayLedger is becoming a **personal budgeting app with group splitting** (guests can join by link, no sign-up needed).
-The wallet features (deposits, transfers) will be retired; the ledger, outbox and Kafka pipeline become its foundation.
+The wallet features (deposits, transfers) are retired; the ledger, outbox and Kafka pipeline are its foundation.
 Full plan: **[docs/plan/product-plan.md](docs/plan/product-plan.md)**.
 
 | Phase | Scope | Status |
 |---|---|---|
 | 1. Ledger core | Double-entry schema with DB-enforced invariants, ordered locking, idempotency keys, hardened image, CI | ✅ |
 | 2. Events | Transactional outbox + relay, Kafka, notification-service (idempotent consumer, dead-letter topic), local compose stack | ✅ |
-| 3. Foundations | Ledger redesign (books, account types, reversals), Keycloak, gateway, core-service, React shell with theming | ⏳ |
+| 3. Foundations | Ledger v2 (books, account types, reversals, period totals) ✅ · Keycloak, gateway, core-service, React shell with theming ⏳ | ⏳ |
 | 4. Personal budgeting | Accounts, transactions, categories, budgets, dashboard, reports, CSV import | ⏳ |
 | 5. Splitting | Groups, invites, join links, guests, split types, settle up, simplify debts | ⏳ |
 | 6. Engagement & SaaS | Notifications, budget alerts, recurring, goals, data export, account deletion | ⏳ |

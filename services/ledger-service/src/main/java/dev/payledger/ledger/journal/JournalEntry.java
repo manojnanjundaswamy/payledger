@@ -4,8 +4,6 @@ import dev.payledger.ledger.account.Account;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
@@ -15,13 +13,14 @@ import org.hibernate.annotations.Immutable;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-/** One business event (a deposit, a transfer...) made of two or more postings that sum to zero. */
+/** One business event (an expense, a split, a settlement...) made of two or more postings that balance. */
 @Entity
 @Immutable
 @Table(name = "journal_entries")
@@ -32,9 +31,11 @@ public class JournalEntry {
     @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
     private UUID id;
 
-    @Enumerated(EnumType.STRING)
+    @Column(name = "book_id", nullable = false)
+    private UUID bookId;
+
     @Column(nullable = false)
-    private EntryType type;
+    private String type;
 
     @Column(name = "idempotency_key", nullable = false)
     private String idempotencyKey;
@@ -42,7 +43,16 @@ public class JournalEntry {
     @Column(name = "request_hash", nullable = false)
     private String requestHash;
 
+    @Column(name = "effective_date", nullable = false)
+    private LocalDate effectiveDate;
+
     private String description;
+
+    @Column(name = "source_ref")
+    private String sourceRef;
+
+    @Column(name = "reverses_entry_id")
+    private UUID reversesEntryId;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -55,11 +65,16 @@ public class JournalEntry {
         // for JPA
     }
 
-    JournalEntry(EntryType type, String idempotencyKey, String requestHash, String description) {
+    JournalEntry(UUID bookId, String type, String idempotencyKey, String requestHash, LocalDate effectiveDate,
+                 String description, String sourceRef, UUID reversesEntryId) {
+        this.bookId = bookId;
         this.type = type;
         this.idempotencyKey = idempotencyKey;
         this.requestHash = requestHash;
+        this.effectiveDate = effectiveDate;
         this.description = description;
+        this.sourceRef = sourceRef;
+        this.reversesEntryId = reversesEntryId;
         this.createdAt = Instant.now().truncatedTo(ChronoUnit.MICROS); // Postgres timestamptz precision
     }
 
@@ -70,9 +85,14 @@ public class JournalEntry {
     }
 
     public UUID getId() { return id; }
-    public EntryType getType() { return type; }
+    public UUID getBookId() { return bookId; }
+    public String getType() { return type; }
+    public String getIdempotencyKey() { return idempotencyKey; }
     public String getRequestHash() { return requestHash; }
+    public LocalDate getEffectiveDate() { return effectiveDate; }
     public String getDescription() { return description; }
+    public String getSourceRef() { return sourceRef; }
+    public UUID getReversesEntryId() { return reversesEntryId; }
     public Instant getCreatedAt() { return createdAt; }
     public List<Posting> getPostings() { return Collections.unmodifiableList(postings); }
 }

@@ -10,4 +10,6 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
 
     @EntityGraph(attributePaths = "postings")
     Optional<JournalEntry> findByIdempotencyKey(String idempotencyKey);
+
+    boolean existsByReversesEntryId(UUID entryId);
 }

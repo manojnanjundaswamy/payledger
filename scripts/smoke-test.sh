@@ -1,63 +1,65 @@
 #!/usr/bin/env bash
-# End-to-end check of the running stack: money moves in the ledger, and the resulting events
-# reach notification-service through the outbox and Kafka.
+# End-to-end check of the running stack: entries are recorded in the ledger, an edit nets out
+# through a reversal, and every event reaches Kafka through the outbox.
 #
 #   docker compose --profile app up -d --build && scripts/smoke-test.sh
 #
-# Override LEDGER_URL / NOTIFICATION_URL to point at services running elsewhere (e.g. from your IDE).
+# Override LEDGER_URL / LEDGER_MGMT_URL to point at a ledger running elsewhere (e.g. from your IDE).
 set -euo pipefail
 
 LEDGER_URL=${LEDGER_URL:-http://localhost:8080}
-NOTIFICATION_URL=${NOTIFICATION_URL:-http://localhost:8090}
+LEDGER_MGMT_URL=${LEDGER_MGMT_URL:-http://localhost:8081}
 run=$(date +%s)-$RANDOM
+book="space:smoke-$run"
 
-json_field() { sed -n "s/.*\"$1\":\"\{0,1\}\([^\",}]*\).*/\1/p" | head -1; }
+fail() { echo "FAIL: $*" >&2; exit 1; }
 
-wait_for() {
-  local name=$1 url=$2
-  for _ in $(seq 1 60); do
-    curl -fsS "$url" >/dev/null 2>&1 && return 0
-    sleep 2
-  done
-  echo "FAIL: $name not reachable at $url" >&2
-  exit 1
+for _ in $(seq 1 60); do
+  curl -fsS "$LEDGER_MGMT_URL/actuator/health/readiness" >/dev/null 2>&1 && break
+  sleep 2
+done
+curl -fsS "$LEDGER_MGMT_URL/actuator/health/readiness" >/dev/null || fail "ledger-service not ready at $LEDGER_MGMT_URL"
+
+# post <idempotency-key> <entryType> <date> <legs-json>
+post() {
+  curl -fsS -o /dev/null -w '%{http_code}' -X POST "$LEDGER_URL/api/v2/entries" \
+    -H 'Content-Type: application/json' -H "Idempotency-Key: $1" \
+    -d "{\"bookRef\":\"$book\",\"bookKind\":\"PERSONAL\",\"entryType\":\"$2\",\"effectiveDate\":\"$3\",\"legs\":$4}"
 }
 
-wait_for ledger-service "${LEDGER_URL%:*}:${LEDGER_MGMT_PORT:-8081}/actuator/health/readiness"
-wait_for notification-service "${NOTIFICATION_URL%:*}:${NOTIFICATION_MGMT_PORT:-8091}/actuator/health/readiness"
+salary='[{"accountRef":"bank:hdfc","accountType":"ASSET","currency":"INR","amount":8000000},
+         {"accountRef":"income:salary","accountType":"INCOME","currency":"INR","amount":-8000000}]'
+dinner='[{"accountRef":"category:eating-out","accountType":"EXPENSE","currency":"INR","amount":250000},
+         {"accountRef":"card:icici","accountType":"LIABILITY","currency":"INR","amount":-250000}]'
+dinner_fixed='[{"accountRef":"category:eating-out","accountType":"EXPENSE","currency":"INR","amount":180000},
+               {"accountRef":"card:icici","accountType":"LIABILITY","currency":"INR","amount":-180000}]'
 
-alice_owner="alice-$run"
-bob_owner="bob-$run"
-alice=$(curl -fsS -X POST "$LEDGER_URL/api/v1/accounts" -H 'Content-Type: application/json' \
-  -d "{\"ownerId\":\"$alice_owner\",\"currency\":\"USD\"}" | json_field id)
-bob=$(curl -fsS -X POST "$LEDGER_URL/api/v1/accounts" -H 'Content-Type: application/json' \
-  -d "{\"ownerId\":\"$bob_owner\",\"currency\":\"USD\"}" | json_field id)
-echo "opened wallets: $alice_owner=$alice $bob_owner=$bob"
+[ "$(post "salary-$run" INCOME 2026-10-01 "$salary")" = 201 ] || fail "salary not recorded"
+[ "$(post "dinner-$run-v1" EXPENSE 2026-10-05 "$dinner")" = 201 ] || fail "dinner not recorded"
+[ "$(post "dinner-$run-v1" EXPENSE 2026-10-05 "$dinner")" = 200 ] || fail "retry with the same key was not replayed"
+echo "recorded salary 80,000.00 and dinner 2,500.00 (dinner sent twice with the same key)"
 
-curl -fsS -o /dev/null -X POST "$LEDGER_URL/api/v1/deposits" -H 'Content-Type: application/json' \
-  -H "Idempotency-Key: smoke-dep-$run" -d "{\"accountId\":\"$alice\",\"amount\":10000,\"currency\":\"USD\"}"
-for attempt in 1 2; do  # the retry must not move money twice, nor notify twice
-  curl -fsS -o /dev/null -X POST "$LEDGER_URL/api/v1/transfers" -H 'Content-Type: application/json' \
-    -H "Idempotency-Key: smoke-tr-$run" \
-    -d "{\"fromAccountId\":\"$alice\",\"toAccountId\":\"$bob\",\"amount\":2500,\"currency\":\"USD\",\"description\":\"smoke test\"}"
-done
-echo "deposited 100.00 USD to $alice_owner, transferred 25.00 USD to $bob_owner (sent twice, same key)"
+# Edit the dinner to 1,800.00: reverse v1, post v2.
+code=$(curl -fsS -o /dev/null -w '%{http_code}' -X POST "$LEDGER_URL/api/v2/reversals" \
+  -H 'Content-Type: application/json' -H "Idempotency-Key: dinner-$run-v1-reversal" \
+  -d "{\"reversesIdempotencyKey\":\"dinner-$run-v1\",\"description\":\"amount corrected\"}")
+[ "$code" = 201 ] || fail "reversal not recorded"
+[ "$(post "dinner-$run-v2" EXPENSE 2026-10-05 "$dinner_fixed")" = 201 ] || fail "corrected dinner not recorded"
+echo "edited dinner to 1,800.00 (reversal + new entry)"
 
-for _ in $(seq 1 30); do
-  feed=$(curl -fsS "$NOTIFICATION_URL/api/v1/notifications?ownerId=$bob_owner")
-  if grep -q "You received 25.00 USD from $alice_owner" <<<"$feed"; then
-    alice_feed=$(curl -fsS "$NOTIFICATION_URL/api/v1/notifications?ownerId=$alice_owner")
-    count=$(grep -o '"message"' <<<"$alice_feed" | wc -l)
-    if [ "$count" -ne 2 ]; then
-      echo "FAIL: expected 2 notifications for $alice_owner (deposit + transfer), got $count" >&2
-      echo "$alice_feed" >&2
-      exit 1
-    fi
-    echo "PASS: events flowed ledger -> outbox -> Kafka -> notification-service"
-    echo "$alice_feed"
-    exit 0
-  fi
+balances=$(curl -fsS "$LEDGER_URL/api/v2/books/$book/balances")
+grep -q '"accountRef":"card:icici","accountType":"LIABILITY","currency":"INR","balance":-180000' <<<"$balances" \
+  || fail "unexpected card balance: $balances"
+grep -q '"accountRef":"bank:hdfc","accountType":"ASSET","currency":"INR","balance":8000000' <<<"$balances" \
+  || fail "unexpected bank balance: $balances"
+
+totals=$(curl -fsS "$LEDGER_URL/api/v2/books/$book/totals?from=2026-10-01&to=2026-10-31&type=EXPENSE")
+grep -q '"accountRef":"category:eating-out".*"total":180000' <<<"$totals" || fail "unexpected October spending: $totals"
+echo "balances and October spending are correct"
+
+for _ in $(seq 1 20); do
+  pending=$(curl -fsS "$LEDGER_MGMT_URL/actuator/prometheus" | sed -n 's/^payledger_outbox_pending{[^}]*} //p')
+  [ "${pending%.*}" = 0 ] && { echo "PASS: all ledger events were published to Kafka"; exit 0; }
   sleep 1
 done
-echo "FAIL: notification for $bob_owner did not arrive within 30s" >&2
-exit 1
+fail "outbox still has $pending unpublished events (is Kafka up and OUTBOX_RELAY_ENABLED=true?)"

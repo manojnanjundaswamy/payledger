@@ -16,15 +16,20 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
     /**
      * SELECT ... ORDER BY id FOR UPDATE.
      * <p>
-     * Every money movement locks its accounts through this one query, so all transactions
-     * acquire row locks in the same (database-defined) order. Transfer A->B and B->A running
-     * concurrently therefore queue up instead of deadlocking.
+     * Every posting locks its accounts through this one query, so all transactions acquire row
+     * locks in the same (database-defined) order. Two entries touching the same accounts in
+     * opposite directions therefore queue up instead of deadlocking.
      */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from Account a where a.bookId = :bookId and a.ref in :refs order by a.id")
+    List<Account> lockAllByBookAndRefsOrdered(@Param("bookId") UUID bookId, @Param("refs") Collection<String> refs);
+
+    /** Same ordering guarantee, for reversals that already know the account ids. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from Account a where a.id in :ids order by a.id")
     List<Account> lockAllByIdsOrdered(@Param("ids") Collection<UUID> ids);
 
-    Optional<Account> findByTypeAndCurrency(AccountType type, String currency);
+    Optional<Account> findByBookIdAndRefAndCurrency(UUID bookId, String ref, String currency);
 
-    boolean existsByTypeAndCurrency(AccountType type, String currency);
+    List<Account> findByBookIdOrderByRef(UUID bookId);
 }
