@@ -82,7 +82,8 @@ class GatewaySecurityTest {
     void signedInCallsReachCoreServiceWithTheAccessTokenAndWithoutBrowserCookies() throws Exception {
         mvc.perform(get("/api/session").with(oidcLogin().oidcUser(user())))
                 .andExpect(jsonPath("$.authenticated").value(true))
-                .andExpect(jsonPath("$.email").value("priya@example.com"));
+                .andExpect(jsonPath("$.email").value("priya@example.com"))
+                .andExpect(jsonPath("$.accountUrl").value("http://localhost:8180/realms/payledger/account"));
 
         mvc.perform(get("/api/core/me").with(oidcLogin().oidcUser(user()))
                         .cookie(new Cookie("PAYLEDGER_SESSION", "secret-session-id")))

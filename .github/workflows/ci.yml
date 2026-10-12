@@ -41,14 +41,34 @@ jobs:
           name: surefire-reports-${{ matrix.service }}
           path: services/${{ matrix.service }}/target/surefire-reports
 
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npx tsc -b
+      - name: Unit tests
+        run: npm test
+      - name: Build
+        run: npx vite build
+
   image:
     # Publish only from main or version tags, never from pull requests.
     if: github.event_name == 'push'
-    needs: test
+    needs: [test, web]
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [ledger-service, notification-service, core-service, gateway]
+        service: [ledger-service, notification-service, core-service, gateway, web]
     permissions:
       contents: read
       packages: write
@@ -74,7 +94,7 @@ jobs:
       - id: build
         uses: docker/build-push-action@v7
         with:
-          context: services/${{ matrix.service }}
+          context: ${{ matrix.service == 'web' && 'web' || format('services/{0}', matrix.service) }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

@@ -2,10 +2,11 @@
 #
 #   docker compose up -d                                  -> infrastructure only: Postgres, Kafka, Keycloak, Redis, Mailpit
 #   docker compose --profile app up -d --build            -> + every service, built from source
+#   docker compose --profile web up -d --build            -> + the web app with everything it needs (gateway, core-service)
 #   docker compose --profile <name> up -d --build         -> + one service: gateway | core | ledger | notification
 #   docker compose --profile tools up -d                  -> + Kafka UI on http://localhost:8085
 #
-# Sign in at http://localhost:8000 (via the web app later) as demo@payledger.local / demo-password.
+# Open http://localhost:5173 and sign in as demo@payledger.local / demo-password.
 # Emails Keycloak sends (verification, password reset) land in Mailpit: http://localhost:8025.
 # Keycloak admin console: http://localhost:8180 (admin / admin).
 #
@@ -183,9 +184,19 @@ services:
       - "${KAFKA_UI_PORT:-8085}:8080"
 
   # ---------------------------------------------------------------- services
+  # The web app, built and served by nginx, which forwards /api and login routes to the gateway.
+  # Same port as `npm run dev`, so Keycloak's redirect URIs fit both; run one or the other.
+  web:
+    profiles: [app, web]
+    build: web
+    depends_on:
+      gateway: { condition: service_started }
+    ports:
+      - "${WEB_PORT:-5173}:8080"
+
   # The only service a browser talks to: login, sessions, CSRF, routing with token relay.
   gateway:
-    profiles: [app, gateway]
+    profiles: [app, gateway, web]
     build: services/gateway
     depends_on:
       redis: { condition: service_healthy }
@@ -201,7 +212,7 @@ services:
       - "${GATEWAY_MANAGEMENT_PORT:-8001}:8001"
 
   core-service:
-    profiles: [app, core]
+    profiles: [app, core, web]
     build: services/core-service
     depends_on:
       core-db: { condition: service_healthy }

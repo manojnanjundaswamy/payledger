@@ -3,7 +3,7 @@
 A **personal budgeting app with household budgets and group splitting** (India first), built on a production-style
 **double-entry ledger**. It is built to show how money systems stay correct under retries, concurrency and partial failure.
 
-> Status: Phase 1 ledger core ✅ · Phase 2 Kafka & outbox ✅ · **Phase 3 foundations in progress** (ledger v2 ✅, sign-up/login ✅, web app ⏳) · see [Roadmap](#roadmap) and the [product plan](docs/plan/product-plan.md)
+> Status: Phase 1 ledger core ✅ · Phase 2 Kafka & outbox ✅ · **Phase 3 foundations in progress** (ledger v2 ✅, sign-up/login ✅, web app ✅) · see [Roadmap](#roadmap) and the [product plan](docs/plan/product-plan.md)
 
 ## What it guarantees
 
@@ -56,6 +56,7 @@ and can be deployed, scaled or stopped on its own. They share only the documente
 
 | Service | Port (API / actuator) | Owns | Needs |
 |---|---|---|---|
+| [web](web) | 5173 | the React app: dashboards, theme builder, settings | gateway |
 | [gateway](services/gateway) | 8000 / 8001 | login, sessions, CSRF, routing | Keycloak, Redis |
 | [core-service](services/core-service) | 8060 / 8061 | users, spaces (and soon accounts, transactions, budgets) | Postgres, Keycloak (keys) |
 | [ledger-service](services/ledger-service) | 8080 / 8081 | books, accounts, journal, outbox, topic `ledger.entries.v2` | Postgres; Kafka optional (`OUTBOX_RELAY_ENABLED=false`) |
@@ -77,10 +78,19 @@ docker compose --profile tools up -d          # optional: Kafka UI on http://loc
 
 | What | Where |
 |---|---|
+| **The app** | **http://localhost:5173** |
 | Demo login | `demo@payledger.local` / `demo-password` |
 | Emails (verification, password reset) | Mailpit, http://localhost:8025 |
 | Keycloak admin console | http://localhost:8180 (`admin` / `admin`) |
 | Gateway (the web app talks to this) | http://localhost:8000, e.g. `/api/session` |
+
+**Web app with hot reload** (`docker compose --profile gateway --profile core up -d` first):
+
+```bash
+cd web && npm install && npm run dev          # http://localhost:5173, proxies /api and login to the gateway
+npm test                                      # unit tests (Vitest)
+npm run e2e                                   # browser tests against the running stack (Playwright)
+```
 
 **Infrastructure in Docker, services from your IDE / terminal** (fastest edit-run loop):
 
@@ -213,7 +223,7 @@ Full plan: **[docs/plan/product-plan.md](docs/plan/product-plan.md)**.
 |---|---|---|
 | 1. Ledger core | Double-entry schema with DB-enforced invariants, ordered locking, idempotency keys, hardened image, CI | ✅ |
 | 2. Events | Transactional outbox + relay, Kafka, notification-service (idempotent consumer, dead-letter topic), local compose stack | ✅ |
-| 3. Foundations | Ledger v2 (books, account types, reversals, period totals) ✅ · Keycloak, BFF gateway, core-service (users, spaces) ✅ · React shell with theming ⏳ | ⏳ |
+| 3. Foundations | Ledger v2 (books, account types, reversals, period totals) ✅ · Keycloak, BFF gateway, core-service (users, spaces) ✅ · web app: theme builder, drag-and-drop dashboards, settings ✅ | ✅ |
 | 4. Personal budgeting | Accounts, transactions, categories, budgets, dashboard, reports, CSV import | ⏳ |
 | 5. Splitting | Groups, invites, join links, guests, split types, settle up, simplify debts | ⏳ |
 | 6. Engagement & SaaS | Notifications, budget alerts, recurring, goals, data export, account deletion | ⏳ |

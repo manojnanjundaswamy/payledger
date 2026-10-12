@@ -13,15 +13,23 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 class SessionController {
 
+    private final GatewayProperties props;
+
+    SessionController(GatewayProperties props) {
+        this.props = props;
+    }
+
     @GetMapping("/api/session")
     Session session(@AuthenticationPrincipal OidcUser user, CsrfToken csrf) {
         csrf.getToken(); // tokens are deferred; reading it writes the XSRF-TOKEN cookie
         if (user == null) {
-            return new Session(false, null, null, "/oauth2/authorization/keycloak", "/oauth2/authorization/keycloak?signup");
+            return new Session(false, null, null, "/oauth2/authorization/keycloak", "/oauth2/authorization/keycloak?signup", null);
         }
-        return new Session(true, user.getEmail(), user.getFullName(), null, null);
+        // Password, email and sign-in methods are managed in Keycloak's account console.
+        return new Session(true, user.getEmail(), user.getFullName(), null, null, props.keycloakRealmUrl() + "/account");
     }
 
-    record Session(boolean authenticated, String email, String name, String loginUrl, String signupUrl) {
+    /** @param accountUrl where a signed-in user changes their password or email */
+    record Session(boolean authenticated, String email, String name, String loginUrl, String signupUrl, String accountUrl) {
     }
 }

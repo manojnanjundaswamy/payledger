@@ -1,0 +1,125 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+/*
+ * Design tokens. A black-and-white base; the user's accent colour, radius, density and text size
+ * are written onto :root by the theme engine (src/theme/engine.ts), so changing any of them is a
+ * variable swap, never a component change.
+ */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+:root, [data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f6f6f5;
+  --surface-3: #efefed;
+  --border: #e6e6e3;
+  --border-strong: #d4d4d0;
+  --fg: #0a0a0a;
+  --fg-muted: #5c5c58;
+  --fg-subtle: #8a8a85;
+  --overlay: rgb(10 10 10 / 0.4);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px -4px rgb(0 0 0 / 0.08);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.06), 0 16px 40px -8px rgb(0 0 0 / 0.22);
+
+  /* chart & status palette (docs: dataviz reference palette, validated) */
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+  --series-5: #e87ba4; --series-6: #008300; --series-7: #6250d6; --series-8: #e34948;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b; --good-text: #006300;
+
+  --radius: 14px;
+  --radius-sm: 9px;
+  --pad: 1.25rem;
+  --gap: 1rem;
+  font-size: 16px;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --surface: #121212;
+  --surface-2: #1a1a1a;
+  --surface-3: #232323;
+  --border: #262626;
+  --border-strong: #363636;
+  --fg: #f5f5f4;
+  --fg-muted: #a8a8a3;
+  --fg-subtle: #75756f;
+  --overlay: rgb(0 0 0 / 0.6);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 4px 16px -4px rgb(0 0 0 / 0.6);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.6), 0 16px 40px -8px rgb(0 0 0 / 0.8);
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+  --series-5: #d55181; --series-6: #008300; --series-7: #9085e9; --series-8: #e66767;
+  --good-text: #0ca30c;
+}
+
+/*
+ * Accent: monochrome by default (ink on paper / paper on ink); the theme engine overrides --accent
+ * and --accent-fg inline when the user picks a colour. Declared on every [data-theme] element so a
+ * preview panel with its own data-theme re-derives them from its own tokens.
+ */
+:root, [data-theme] {
+  --accent: var(--fg);
+  --accent-fg: var(--bg);
+  --accent-soft: color-mix(in oklch, var(--accent) 10%, var(--surface));
+  --ring: color-mix(in oklch, var(--accent) 55%, transparent);
+}
+
+@theme inline {
+  --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-subtle: var(--fg-subtle);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-ring: var(--ring);
+  --color-good: var(--good);
+  --color-good-text: var(--good-text);
+  --color-warning: var(--warning);
+  --color-critical: var(--critical);
+  --radius-card: var(--radius);
+  --radius-control: var(--radius-sm);
+  --shadow-card: var(--shadow);
+  --shadow-lift: var(--shadow-lift);
+  --spacing-pad: var(--pad);
+  --spacing-gap: var(--gap);
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "cv11", "ss01";
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  ::selection { background: color-mix(in oklch, var(--accent) 25%, transparent); }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+/* Reduced motion: honoured from the OS, or forced by the user's setting (data-motion="reduced"). */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) *, :root:not([data-motion="full"]) *::before, :root:not([data-motion="full"]) *::after {
+    animation-duration: 1ms !important; transition-duration: 1ms !important;
+  }
+}
+:root[data-motion="reduced"] *, :root[data-motion="reduced"] *::before, :root[data-motion="reduced"] *::after {
+  animation-duration: 1ms !important; transition-duration: 1ms !important;
+}
+
+@keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes pop-in { from { opacity: 0; transform: translate(var(--tw-translate-x, 0), var(--tw-translate-y, 0)) scale(0.96) } to { opacity: 1 } }
+@keyframes sheet-up { from { transform: translateY(100%) } to { transform: translateY(0) } }
+@keyframes slide-in { from { transform: translateX(100%) } to { transform: translateX(0) } }

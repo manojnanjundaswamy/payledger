@@ -1,0 +1,1 @@
+export { WIDGETS } from './widgets'
