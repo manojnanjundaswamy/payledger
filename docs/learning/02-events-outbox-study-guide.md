@@ -1,5 +1,8 @@
 # Phase 2 study guide: events, Kafka and the outbox
 
+> **Note:** written for the wallet-era code (deposits and transfers), which ledger v2 replaced in Phase 3
+> ([ADR 0005](../adr/0005-ledger-v2-books.md)). The concepts and invariants still apply; some class names and endpoints changed.
+
 Goal: you can explain how a committed transfer becomes a notification, and what happens at each step when something crashes.
 
 ## 1. Read the code in this order

@@ -23,7 +23,7 @@ The ledger commits to Postgres; the events go to Kafka. Two systems cannot share
   `OutboxWriter` uses `Propagation.MANDATORY`, so calling it outside a transaction fails.
 - `OutboxRelay` polls every 500 ms. It takes up to 100 unpublished rows (`FOR UPDATE SKIP LOCKED`, so several ledger instances
   can relay in parallel), sends them, waits for `acks=all`, then sets `published_at` in the same transaction.
-- Record key = journal entry id, so an entry's events stay ordered within one partition. The idempotent producer keeps order across retries.
+- Record key = the aggregate id (since ledger v2: the **book**), so one book's events stay ordered within one partition. The idempotent producer keeps order across retries.
 - The payload is the documented contract ([docs/events/ledger-entry-posted.md](../events/ledger-entry-posted.md)), not the table layout.
 - Delivery is **at-least-once**: a crash between Kafka's ack and the `published_at` commit re-sends the batch.
   Consumers de-duplicate on `eventId` (notification-service: `UNIQUE (event_id, account_id)`).

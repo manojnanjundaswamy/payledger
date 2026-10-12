@@ -1,11 +1,13 @@
 package dev.payledger.ledger;
 
-import dev.payledger.ledger.account.Account;
-import dev.payledger.ledger.account.AccountService;
-import dev.payledger.ledger.common.InsufficientFundsException;
+import dev.payledger.ledger.account.AccountType;
+import dev.payledger.ledger.book.BookKind;
+import dev.payledger.ledger.common.RefConflictException;
 import dev.payledger.ledger.journal.LedgerEntryPosted;
+import dev.payledger.ledger.journal.LedgerService;
+import dev.payledger.ledger.journal.PostingCommand;
+import dev.payledger.ledger.journal.PostingCommand.Leg;
 import dev.payledger.ledger.journal.PostingOutcome;
-import dev.payledger.ledger.movement.MoneyMovementService;
 import dev.payledger.ledger.outbox.OutboxProperties;
 import dev.payledger.ledger.outbox.OutboxWriter;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -23,6 +25,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
@@ -36,8 +39,7 @@ import static org.assertj.core.api.Assertions.tuple;
 @SpringBootTest
 class OutboxIntegrationTest {
 
-    @Autowired AccountService accountService;
-    @Autowired MoneyMovementService movements;
+    @Autowired LedgerService ledger;
     @Autowired OutboxWriter outboxWriter;
     @Autowired OutboxProperties outboxProperties;
     @Autowired ConsumerFactory<String, String> consumerFactory;
@@ -45,59 +47,73 @@ class OutboxIntegrationTest {
     @Autowired JsonMapper json;
 
     @Test
-    void committedMovementIsPublishedToKafkaWithTheOwnerOfEveryLeg() {
-        Account alice = accountService.open("alice", "USD");
-        Account bob = accountService.open("bob", "USD");
-        movements.deposit(key(), alice.getId(), 10_000, "USD", null);
+    void committedEntryIsPublishedToKafkaKeyedByBook() {
+        String book = "group:" + UUID.randomUUID();
+        PostingOutcome split = ledger.post(new PostingCommand(key(), book, BookKind.GROUP, "SPLIT",
+                LocalDate.of(2026, 10, 10), "dinner", "expense:42", List.of(
+                        new Leg("member:alice", AccountType.ASSET, "INR", 2_000_00),
+                        new Leg("member:bob", AccountType.LIABILITY, "INR", -1_000_00),
+                        new Leg("member:carol", AccountType.LIABILITY, "INR", -1_000_00))));
+        UUID entryId = split.entry().id();
+        UUID bookId = jdbc.sql("select id from books where ref = ?").param(book).query(UUID.class).single();
 
-        PostingOutcome transfer = movements.transfer(key(), alice.getId(), bob.getId(), 2_500, "USD", "dinner");
-        UUID entryId = transfer.entry().id();
-
-        ConsumerRecord<String, String> record = awaitRecord(entryId.toString());
+        ConsumerRecord<String, String> record = awaitRecord(bookId.toString());
         assertThat(header(record, "eventType")).isEqualTo(LedgerEntryPosted.TYPE);
 
         LedgerEntryPosted event = json.readValue(record.value(), LedgerEntryPosted.class);
         assertThat(event.eventId().toString()).isEqualTo(header(record, "eventId"));
+        assertThat(event.schemaVersion()).isEqualTo(2);
         assertThat(event.entryId()).isEqualTo(entryId);
-        assertThat(event.description()).isEqualTo("dinner");
+        assertThat(event.bookRef()).isEqualTo(book);
+        assertThat(event.bookKind()).isEqualTo(BookKind.GROUP);
+        assertThat(event.sourceRef()).isEqualTo("expense:42");
         assertThat(event.postings())
-                .extracting(LedgerEntryPosted.Leg::ownerId, LedgerEntryPosted.Leg::amount, LedgerEntryPosted.Leg::balanceAfter)
-                .containsExactlyInAnyOrder(
-                        tuple("alice", -2_500L, 7_500L),
-                        tuple("bob", 2_500L, 2_500L));
+                .extracting(LedgerEntryPosted.Leg::accountRef, LedgerEntryPosted.Leg::amount)
+                .containsExactlyInAnyOrder(tuple("member:alice", 2_000_00L), tuple("member:bob", -1_000_00L),
+                        tuple("member:carol", -1_000_00L));
 
-        assertThat(jdbc.sql("select published_at from outbox_events where aggregate_id = ?")
-                .param(entryId).query(Instant.class).single()).isNotNull();
+        assertThat(jdbc.sql("select published_at from outbox_events where event_id = ?")
+                .param(event.eventId()).query(Instant.class).single()).isNotNull();
     }
 
     @Test
-    void rolledBackMovementLeavesNoEvent() {
-        Account alice = accountService.open("alice", "USD");
-        Account bob = accountService.open("bob", "USD");
+    void rejectedEntryLeavesNoEvent() {
+        String book = "space:" + UUID.randomUUID();
+        ledger.post(expense(key(), book, 100));
         long before = outboxRows();
 
-        assertThatThrownBy(() -> movements.transfer(key(), alice.getId(), bob.getId(), 1, "USD", null))
-                .isInstanceOf(InsufficientFundsException.class);
+        // "category:x" was created as EXPENSE; posting it as INCOME fails inside the transaction.
+        assertThatThrownBy(() -> ledger.post(new PostingCommand(key(), book, BookKind.PERSONAL, "INCOME",
+                LocalDate.of(2026, 10, 10), null, null, List.of(
+                        new Leg("bank:a", AccountType.ASSET, "INR", 100),
+                        new Leg("category:x", AccountType.INCOME, "INR", -100)))))
+                .isInstanceOf(RefConflictException.class);
 
         assertThat(outboxRows()).isEqualTo(before);
     }
 
     @Test
     void idempotentReplayDoesNotEmitASecondEvent() {
-        Account alice = accountService.open("alice", "USD");
+        String book = "space:" + UUID.randomUUID();
         String key = key();
 
-        PostingOutcome first = movements.deposit(key, alice.getId(), 500, "USD", null);
-        movements.deposit(key, alice.getId(), 500, "USD", null);
+        PostingOutcome first = ledger.post(expense(key, book, 500));
+        ledger.post(expense(key, book, 500));
 
-        assertThat(jdbc.sql("select count(*) from outbox_events where aggregate_id = ?")
-                .param(first.entry().id()).query(Long.class).single()).isEqualTo(1);
+        assertThat(jdbc.sql("select count(*) from outbox_events where payload ->> 'entryId' = ?")
+                .param(first.entry().id().toString()).query(Long.class).single()).isEqualTo(1);
     }
 
     @Test
     void outboxCannotBeWrittenOutsideTheBusinessTransaction() {
         assertThatThrownBy(() -> outboxWriter.append("Test", UUID.randomUUID(), UUID.randomUUID(), "test", "{}"))
                 .isInstanceOf(IllegalTransactionStateException.class);
+    }
+
+    private static PostingCommand expense(String key, String book, long amount) {
+        return new PostingCommand(key, book, BookKind.PERSONAL, "EXPENSE", LocalDate.of(2026, 10, 10), null, null,
+                List.of(new Leg("category:x", AccountType.EXPENSE, "INR", amount),
+                        new Leg("bank:a", AccountType.ASSET, "INR", -amount)));
     }
 
     private ConsumerRecord<String, String> awaitRecord(String key) {

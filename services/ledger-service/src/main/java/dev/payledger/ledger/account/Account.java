@@ -12,7 +12,6 @@ import jakarta.persistence.Version;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 @Entity
@@ -25,8 +24,12 @@ public class Account {
     @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
     private UUID id;
 
-    @Column(name = "owner_id", nullable = false, updatable = false)
-    private String ownerId;
+    @Column(name = "book_id", nullable = false, updatable = false)
+    private UUID bookId;
+
+    /** The caller's name for this account inside the book, e.g. {@code category:<uuid>} or {@code bank:<uuid>}. */
+    @Column(nullable = false, updatable = false)
+    private String ref;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, updatable = false)
@@ -52,17 +55,8 @@ public class Account {
         // for JPA
     }
 
-    public static Account openUserAccount(String ownerId, String currency) {
-        var account = new Account();
-        account.ownerId = ownerId;
-        account.type = AccountType.USER;
-        account.currency = currency;
-        account.createdAt = Instant.now().truncatedTo(ChronoUnit.MICROS); // Postgres timestamptz precision
-        return account;
-    }
-
     /**
-     * Applies a signed posting amount to the cached balance.
+     * Applies a signed posting amount (positive = debit) to the cached balance.
      * The caller must hold a row lock on this account (see {@link AccountRepository#lockAllByIdsOrdered}).
      */
     public void apply(long amount) {
@@ -74,7 +68,8 @@ public class Account {
     }
 
     public UUID getId() { return id; }
-    public String getOwnerId() { return ownerId; }
+    public UUID getBookId() { return bookId; }
+    public String getRef() { return ref; }
     public AccountType getType() { return type; }
     public String getCurrency() { return currency; }
     public long getBalance() { return balance; }

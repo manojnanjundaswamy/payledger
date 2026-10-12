@@ -1,5 +1,8 @@
 # Phase 1 study guide: ledger core
 
+> **Note:** written for the wallet-era code (deposits and transfers), which ledger v2 replaced in Phase 3
+> ([ADR 0005](../adr/0005-ledger-v2-books.md)). The concepts and invariants still apply; some class names and endpoints changed.
+
 Goal: you can explain every line of `ledger-service` **out loud, without notes**.
 Practice by answering each question below aloud (record yourself) in under 2 minutes.
 

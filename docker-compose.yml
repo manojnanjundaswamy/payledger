@@ -75,7 +75,8 @@ services:
       start_period: 15s
       retries: 20
 
-  # Creates the shared topic up front so consumers can subscribe before the ledger has ever started.
+  # Creates topics up front so consumers can subscribe before the ledger has ever started.
+  # ledger.entries.v1 (the pre-pivot wallet event format) only exists for the parked notification-service.
   kafka-init:
     image: apache/kafka:4.2.1
     depends_on:
@@ -85,8 +86,10 @@ services:
     command:
       - >
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists
-        --topic ${LEDGER_EVENTS_TOPIC:-ledger.entries.v1} --partitions ${LEDGER_EVENTS_PARTITIONS:-3} --replication-factor 1
-        && /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --describe --topic ${LEDGER_EVENTS_TOPIC:-ledger.entries.v1}
+        --topic ${LEDGER_EVENTS_TOPIC:-ledger.entries.v2} --partitions ${LEDGER_EVENTS_PARTITIONS:-3} --replication-factor 1
+        && /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists
+        --topic ledger.entries.v1 --partitions 3 --replication-factor 1
+        && /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --describe
 
   kafka-ui:
     profiles: [tools]
@@ -109,7 +112,7 @@ services:
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/ledger
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      LEDGER_EVENTS_TOPIC: ${LEDGER_EVENTS_TOPIC:-ledger.entries.v1}
+      LEDGER_EVENTS_TOPIC: ${LEDGER_EVENTS_TOPIC:-ledger.entries.v2}
       LEDGER_EVENTS_PARTITIONS: ${LEDGER_EVENTS_PARTITIONS:-3}
       OUTBOX_RELAY_ENABLED: ${OUTBOX_RELAY_ENABLED:-true}
     ports:
@@ -125,7 +128,9 @@ services:
     environment:
       DB_URL: jdbc:postgresql://notification-db:5432/notifications
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      LEDGER_EVENTS_TOPIC: ${LEDGER_EVENTS_TOPIC:-ledger.entries.v1}
+      # Parked: still reads the wallet-era v1 events, which nothing publishes any more.
+      # It is repurposed for emails and the activity feed in Phase 6.
+      LEDGER_EVENTS_TOPIC: ledger.entries.v1
     ports:
       - "${NOTIFICATION_PORT:-8090}:8090"
       - "${NOTIFICATION_MANAGEMENT_PORT:-8091}:8091"

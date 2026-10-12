@@ -1,20 +1,18 @@
 package dev.payledger.ledger.journal;
 
-import dev.payledger.ledger.account.Account;
 import dev.payledger.ledger.account.AccountType;
+import dev.payledger.ledger.book.BookKind;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
- * Published to Kafka (via the outbox) every time a journal entry is committed.
+ * Published to Kafka (via the outbox) every time a journal entry is committed, reversals included.
  * <p>
  * This record IS the public contract with other services (docs/events/ledger-entry-posted.md).
- * It carries the owner and account type of every leg so consumers never have to call back into
- * the ledger to make sense of it. Add fields freely; renaming or removing one needs a new
- * {@code schemaVersion} and a new topic.
+ * Add fields freely; renaming or removing one needs a new {@code schemaVersion} and a new topic.
  */
 public record LedgerEntryPosted(
         UUID eventId,
@@ -22,25 +20,28 @@ public record LedgerEntryPosted(
         int schemaVersion,
         Instant occurredAt,
         UUID entryId,
-        EntryType entryType,
-        String currency,
+        String idempotencyKey,
+        String bookRef,
+        BookKind bookKind,
+        String entryType,
+        LocalDate effectiveDate,
         String description,
+        String sourceRef,
+        UUID reversesEntryId,
         List<Leg> postings) {
 
     public static final String TYPE = "ledger.entry.posted";
-    public static final int SCHEMA_VERSION = 1;
+    public static final int SCHEMA_VERSION = 2;
 
-    public record Leg(UUID accountId, String ownerId, AccountType accountType, long amount, long balanceAfter) {
+    public record Leg(String accountRef, AccountType accountType, String currency, long amount, long balanceAfter) {
     }
 
-    static LedgerEntryPosted of(JournalEntryView entry, String currency, Map<UUID, Account> accounts) {
+    static LedgerEntryPosted of(JournalEntryView entry, BookKind bookKind) {
         List<Leg> legs = entry.postings().stream()
-                .map(p -> {
-                    Account account = accounts.get(p.accountId());
-                    return new Leg(p.accountId(), account.getOwnerId(), account.getType(), p.amount(), p.balanceAfter());
-                })
+                .map(p -> new Leg(p.accountRef(), p.accountType(), p.currency(), p.amount(), p.balanceAfter()))
                 .toList();
         return new LedgerEntryPosted(UUID.randomUUID(), TYPE, SCHEMA_VERSION, entry.createdAt(), entry.id(),
-                entry.type(), currency, entry.description(), legs);
+                entry.idempotencyKey(), entry.bookRef(), bookKind, entry.type(), entry.effectiveDate(),
+                entry.description(), entry.sourceRef(), entry.reversesEntryId(), legs);
     }
 }

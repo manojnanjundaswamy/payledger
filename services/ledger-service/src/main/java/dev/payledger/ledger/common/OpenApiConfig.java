@@ -17,11 +17,13 @@ class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("PayLedger API")
-                        .version("v1")
+                        .version("v2")
                         .description("""
-                                Double-entry wallet ledger. Amounts are integer minor units (1050 = 10.50).
-                                Money-moving endpoints require an `Idempotency-Key` header; retries with the
-                                same key return the original result with `Idempotent-Replayed: true`."""))
+                                Generic double-entry engine behind PayLedger: books, typed accounts, balanced
+                                entries, reversals and period totals. Internal: called by other services, not browsers.
+                                Amounts are signed integer minor units (positive = debit; 1050 = 10.50).
+                                Writes require an `Idempotency-Key` header; retries with the same key return the
+                                original entry with `Idempotent-Replayed: true`."""))
                 .components(new Components().addSecuritySchemes("apiKey", new SecurityScheme()
                         .type(SecurityScheme.Type.APIKEY)
                         .in(SecurityScheme.In.HEADER)
