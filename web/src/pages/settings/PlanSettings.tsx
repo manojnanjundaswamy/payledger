@@ -40,6 +40,7 @@ export function PlanSettings() {
             </p>
             <p className="text-sm text-muted">
               {plan.source === 'COMPLIMENTARY' && 'Complimentary: on us.'}
+              {plan.source === 'GRANTED' && until && `Given by PayLedger until ${until}.`}
               {plan.source === 'TRIAL' && until && `Trial until ${until}.`}
               {plan.source === 'PAID' && until && `Renews on ${until}.`}
               {!premium && 'A complete budget, free for good. Limits only stop adding, never viewing or exporting.'}

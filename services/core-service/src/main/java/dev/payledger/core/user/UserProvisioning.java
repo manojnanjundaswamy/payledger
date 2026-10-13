@@ -44,6 +44,9 @@ public class UserProvisioning {
         String email = jwt.getClaimAsString("email").toLowerCase();
 
         Optional<CurrentUser> existing = find(subject);
+        if (existing.isPresent() && disabled(existing.get().id())) {
+            throw new AccountDisabledException();
+        }
         CurrentUser user;
         if (existing.isEmpty()) {
             user = create(subject, email, displayName(jwt, email));
@@ -57,6 +60,19 @@ public class UserProvisioning {
         }
         activity.seen(user.id());
         return user;
+    }
+
+    /**
+     * Creates the user and their personal space now, for an account staff made in the admin console, so it shows
+     * in the console (and can be given Premium) before its first sign-in. Their first request then just finds it.
+     */
+    @Transactional
+    public CurrentUser provision(String subject, String email, String name) {
+        return find(subject).orElseGet(() -> create(subject, email.toLowerCase(), name));
+    }
+
+    private boolean disabled(java.util.UUID userId) {
+        return jdbc.sql("select disabled_at is not null from users where id = :id").param("id", userId).query(Boolean.class).single();
     }
 
     private CurrentUser create(String subject, String email, String name) {

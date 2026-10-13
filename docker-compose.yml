@@ -232,6 +232,9 @@ services:
       PREMIUM_EMAILS: ${PREMIUM_EMAILS:-demo@payledger.local}
       # Owners of the admin console (comma-separated). Locally the demo user, so /admin can be tried.
       ADMIN_EMAILS: ${ADMIN_EMAILS:-demo@payledger.local}
+      # The admin console creates users and sends their emails through Keycloak (realm client payledger-core-admin).
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      IDENTITY_ADMIN_CLIENT_SECRET: ${IDENTITY_ADMIN_CLIENT_SECRET:-local-dev-core-admin-secret}
     ports:
       - "${CORE_PORT:-8060}:8060"
       - "${CORE_MANAGEMENT_PORT:-8061}:8061"

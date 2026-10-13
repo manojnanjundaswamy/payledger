@@ -51,8 +51,20 @@ per user per day per instance, and the insert is idempotent. The table answers d
 users and weekly retention. It records nothing about what the user did. `users.last_active_on` keeps the
 latest day.
 
-**Every admin write is audited.** Each write records who did what to whom, and when, in `admin_audit` (added
-with user management).
+**Every admin write is audited.** Each write records who did what to whom, and when, in `admin_audit`, in the
+same transaction as the change. The log is append-only: no endpoint edits or deletes it.
+
+**Accounts go through Keycloak; passwords never pass through staff.** core-service calls Keycloak's admin API as
+the confidential client `payledger-core-admin`. Its service account may only manage and view users of this realm.
+- **Creating a user** makes the Keycloak account and the PayLedger user. Keycloak then emails a link to verify the
+  address and choose a password.
+- **Disabling** marks the user in core-service (`403 account-disabled` on every request), blocks sign-in in Keycloak and
+  ends their sessions, in that order. If Keycloak fails, the whole change rolls back. Nothing is deleted.
+- **Without the client secret**, these actions answer `503 identity-unavailable`. The rest of the console still works.
+- Keycloak imports the realm file only once, so an older local volume needs `scripts/keycloak-sync.sh` once.
+
+**Premium given by staff** is `premium_source = GRANTED` until the end of a chosen day, at most five years ahead.
+It replaces a trial or an earlier grant, but never a paid subscription.
 
 ## Consequences
 

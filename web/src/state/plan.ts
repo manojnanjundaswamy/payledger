@@ -3,8 +3,8 @@ import { api } from '@/lib/api'
 
 export interface PlanStatus {
   plan: 'FREE' | 'PREMIUM'
-  /** What gave Premium: TRIAL, PAID or COMPLIMENTARY. */
-  source: 'TRIAL' | 'PAID' | 'COMPLIMENTARY' | null
+  /** What gave Premium: TRIAL, PAID, GRANTED (given by PayLedger until a date) or COMPLIMENTARY. */
+  source: 'TRIAL' | 'PAID' | 'GRANTED' | 'COMPLIMENTARY' | null
   premiumUntil: string | null
   trialAvailable: boolean
   /** Free's limits by key (null on Premium), and how much of each is used. */
