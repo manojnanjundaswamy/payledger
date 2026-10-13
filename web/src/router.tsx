@@ -118,13 +118,28 @@ const importPage = createRoute({
   component: lazyRouteComponent(() => import('@/pages/money/ImportPage'), 'ImportPage'),
 })
 
+const reports = createRoute({
+  getParentRoute: () => app,
+  path: '/reports',
+  validateSearch: z.object({
+    period: z.enum(['this-month', 'last-month', 'this-fy', 'last-fy', 'last-12', 'custom']).optional().catch(undefined),
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
+  }),
+  component: lazyRouteComponent(() => import('@/pages/money/ReportsPage'), 'ReportsPage'),
+})
+
 const transactions = createRoute({
   getParentRoute: () => app,
   path: '/transactions',
-  // ?add=EXPENSE opens the add dialog (the sidebar's Add menu links here); ?account= filters.
+  // ?add=EXPENSE opens the add dialog (the sidebar's Add menu links here); ?account=, ?category= (with its
+  // subcategories) and ?from=&to= filter, which is how a report drills down to its transactions.
   validateSearch: z.object({
     add: z.enum(['EXPENSE', 'INCOME', 'TRANSFER']).optional().catch(undefined),
     account: z.string().uuid().optional().catch(undefined),
+    category: z.string().uuid().optional().catch(undefined),
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
   }),
   component: lazyRouteComponent(() => import('@/pages/money/TransactionsPage'), 'TransactionsPage'),
 })
@@ -132,7 +147,7 @@ const transactions = createRoute({
 const comingSoon = (Object.keys(COMING) as (keyof typeof COMING)[]).map((page) =>
   createRoute({ getParentRoute: () => app, path: `/${page}`, component: () => <ComingSoon page={page} /> }))
 
-const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, categories, budgets, plan, importPage, transactions, ...comingSoon])])
+const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, categories, budgets, plan, importPage, reports, transactions, ...comingSoon])])
 
 export function createAppRouter(queryClient: QueryClient) {
   return createRouter({

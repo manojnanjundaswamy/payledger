@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { ArrowLeftRight, FileUp, Plus } from 'lucide-react'
+import { ArrowLeftRight, FileUp, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, Skeleton } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
@@ -12,6 +12,9 @@ import { TransactionDialog } from './TransactionDialog'
 export interface TransactionsSearch {
   add?: TxnKind
   account?: string
+  category?: string
+  from?: string
+  to?: string
 }
 
 /** Every expense, income and transfer, newest first, grouped by day. */
@@ -22,7 +25,7 @@ export function TransactionsPage() {
   const money = useMoneyFormat()
   const { data: accounts, isPending: accountsPending } = useAccounts()
   const { data: categories = [] } = useCategories()
-  const { data, isPending, isError, hasNextPage, fetchNextPage, isFetchingNextPage } = useTransactions({ accountId: search.account })
+  const { data, isPending, isError, hasNextPage, fetchNextPage, isFetchingNextPage } = useTransactions({ accountId: search.account, categoryId: search.category, from: search.from, to: search.to })
   const [editing, setEditing] = useState<Transaction>()
 
   const items = useMemo(() => data?.pages.flatMap((p) => p.items) ?? [], [data])
@@ -56,6 +59,16 @@ export function TransactionsPage() {
           <option value="">All accounts</option>
           {accounts?.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </Select>
+        {(search.category || search.from || search.to) && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-2 py-1 pr-1 pl-3 text-xs" data-testid="filter-chip">
+            {[search.category && (categoryOf(search.category)?.name ?? 'Category'), search.from && search.to && `${dayLabel(search.from, locale)} – ${dayLabel(search.to, locale)}`]
+              .filter(Boolean).join(' · ')}
+            <button type="button" aria-label="Clear filter" className="rounded-full p-0.5 text-muted hover:bg-surface-3 hover:text-fg"
+              onClick={() => void navigate({ search: (s: TransactionsSearch) => ({ ...s, category: undefined, from: undefined, to: undefined }) })}>
+              <X className="size-3.5" />
+            </button>
+          </span>
+        )}
         <span className="flex-1" />
         <Button asChild variant="ghost"><Link to="/import"><FileUp />Import</Link></Button>
         <Button variant="outline" onClick={() => setAdding('TRANSFER')}><ArrowLeftRight />Transfer</Button>

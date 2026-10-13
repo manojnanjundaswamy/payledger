@@ -1,4 +1,4 @@
-import { infiniteQueryOptions, queryOptions, useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { infiniteQueryOptions, queryOptions, useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useProfile } from './profile'
 
@@ -265,6 +265,18 @@ export function useBudgets(month?: string) {
     queryKey: ['money', spaceId, 'budgets', { month }],
     queryFn: () => api<BudgetMonth>(`${base(spaceId!)}/budgets${month ? `?month=${month}` : ''}`),
     enabled: !!spaceId,
+  })
+}
+
+/** Several budget months at once (a report over a year), sharing the cache with useBudgets. */
+export function useBudgetMonths(months: string[]) {
+  const spaceId = useSpaceId()
+  return useQueries({
+    queries: months.map((month) => ({
+      queryKey: ['money', spaceId, 'budgets', { month }],
+      queryFn: () => api<BudgetMonth>(`${base(spaceId!)}/budgets?month=${month}`),
+      enabled: !!spaceId,
+    })),
   })
 }
 

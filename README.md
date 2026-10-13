@@ -49,8 +49,8 @@ Client ──HTTP──▶         │ LedgerController ─▶ LedgerService (bo
 In progress (Phase 4): core-service records accounts and transactions and queues the matching ledger commands in its
 own outbox; ledger-service consumes them ([docs/events/ledger-commands.md](docs/events/ledger-commands.md)), and
 core-service reads balances and per-category totals back from the ledger. The web app has Accounts, Transactions,
-Categories, Budgets, Plan (commitments, safe to spend, annual planner) and Import screens on real data, and the dashboard
-widgets use it once you have an account; Excel import and reports come next.
+Categories, Budgets, Plan (commitments, safe to spend, annual planner), Import and Reports (including the April–March
+financial year) screens on real data, and the dashboard widgets use it once you have an account; Excel import comes next.
 notification-service is **parked**: it still reads the wallet-era `ledger.entries.v1` events, which nothing
 publishes any more, and is repurposed for emails and the activity feed in Phase 6.
 
@@ -174,7 +174,7 @@ OpenAPI at http://localhost:8060/swagger-ui.html):
 | `GET /spaces/{id}/imports/template.csv` | the template, with your own account names in its example rows |
 | `GET /spaces/{id}/planner` | the annual planner: bills every 6+ months or only once (`endsOn = firstDue`), each with its next date, months left and this month's set-aside (amount ÷ months left) |
 | `DELETE /spaces/{id}/categories/{cid}` | only if no transaction ever used it: 409 `category-in-use` (hide it instead) or `category-has-subcategories` |
-| `GET/POST /spaces/{id}/transactions`, `GET/PUT/DELETE …/transactions/{txnId}` | expense, income, transfer; keyset pages; optional client `id` makes a create safe to retry; edits and deletes send the `version` they saw (409 if stale) |
+| `GET/POST /spaces/{id}/transactions`, `GET/PUT/DELETE …/transactions/{txnId}` | expense, income, transfer; keyset pages, filtered by `from`, `to`, `accountId` or `categoryId` (with its subcategories); optional client `id` makes a create safe to retry; edits and deletes send the `version` they saw (409 if stale) |
 
 The ledger API (`/api/v2`) is internal: core-service calls it, browsers won't. Amounts are signed minor units
 (paise), **positive = debit**. Books and accounts are created by the first entry that uses them.

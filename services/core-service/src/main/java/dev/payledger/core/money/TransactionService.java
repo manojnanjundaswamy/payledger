@@ -82,7 +82,9 @@ public class TransactionService {
                           and (cast(:from as date) is null or occurred_on >= :from)
                           and (cast(:to as date) is null or occurred_on <= :to)
                           and (cast(:accountId as uuid) is null or account_id = :accountId or to_account_id = :accountId)
-                          and (cast(:categoryId as uuid) is null or category_id = :categoryId)
+                          -- A category includes its subcategories, as its totals do in reports and budgets.
+                          and (cast(:categoryId as uuid) is null or category_id = :categoryId
+                               or category_id in (select id from categories where parent_id = :categoryId))
                           and (cast(:afterDate as date) is null or (occurred_on, id) < (:afterDate, :afterId))
                         order by occurred_on desc, id desc
                         limit :limit
