@@ -8,6 +8,7 @@ splitting groups by link without an account. Owner: Manoj. Read these before cha
 - Market scan (Goodbudget, Mint, Monarch, Spendee) and the Free / Premium plans: `docs/plan/market-and-pricing.md`
 - Getting data in without a licence (statements, SMS, forwarding address) and features to borrow: `docs/plan/onboarding-and-features.md`
 - Name ideas (undecided, "PayLedger" is the code name): `docs/plan/naming.md`
+- Security, tenant isolation and integrity (read before adding an endpoint): `docs/security.md`
 - Design decisions: `docs/adr/0001`–`0008` (ledger, locking, idempotency, outbox, ledger v2 books, identity/BFF, groups and splitting, admin console)
 - Event contract: `docs/events/ledger-entry-posted.md`
 - How to run everything: `README.md`
