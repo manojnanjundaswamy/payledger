@@ -1,3 +1,4 @@
+import { useNavigate } from '@tanstack/react-router'
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Plus, Upload, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -7,8 +8,10 @@ function soon(what: string, phase: string) {
   toast(`${what} is coming in ${phase}`, { description: 'Your accounts and budgets will start filling these dashboards.' })
 }
 
-/** The one button that adds money things. Real forms arrive with transactions (Phase 4) and splitting (Phase 5). */
+/** The one button that adds money things. Splitting and import arrive later (Phase 5 and the import piece of Phase 4). */
 export function AddMenu({ compact, trigger }: { compact?: boolean; trigger?: React.ReactNode }) {
+  const navigate = useNavigate()
+  const add = (kind: 'EXPENSE' | 'INCOME' | 'TRANSFER') => void navigate({ to: '/transactions', search: { add: kind } })
   return (
     <Menu>
       <MenuTrigger asChild>
@@ -21,9 +24,9 @@ export function AddMenu({ compact, trigger }: { compact?: boolean; trigger?: Rea
       </MenuTrigger>
       <MenuContent align="start">
         <MenuLabel>Record</MenuLabel>
-        <MenuItem icon={<ArrowUpRight />} onSelect={() => soon('Adding expenses', 'Phase 4')}>Expense</MenuItem>
-        <MenuItem icon={<ArrowDownLeft />} onSelect={() => soon('Adding income', 'Phase 4')}>Income</MenuItem>
-        <MenuItem icon={<ArrowLeftRight />} onSelect={() => soon('Transfers', 'Phase 4')}>Transfer between accounts</MenuItem>
+        <MenuItem icon={<ArrowUpRight />} onSelect={() => add('EXPENSE')}>Expense</MenuItem>
+        <MenuItem icon={<ArrowDownLeft />} onSelect={() => add('INCOME')}>Income</MenuItem>
+        <MenuItem icon={<ArrowLeftRight />} onSelect={() => add('TRANSFER')}>Transfer between accounts</MenuItem>
         <MenuSeparator />
         <MenuItem icon={<Users />} onSelect={() => soon('Splitting', 'Phase 5')}>Split a bill</MenuItem>
         <MenuItem icon={<Upload />} onSelect={() => soon('Importing', 'Phase 4')}>Import from a file</MenuItem>
