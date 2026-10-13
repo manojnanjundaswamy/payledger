@@ -35,7 +35,8 @@ class BudgetController {
     }
 
     /** @param from the first budget month it applies to; defaults to the current one */
-    record SetLimit(@NotNull @Min(1) @Max(MAX_AMOUNT) Long amount, YearMonth from) {
+    /** @param rollover carry what isn't spent into the next month (unchanged when left out) */
+    record SetLimit(@NotNull @Min(1) @Max(MAX_AMOUNT) Long amount, Boolean rollover, YearMonth from) {
     }
 
     @GetMapping
@@ -48,7 +49,7 @@ class BudgetController {
     @Operation(summary = "Set a category's monthly limit from a month onwards (earlier months keep theirs); returns that month")
     BudgetService.Month set(CurrentUser user, @PathVariable UUID spaceId, @PathVariable UUID categoryId,
                             @Valid @RequestBody SetLimit request) {
-        return budgets.set(user, spaceId, categoryId, request.amount(), request.from());
+        return budgets.set(user, spaceId, categoryId, request.amount(), request.rollover(), request.from());
     }
 
     @DeleteMapping("/{categoryId}")

@@ -44,6 +44,8 @@ class BudgetMathTest {
         assertThat(BudgetService.status(80_000, 100_000)).isEqualTo(BudgetService.Status.CLOSE);
         assertThat(BudgetService.status(100_000, 100_000)).isEqualTo(BudgetService.Status.CLOSE);
         assertThat(BudgetService.status(100_001, 100_000)).isEqualTo(BudgetService.Status.OVER);
+        // Overspending carried in can leave less than nothing available: the budget starts the month over.
+        assertThat(BudgetService.status(0, -5_000)).isEqualTo(BudgetService.Status.OVER);
     }
 
     @Test

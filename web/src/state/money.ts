@@ -117,7 +117,7 @@ export function useTransactions(filter: TransactionFilter) {
  */
 function refreshAfterWrite(client: QueryClient, spaceId: string) {
   void client.invalidateQueries({ queryKey: ['money', spaceId] })
-  const fromLedger = new Set(['accounts', 'category-totals', 'budgets', 'safe-to-spend', 'planner'])
+  const fromLedger = new Set(['accounts', 'category-totals', 'budgets', 'safe-to-spend', 'planner', 'net-worth'])
   for (const delay of [800, 2500]) {
     setTimeout(() => void client.invalidateQueries({
       predicate: (q) => q.queryKey[0] === 'money' && q.queryKey[1] === spaceId && fromLedger.has(q.queryKey[2] as string),
@@ -237,6 +237,12 @@ export type BudgetStatus = 'ON_TRACK' | 'CLOSE' | 'OVER'
 export interface Budget {
   categoryId: string
   limit: number
+  /** Unspent money carries into next month, and an overspend comes off it. */
+  rollover: boolean
+  /** What earlier months carried in (rollover only; null if off or unknown). */
+  carried: number | null
+  /** limit + carried: what this month can spend. */
+  available: number | null
   currency: string
   /** Null when the ledger couldn't be reached. A parent's spending includes its subcategories'. */
   spent: number | null
@@ -255,6 +261,8 @@ export interface BudgetMonth {
   daysElapsed: number
   today: string
   spentKnown: boolean
+  /** Received this month (null if unknown): with the limits, what is left to give a job. */
+  income: number | null
   budgets: Budget[]
 }
 
@@ -282,8 +290,8 @@ export function useBudgetMonths(months: string[]) {
 
 /** Sets the limit from `from` onwards; earlier months keep theirs. */
 export function useSetBudget() {
-  return useMoneyMutation((spaceId, { categoryId, amount, from }: { categoryId: string; amount: number; from: string }) =>
-    api<BudgetMonth>(`${base(spaceId)}/budgets/${categoryId}`, { method: 'PUT', json: { amount, from } }))
+  return useMoneyMutation((spaceId, { categoryId, amount, rollover, from }: { categoryId: string; amount: number; rollover: boolean; from: string }) =>
+    api<BudgetMonth>(`${base(spaceId)}/budgets/${categoryId}`, { method: 'PUT', json: { amount, rollover, from } }))
 }
 
 export function useRemoveBudget() {

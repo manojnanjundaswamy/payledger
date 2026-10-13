@@ -162,7 +162,7 @@ OpenAPI at http://localhost:8060/swagger-ui.html):
 | `POST /spaces/{id}/categories` | `{kind, name, icon, color, parentId?}`; subcategories go one level deep; 409 `category-name-in-use` (unique per kind, ignoring case) |
 | `PUT /spaces/{id}/categories/{cid}` | the whole category (`name, icon, color, parentId, hidden`); hiding a parent hides its subcategories |
 | `GET /spaces/{id}/budgets?month=2026-10` | one budget month (default: the current one; named by the month it starts in, on the user's start day): per category limit, spent (a parent includes its subcategories; null if the ledger is down), remaining, status `ON_TRACK`/`CLOSE` (80%)/`OVER`, and the projected spend from day 5 |
-| `PUT /spaces/{id}/budgets/{cid}` | `{amount, from?}`: the monthly limit from that month on; earlier months keep theirs |
+| `PUT /spaces/{id}/budgets/{cid}` | `{amount, rollover?, from?}`: the monthly limit from that month on; earlier months keep theirs. With `rollover`, what isn't spent carries into the next month and an overspend comes off it (each budget reports `carried` and `available`; the month reports `income`) |
 | `DELETE /spaces/{id}/budgets/{cid}?from=2026-10` | stop budgeting it from that month on |
 | `GET/POST /spaces/{id}/commitments`, `PUT …/{cid}?version=`, `DELETE …/{cid}` | bills (`BILL`: an expense in a category) and savings (`SAVING`: a transfer to your own account) due every 1, 2, 3, 4, 6 or 12 months from `firstDue`, optionally until `endsOn` |
 | `GET /spaces/{id}/commitments/due?from=&to=` | every due date in the range (at most two years), with `paid` and the paying `transactionId` |
@@ -173,6 +173,7 @@ OpenAPI at http://localhost:8060/swagger-ui.html):
 | `GET /spaces/{id}/imports`, `DELETE …/{importId}` | past imports; undo deletes every transaction an import added (409 `import-undone` the second time) |
 | `GET /spaces/{id}/exports/transactions.csv` or `.xlsx` `?from=&to=` | transactions in the template's columns; each row's `external_id` is the transaction's reference, so importing an export back adds nothing |
 | `GET /spaces/{id}/imports/template.xlsx`, `…/template.csv` | the template: the Excel one has dropdowns of your accounts and categories and an instructions tab; both have your account names in their example rows |
+| `GET /spaces/{id}/net-worth?months=12` | net worth at the end of each month (this month: today) over open accounts in the space's currency: today's balances less what moved later; 503 if the ledger is down |
 | `GET /plan`, `POST /plan/trial` | your plan (Free or Premium, from a trial, payment or complimentary), Free's limits with your usage; the 30-day trial once (409 `trial-used`). Past a Free limit, adding answers 403 `plan-limit` (docs/plan/market-and-pricing.md) |
 | `GET /spaces/{id}/planner` | the annual planner: bills every 6+ months or only once (`endsOn = firstDue`), each with its next date, months left and this month's set-aside (amount ÷ months left) |
 | `POST /spaces/{id}/categories/{cid}/merge` | `{into}`: moves every transaction (reversed and re-posted, so past reports move too) and bill to another category of the same kind, drops its budget and hides it |

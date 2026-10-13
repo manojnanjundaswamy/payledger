@@ -170,7 +170,7 @@ public class AccountService {
         return MoneyAccount.ledgerRef(accountId) + ":opening:v" + version;
     }
 
-    LocalDate today(CurrentUser user) {
+    public LocalDate today(CurrentUser user) {
         String zone = jdbc.sql("select time_zone from users where id = :id").param("id", user.id()).query(String.class).single();
         return LocalDate.now(ZoneId.of(zone));
     }

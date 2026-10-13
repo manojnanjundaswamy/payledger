@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -72,6 +73,44 @@ public class BalanceService {
                 .map(t -> new CategoryTotal(UUID.fromString(t.accountRef().substring(CATEGORY.length())), t.currency(),
                         t.periodStart(), sign * t.total()))
                 .toList();
+    }
+
+    /** Net worth at the end of a calendar month (the current month: today), in the space's currency. */
+    public record NetWorthPoint(YearMonth month, long netWorth) {
+    }
+
+    /**
+     * Net worth month by month, the last {@code months} of them. The ledger keeps every posting, so a past
+     * month's figure is today's balances less what moved on accounts (assets and debts) after that month.
+     * Like the net worth on the Accounts page, it counts open accounts; accounts in another currency are left
+     * out until there are exchange rates.
+     */
+    public List<NetWorthPoint> netWorth(CurrentUser user, UUID spaceId, int months, LocalDate today) {
+        Space space = access.read(user, spaceId);
+        java.util.Set<String> open = accounts.list(user, spaceId, false).stream()
+                .filter(a -> a.currency().equals(space.currency())).map(MoneyAccount::ledgerRef)
+                .collect(Collectors.toSet());
+        long now = accountBalances(space).orElseThrow(LedgerUnavailableException::new).entrySet().stream()
+                .filter(e -> open.contains(e.getKey().substring(0, e.getKey().lastIndexOf('/'))) && e.getKey().endsWith("/" + space.currency()))
+                .mapToLong(Map.Entry::getValue).sum();
+        YearMonth current = YearMonth.from(today);
+        YearMonth first = current.minusMonths(months - 1L);
+        // Every movement after the first month's end (future-dated ones included, as they are in today's balances).
+        LocalDate from = first.plusMonths(1).atDay(1);
+        LocalDate to = today.plusYears(50);
+        Map<YearMonth, Long> moved = new java.util.HashMap<>();
+        for (String type : List.of("ASSET", "LIABILITY")) {
+            ledger.totals(space.ledgerBookRef(), type, from, to, true).orElseThrow(LedgerUnavailableException::new).stream()
+                    .filter(t -> open.contains(t.accountRef()) && t.currency().equals(space.currency()))
+                    .forEach(t -> moved.merge(YearMonth.from(t.periodStart()), t.total(), Long::sum));
+        }
+        List<NetWorthPoint> points = new java.util.ArrayList<>();
+        for (YearMonth m = first; !m.isAfter(current); m = m.plusMonths(1)) {
+            YearMonth end = m;
+            long later = moved.entrySet().stream().filter(e -> e.getKey().isAfter(end)).mapToLong(Map.Entry::getValue).sum();
+            points.add(new NetWorthPoint(m, now - later));
+        }
+        return points;
     }
 
     private Optional<Map<String, Long>> accountBalances(Space space) {
