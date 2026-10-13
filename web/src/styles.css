@@ -123,3 +123,9 @@
 @keyframes pop-in { from { opacity: 0; transform: translate(var(--tw-translate-x, 0), var(--tw-translate-y, 0)) scale(0.96) } to { opacity: 1 } }
 @keyframes sheet-up { from { transform: translateY(100%) } to { transform: translateY(0) } }
 @keyframes slide-in { from { transform: translateX(100%) } to { transform: translateX(0) } }
+
+/* A scrollbar that stays out of sight until the pointer is over the area (the sidebar when the window is short). */
+.scroll-quiet { scrollbar-width: none; }
+.scroll-quiet:hover, .scroll-quiet:focus-within { scrollbar-width: thin; }
+.scroll-quiet::-webkit-scrollbar { width: 0; }
+.scroll-quiet:hover::-webkit-scrollbar { width: 6px; }

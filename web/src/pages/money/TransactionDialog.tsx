@@ -24,25 +24,27 @@ interface Draft {
   note: string
 }
 
-function draftOf(t: Transaction | undefined, kind: TxnKind, accountId: string): Draft {
+function draftOf(t: Transaction | undefined, kind: TxnKind, accountId: string, date?: string): Draft {
   return t
     ? {
         kind: t.kind, amount: minorToInput(t.amount, t.currency), accountId: t.accountId, toAccountId: t.toAccountId ?? '',
         categoryId: t.categoryId ?? '', occurredOn: t.occurredOn, description: t.description, note: t.note ?? '',
       }
-    : { kind, amount: '', accountId, toAccountId: '', categoryId: '', occurredOn: today(), description: '', note: '' }
+    : { kind, amount: '', accountId, toAccountId: '', categoryId: '', occurredOn: date ?? today(), description: '', note: '' }
 }
 
 /**
  * Add or edit an expense, income or transfer. Amount first: most entries are small UPI payments,
  * so the fastest path is amount, category, Enter.
  */
-export function TransactionDialog({ open, onOpenChange, transaction, initialKind = 'EXPENSE', initialAccountId }: {
+export function TransactionDialog({ open, onOpenChange, transaction, initialKind = 'EXPENSE', initialAccountId, initialDate }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   transaction?: Transaction
   initialKind?: TxnKind
   initialAccountId?: string
+  /** A new one's date (a day clicked on the calendar). */
+  initialDate?: string
 }) {
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
@@ -51,14 +53,14 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
   const remove = useDeleteTransaction()
 
   const defaultAccount = initialAccountId ?? accounts[0]?.id ?? ''
-  const [draft, setDraft] = useState<Draft>(() => draftOf(transaction, initialKind, defaultAccount))
+  const [draft, setDraft] = useState<Draft>(() => draftOf(transaction, initialKind, defaultAccount, initialDate))
   // One id per new transaction: resubmitting after an error or a double tap can't add it twice.
   const [clientId, setClientId] = useState(() => crypto.randomUUID())
   const [error, setError] = useState<string>()
 
   useEffect(() => {
     if (open) {
-      setDraft(draftOf(transaction, initialKind, defaultAccount))
+      setDraft(draftOf(transaction, initialKind, defaultAccount, initialDate))
       setClientId(crypto.randomUUID())
       setError(undefined)
     }

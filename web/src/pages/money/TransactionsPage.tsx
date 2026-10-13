@@ -15,6 +15,8 @@ export interface TransactionsSearch {
   add?: TxnKind
   /** A transaction to open for editing (a link from the dashboard or elsewhere). */
   open?: string
+  /** The date for a new one (?add=EXPENSE&date=2026-10-21, from the calendar). */
+  date?: string
   account?: string
   category?: string
   from?: string
@@ -145,12 +147,13 @@ export function TransactionsPage() {
         onOpenChange={(o) => {
           if (o) return
           setEditing(undefined)
-          if (adding) setAdding(undefined)
+          if (adding) void navigate({ search: (s: TransactionsSearch) => ({ ...s, add: undefined, date: undefined }), replace: true })
           if (search.open) void navigate({ search: (s: TransactionsSearch) => ({ ...s, open: undefined }), replace: true })
         }}
         transaction={editing}
         initialKind={adding ?? 'EXPENSE'}
         initialAccountId={search.account}
+        initialDate={search.date}
       />
     </div>
   )

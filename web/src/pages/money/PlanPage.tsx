@@ -24,6 +24,8 @@ export function PlanPage() {
   const { data: commitments, isPending, isError } = useCommitments()
   const safe = useSafeToSpend()
   const [editing, setEditing] = useState<Commitment | 'new' | null>(null)
+  // A new bill's first due date, when it was started from a day on the calendar.
+  const [newDue, setNewDue] = useState<string>()
   const money = (minor: number) => formatMoneyWhole(minor, 'INR', locale)
   const { open } = useSearch({ from: '/app/plan' })
   const navigate = useNavigate({ from: '/plan' })
@@ -58,7 +60,8 @@ export function PlanPage() {
       )}
 
       {commitments && commitments.length > 0 && safe.data && (
-        <DueThisMonth start={safe.data.start} end={safe.data.end} money={money} locale={locale} onOpen={openById} />
+        <DueThisMonth start={safe.data.start} end={safe.data.end} money={money} locale={locale} onOpen={openById}
+          onAdd={(date) => { setNewDue(date); setEditing('new') }} />
       )}
 
       {commitments && commitments.length > 0 && <BigCosts money={money} locale={locale} />}
@@ -99,15 +102,18 @@ export function PlanPage() {
       <CommitmentDialog open={editing !== null} onOpenChange={(o) => {
         if (o) return
         setEditing(null)
+        setNewDue(undefined)
         if (open) void navigate({ search: {}, replace: true })
       }}
-        commitment={editing === 'new' || editing === null ? undefined : editing} />
+        commitment={editing === 'new' || editing === null ? undefined : editing} initialDue={newDue} />
     </div>
   )
 }
 
 /** This budget month's due dates, plus anything from the month before that is still unpaid. */
-function DueThisMonth({ start, end, money, locale, onOpen }: { start: string; end: string; money: (m: number) => string; locale: string; onOpen: (id: string) => void }) {
+function DueThisMonth({ start, end, money, locale, onOpen, onAdd }: {
+  start: string; end: string; money: (m: number) => string; locale: string; onOpen: (id: string) => void; onAdd: (date: string) => void
+}) {
   const [y, m, d] = start.split('-').map(Number)
   const { data: due = [], isPending } = useDue(isoDate(new Date(y!, m! - 2, d!)), end)
   const pay = usePayCommitment()
@@ -137,7 +143,7 @@ function DueThisMonth({ start, end, money, locale, onOpen }: { start: string; en
           options={[{ value: 'list', label: <><List />List</> }, { value: 'calendar', label: <><CalendarDays />Calendar</> }]} />
       </div>
       {isPending ? <Skeleton className="h-24" /> : view === 'calendar' ? (
-        <BillCalendar start={start} end={end} due={due.filter((x) => x.dueDate >= start)} money={money} locale={locale} onOpen={onOpen} />
+        <BillCalendar start={start} end={end} due={due.filter((x) => x.dueDate >= start)} money={money} locale={locale} onOpen={onOpen} onAdd={onAdd} />
       ) : rows.length === 0 ? (
         <Card className="p-pad text-sm text-muted">Nothing due this month.</Card>
       ) : (

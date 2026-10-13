@@ -181,6 +181,7 @@ const transactions = createRoute({
   validateSearch: z.object({
     add: z.enum(['EXPENSE', 'INCOME', 'TRANSFER']).optional().catch(undefined),
     open: z.string().uuid().optional().catch(undefined),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
     account: z.string().uuid().optional().catch(undefined),
     category: z.string().uuid().optional().catch(undefined),
     from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
