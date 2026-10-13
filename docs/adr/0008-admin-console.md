@@ -66,10 +66,18 @@ the confidential client `payledger-core-admin`. Its service account may only man
 **Premium given by staff** is `premium_source = GRANTED` until the end of a chosen day, at most five years ahead.
 It replaces a trial or an earlier grant, but never a paid subscription.
 
+**Settings are data, not deploys.** Free's limits, the trial length (0 turns it off) and an announcement for everyone live in
+`app_settings` (V13), read through a 30-second cache. A change applies from the next add; nothing anyone has is
+touched. Each change is audited with the values before and after.
+
+**Staff are managed in the console by owners.** Nobody changes their own role, and `ADMIN_EMAILS` owners can't be
+changed there, so the console can't lock out its owners.
+
 ## Consequences
 
 - Sign-ups are counted when the user first opens the app after verifying their email. A user who verifies but
   never opens the app isn't counted.
 - Activity history starts with this change, so earlier days show no active users.
+- The landing page's pricing table shows the standard limits (`web/src/lib/plans.ts`); it doesn't follow the setting.
 - In production, staff accounts should use two-factor sign-in. In Keycloak this is a conditional OTP flow for
   staff, set up when the production realm is created.

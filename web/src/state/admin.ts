@@ -135,4 +135,67 @@ export const ACTION_LABEL: Record<string, string> = {
   'user.sign-out': 'signed them out everywhere',
   'plan.grant': 'gave Premium',
   'plan.end': 'ended Premium',
+  'staff.grant': 'gave a staff role',
+  'staff.remove': 'removed a staff role',
+  'settings.update': 'changed the settings',
+}
+
+export interface StaffMember {
+  userId: string
+  email: string
+  displayName: string
+  role: StaffRoleName
+  /** An owner from ADMIN_EMAILS: can't be changed in the console. */
+  configured: boolean
+  grantedAt: string | null
+  grantedBy: string | null
+}
+
+export function useStaff() {
+  return useQuery({ queryKey: ['admin', 'staff'], queryFn: () => api<StaffMember[]>('/api/core/admin/staff') })
+}
+
+export function useStaffChange() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: async (change: { grant: { email: string; role: StaffRoleName } } | { remove: string }): Promise<void> => {
+      if ('grant' in change) await api<StaffMember[]>('/api/core/admin/staff', { method: 'PUT', json: change.grant })
+      else await api<void>(`/api/core/admin/staff/${change.remove}`, { method: 'DELETE' })
+    },
+    onSuccess: () => client.invalidateQueries({ queryKey: ['admin'] }),
+  })
+}
+
+export interface Announcement { message: string; tone: 'INFO' | 'WARNING'; until: string | null }
+
+export interface AppSettings {
+  freeLimits: { accounts: number; budgets: number; bills: number; bigCosts: number; imports: number }
+  trialDays: number
+  announcement: Announcement | null
+}
+
+export function useAppSettings() {
+  return useQuery({ queryKey: ['admin', 'settings'], queryFn: () => api<AppSettings>('/api/core/admin/settings') })
+}
+
+export function useSaveAppSettings() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (s: AppSettings) => api<AppSettings>('/api/core/admin/settings', { method: 'PUT', json: s }),
+    onSuccess: (s) => {
+      client.setQueryData(['admin', 'settings'], s)
+      void client.invalidateQueries({ queryKey: ['announcement'] })
+      void client.invalidateQueries({ queryKey: ['plan'] })
+      void client.invalidateQueries({ queryKey: ['admin', 'audit'] })
+    },
+  })
+}
+
+/** The banner everyone signed in sees; null when there is none. */
+export function useAnnouncement() {
+  return useQuery({
+    queryKey: ['announcement'],
+    queryFn: async () => (await api<Announcement | undefined>('/api/core/announcement')) ?? null,
+    staleTime: 5 * 60_000,
+  })
 }
