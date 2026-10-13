@@ -78,6 +78,10 @@ updates:
       # Postgres majors must move together with production and Testcontainers.
       - dependency-name: "postgres"
         update-types: ["version-update:semver-major"]
+      # Keycloak 26.8 makes every new sign-up set their password twice (UPDATE_PASSWORD right after
+      # email verification). Stay on 26.4 until a release passes scripts/login-smoke-test.sh.
+      - dependency-name: "keycloak/keycloak"
+        versions: ["26.8.x"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
