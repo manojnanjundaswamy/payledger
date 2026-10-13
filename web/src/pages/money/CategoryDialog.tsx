@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/overlay'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
-import { useCategories, useCreateCategory, useDeleteCategory, useUpdateCategory, type Category } from '@/state/money'
+import { categoryLabel, useCategories, useCreateCategory, useDeleteCategory, useMergeCategory, useUpdateCategory, type Category } from '@/state/money'
 import { CATEGORY_COLORS, CATEGORY_ICONS, Field, Select } from './parts'
 
 /** Add a category, or rename it, change its icon or colour, move it under another, hide or delete it. */
@@ -27,6 +27,8 @@ export function CategoryDialog({ open, onOpenChange, category, kind }: {
   const [parentId, setParentId] = useState('')
   const [error, setError] = useState<string>()
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const merge = useMergeCategory()
+  const [mergeInto, setMergeInto] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -36,6 +38,7 @@ export function CategoryDialog({ open, onOpenChange, category, kind }: {
     setParentId(category?.parentId ?? '')
     setError(undefined)
     setConfirmDelete(false)
+    setMergeInto('')
   }, [open, category])
 
   const theKind = category?.kind ?? kind
@@ -43,7 +46,7 @@ export function CategoryDialog({ open, onOpenChange, category, kind }: {
   // Subcategories go one level deep: a parent is a visible top-level category of the same kind.
   const parents = categories.filter((c) => c.kind === theKind && !c.parentId && c.id !== category?.id
     && (!c.hidden || c.id === category?.parentId))
-  const busy = create.isPending || update.isPending || remove.isPending
+  const busy = create.isPending || update.isPending || remove.isPending || merge.isPending
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -73,6 +76,20 @@ export function CategoryDialog({ open, onOpenChange, category, kind }: {
       })
       toast(category.hidden ? `${category.name} is back` : `${category.name} hidden`, {
         description: category.hidden ? undefined : 'Its history stays in your reports; it is no longer offered for new transactions.',
+      })
+      onOpenChange(false)
+    } catch (err) {
+      setError(message(err))
+    }
+  }
+
+  async function mergeIt() {
+    if (!category || !mergeInto) return
+    const target = categories.find((c) => c.id === mergeInto)
+    try {
+      const result = await merge.mutateAsync({ id: category.id, into: mergeInto })
+      toast.success(`${category.name} merged into ${target?.name ?? 'the other category'}`, {
+        description: `${result.moved} transaction${result.moved === 1 ? '' : 's'} moved; ${category.name} is now hidden.`,
       })
       onOpenChange(false)
     } catch (err) {
@@ -136,6 +153,20 @@ export function CategoryDialog({ open, onOpenChange, category, kind }: {
             ))}
           </div>
         </fieldset>
+        {category && !category.hidden && !hasChildren && (
+          <div className="flex flex-col gap-1.5 rounded-control border border-border p-3">
+            <label htmlFor="category-merge" className="text-sm font-medium">Merge into another category</label>
+            <p className="text-xs text-subtle">Its transactions and bills move there, including past months in reports; this one is then hidden.</p>
+            <div className="flex gap-2">
+              <Select id="category-merge" value={mergeInto} onChange={(e) => setMergeInto(e.target.value)}>
+                <option value="">Choose…</option>
+                {categories.filter((c) => c.kind === category.kind && !c.hidden && c.id !== category.id && c.parentId !== category.id)
+                  .map((c) => <option key={c.id} value={c.id}>{categoryLabel(c, categories)}</option>)}
+              </Select>
+              <Button variant="outline" onClick={mergeIt} disabled={!mergeInto || merge.isPending}>{merge.isPending ? 'Merging…' : 'Merge'}</Button>
+            </div>
+          </div>
+        )}
         {error && <p className="rounded-control bg-critical/10 px-3 py-2 text-sm text-critical" role="alert">{error}</p>}
         <div className="flex flex-wrap items-center gap-2">
           {category && (

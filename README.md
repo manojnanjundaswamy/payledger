@@ -174,6 +174,7 @@ OpenAPI at http://localhost:8060/swagger-ui.html):
 | `GET /spaces/{id}/exports/transactions.csv` or `.xlsx` `?from=&to=` | transactions in the template's columns; each row's `external_id` is the transaction's reference, so importing an export back adds nothing |
 | `GET /spaces/{id}/imports/template.xlsx`, `…/template.csv` | the template: the Excel one has dropdowns of your accounts and categories and an instructions tab; both have your account names in their example rows |
 | `GET /spaces/{id}/planner` | the annual planner: bills every 6+ months or only once (`endsOn = firstDue`), each with its next date, months left and this month's set-aside (amount ÷ months left) |
+| `POST /spaces/{id}/categories/{cid}/merge` | `{into}`: moves every transaction (reversed and re-posted, so past reports move too) and bill to another category of the same kind, drops its budget and hides it |
 | `DELETE /spaces/{id}/categories/{cid}` | only if no transaction ever used it: 409 `category-in-use` (hide it instead) or `category-has-subcategories` |
 | `GET/POST /spaces/{id}/transactions`, `GET/PUT/DELETE …/transactions/{txnId}` | expense, income, transfer; keyset pages, filtered by `from`, `to`, `accountId` or `categoryId` (with its subcategories); optional client `id` makes a create safe to retry; edits and deletes send the `version` they saw (409 if stale) |
 

@@ -34,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class CategoryIntegrationTest {
 
     @Autowired MockMvc mvc;
+    @Autowired org.springframework.jdbc.core.simple.JdbcClient jdbc;
 
     RequestPostProcessor me;
     String space;
@@ -164,6 +165,45 @@ class CategoryIntegrationTest {
     }
 
     @Test
+    void mergingMovesEveryTransactionAndBillThenHidesTheCategory() throws Exception {
+        String food = id(create("EXPENSE", "Food", null));
+        String bank = createAccount();
+        String a = id(createTransaction(bank, food));
+        createTransaction(bank, food);
+        String gone = id(createTransaction(bank, food));
+        mvc.perform(delete(path("/transactions/" + gone)).with(me).param("version", "1")).andExpect(status().isNoContent());
+        String bill = JsonPath.read(mvc.perform(post(path("/commitments")).with(me).contentType(MediaType.APPLICATION_JSON).content("""
+                {"kind":"BILL","name":"Tiffin","amount":300000,"accountId":"%s","categoryId":"%s","everyMonths":1,"firstDue":"2026-10-01"}
+                """.formatted(bank, food))).andReturn().getResponse().getContentAsString(), "$.id");
+        long commandsBefore = commands();
+
+        mvc.perform(post(path("/categories/" + food + "/merge")).with(me).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"into\":\"" + groceries + "\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.moved").value(2));
+
+        mvc.perform(get(path("/transactions/" + a)).with(me))
+                .andExpect(jsonPath("$.categoryId").value(groceries)).andExpect(jsonPath("$.version").value(2));
+        mvc.perform(get(path("/transactions")).with(me).param("categoryId", groceries)).andExpect(jsonPath("$.items.length()").value(2));
+        // Each move is a reversal and a new posting in the ledger.
+        org.assertj.core.api.Assertions.assertThat(commands() - commandsBefore).isEqualTo(4);
+        mvc.perform(get(path("/commitments")).with(me)).andExpect(jsonPath("$[?(@.id == '" + bill + "')].categoryId").value(groceries));
+        assertThat(JsonPath.<List<Boolean>>read(list(), "$[?(@.id == '" + food + "')].hidden")).containsExactly(true);
+    }
+
+    @Test
+    void aMergeNeedsTwoVisibleCategoriesOfTheSameKind() throws Exception {
+        String food = id(create("EXPENSE", "Food", null));
+        merge(food, food).andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("invalid-merge"));
+        merge(food, salary).andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("invalid-merge"));
+        create("EXPENSE", "Snacks", food);
+        merge(food, groceries).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("category-has-subcategories"));
+        String old = id(create("EXPENSE", "Old", null));
+        replace(old, "Old", "tag", "series-1", null, true);
+        merge(groceries, old).andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("invalid-merge"));
+        merge(UUID.randomUUID().toString(), groceries).andExpect(status().isNotFound());
+    }
+
+    @Test
     void badInputIsRefused() throws Exception {
         mvc.perform(post(path("/categories")).with(me).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"kind\":\"TRANSFER\",\"name\":\"X\",\"icon\":\"tag\",\"color\":\"series-1\"}"))
@@ -203,6 +243,15 @@ class CategoryIntegrationTest {
 
     private String path(String rest) {
         return "/api/core/spaces/" + space + rest;
+    }
+
+    private ResultActions merge(String source, String into) throws Exception {
+        return mvc.perform(post(path("/categories/" + source + "/merge")).with(me).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"into\":\"" + into + "\"}"));
+    }
+
+    private long commands() {
+        return jdbc.sql("select count(*) from outbox_events where aggregate_id = ?").param(UUID.fromString(space)).query(Long.class).single();
     }
 
     private String list() throws Exception {
