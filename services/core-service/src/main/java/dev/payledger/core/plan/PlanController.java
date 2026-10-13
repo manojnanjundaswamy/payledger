@@ -24,7 +24,7 @@ class PlanController {
     }
 
     @PostMapping("/trial")
-    @Operation(summary = "Start the 30-day Premium trial (once per user, no card); 409 trial-used")
+    @Operation(summary = "Start the Premium trial (30 days unless changed in the admin console; once per user, no card); 409 trial-used or trial-off")
     PlanService.Status startTrial(CurrentUser user) {
         return plans.startTrial(user);
     }

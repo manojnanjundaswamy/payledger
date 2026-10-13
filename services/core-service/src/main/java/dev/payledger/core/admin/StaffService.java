@@ -46,6 +46,10 @@ public class StaffService {
                 .param("id", userId).query(String.class).optional().map(StaffRole::valueOf);
     }
 
+    Set<String> configuredOwners() {
+        return owners;
+    }
+
     boolean isConfiguredOwner(String email) {
         return owners.contains(email.toLowerCase(Locale.ROOT));
     }

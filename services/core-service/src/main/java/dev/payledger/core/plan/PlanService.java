@@ -1,6 +1,7 @@
 package dev.payledger.core.plan;
 
 import dev.payledger.core.common.ApiException;
+import dev.payledger.core.settings.AppSettings;
 import dev.payledger.core.user.CurrentUser;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -8,7 +9,6 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -26,34 +26,30 @@ import java.util.stream.Collectors;
 @Service
 public class PlanService {
 
-    static final Duration TRIAL = Duration.ofDays(30);
-
     public enum Plan { FREE, PREMIUM }
 
-    /** What Free allows; Premium has no limits. */
+    /** What Free limits; Premium has no limits. How many Free allows is a setting ({@link AppSettings}). */
     public enum Limit {
-        ACCOUNTS("open accounts", 5),
-        BUDGETS("budgets", 5),
-        BILLS("bills and savings on your plan", 5),
-        BIG_COSTS("big yearly or one-off costs", 1),
-        IMPORTS("imports a month", 3);
+        ACCOUNTS("open accounts"),
+        BUDGETS("budgets"),
+        BILLS("bills and savings on your plan"),
+        BIG_COSTS("big yearly or one-off costs"),
+        IMPORTS("imports a month");
 
         final String what;
-        public final int free;
 
-        Limit(String what, int free) {
+        Limit(String what) {
             this.what = what;
-            this.free = free;
         }
 
-        String key() {
+        public String key() {
             return name().toLowerCase(Locale.ROOT).replace('_', '-');
         }
     }
 
     /**
-     * @param source         TRIAL, PAID or COMPLIMENTARY while Premium, else null
-     * @param trialAvailable the 30-day trial hasn't been used yet
+     * @param source         TRIAL, PAID, GRANTED (by staff) or COMPLIMENTARY while Premium, else null
+     * @param trialAvailable the trial is offered and hasn't been used yet
      * @param limits         Free's limits (null on Premium), and {@code usage} the counts they apply to
      */
     public record Status(Plan plan, String source, Instant premiumUntil, boolean trialAvailable,
@@ -61,10 +57,12 @@ public class PlanService {
     }
 
     private final JdbcClient jdbc;
+    private final AppSettings settings;
     private final Set<String> complimentary;
 
-    public PlanService(JdbcClient jdbc, @Value("${payledger.plans.complimentary:}") String complimentary) {
+    public PlanService(JdbcClient jdbc, AppSettings settings, @Value("${payledger.plans.complimentary:}") String complimentary) {
         this.jdbc = jdbc;
+        this.settings = settings;
         this.complimentary = Arrays.stream(complimentary.split(","))
                 .map(e -> e.strip().toLowerCase(Locale.ROOT)).filter(e -> !e.isEmpty()).collect(Collectors.toSet());
     }
@@ -91,8 +89,9 @@ public class PlanService {
             return;
         }
         jdbc.sql("select id from spaces where id = :id for update").param("id", spaceId).query(UUID.class).single();
-        if (used.getAsLong() >= limit.free) {
-            throw new PlanLimitException(limit);
+        int free = settings.freeLimit(limit.key());
+        if (used.getAsLong() >= free) {
+            throw new PlanLimitException(limit, free);
         }
     }
 
@@ -106,7 +105,7 @@ public class PlanService {
         if (plan == Plan.FREE) {
             limits = new LinkedHashMap<>();
             for (Limit l : Limit.values()) {
-                limits.put(l.key(), l.free);
+                limits.put(l.key(), settings.freeLimit(l.key()));
             }
         }
         Map<String, Long> usage = new LinkedHashMap<>();
@@ -115,18 +114,22 @@ public class PlanService {
         }
         String source = plan == Plan.FREE ? null : complimentary.contains(owner.email().toLowerCase(Locale.ROOT)) ? "COMPLIMENTARY" : owner.premiumSource();
         return new Status(plan, source, plan == Plan.PREMIUM && "COMPLIMENTARY".equals(source) ? null : owner.premiumUntil(),
-                owner.trialStartedAt() == null, limits, usage);
+                owner.trialStartedAt() == null && settings.trialDays() > 0, limits, usage);
     }
 
-    /** Starts the 30-day trial, once per user; no card needed. */
+    /** Starts the trial (30 days unless staff changed it), once per user; no card needed. */
     @Transactional
     public Status startTrial(CurrentUser user) {
+        int days = settings.trialDays();
+        if (days <= 0) {
+            throw new TrialOffException();
+        }
         int started = jdbc.sql("""
                         update users set trial_started_at = now(), premium_source = 'TRIAL',
                             premium_until = greatest(coalesce(premium_until, now()), now()) + cast(:days || ' days' as interval)
                         where id = :id and trial_started_at is null
                         """)
-                .param("id", user.id()).param("days", String.valueOf(TRIAL.toDays()))
+                .param("id", user.id()).param("days", String.valueOf(days))
                 .update();
         if (started == 0) {
             throw new TrialUsedException();
@@ -183,15 +186,21 @@ public class PlanService {
     }
 
     static class PlanLimitException extends ApiException {
-        PlanLimitException(Limit limit) {
+        PlanLimitException(Limit limit, int free) {
             super(HttpStatus.FORBIDDEN, "plan-limit",
-                    "the Free plan allows " + limit.free + " " + limit.what + "; Premium has no limit");
+                    "the Free plan allows " + free + " " + limit.what + "; Premium has no limit");
+        }
+    }
+
+    static class TrialOffException extends ApiException {
+        TrialOffException() {
+            super(HttpStatus.CONFLICT, "trial-off", "the free trial isn't offered right now");
         }
     }
 
     static class TrialUsedException extends ApiException {
         TrialUsedException() {
-            super(HttpStatus.CONFLICT, "trial-used", "the 30-day trial has already been used");
+            super(HttpStatus.CONFLICT, "trial-used", "the free trial has already been used");
         }
     }
 }
