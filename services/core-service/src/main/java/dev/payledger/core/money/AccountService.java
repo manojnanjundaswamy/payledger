@@ -55,6 +55,14 @@ public class AccountService {
                 .list();
     }
 
+    /** Every account of a space, archived ones too, for callers that already checked access. */
+    List<MoneyAccount> all(UUID spaceId) {
+        return jdbc.sql("select " + COLUMNS + " from money_accounts where space_id = :spaceId order by created_at")
+                .param("spaceId", spaceId)
+                .query(MoneyAccount.class)
+                .list();
+    }
+
     @Transactional(readOnly = true)
     public MoneyAccount get(CurrentUser user, UUID spaceId, UUID accountId) {
         access.read(user, spaceId);

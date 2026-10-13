@@ -428,3 +428,83 @@ export function usePlanner() {
     enabled: !!spaceId,
   })
 }
+
+export type ImportStatus = 'READY' | 'DUPLICATE' | 'ERROR'
+
+export interface ImportProblem { line: number; column: string; reason: string }
+
+export interface ImportRow {
+  line: number
+  status: ImportStatus
+  problems: ImportProblem[]
+  kind: TxnKind | null
+  amount: number | null
+  date: string | null
+  account: string
+  toAccount: string | null
+  category: string | null
+  description: string
+}
+
+/** A name in the file the space doesn't have; `key` is what a mapping uses. */
+export interface ImportUnknown { key: string; name: string; kind: 'ACCOUNT' | 'EXPENSE' | 'INCOME'; parent: string | null; rows: number }
+
+export interface ImportPreview {
+  total: number
+  ready: number
+  duplicates: number
+  errors: number
+  rows: ImportRow[]
+  unknownAccounts: ImportUnknown[]
+  unknownCategories: ImportUnknown[]
+}
+
+/**
+ * accounts: key -> account id or `new:BANK` (CASH, CARD, WALLET); categories: key -> category id or `new`.
+ */
+export interface ImportRequest {
+  fileName: string
+  csv: string
+  accounts: Record<string, string>
+  categories: Record<string, string>
+}
+
+export interface ImportBatch { id: string; fileName: string; imported: number; duplicates: number; skipped: number; createdAt: string; undone: boolean }
+
+/** Checks every row; saves nothing. */
+export function usePreviewImport() {
+  const spaceId = useSpaceId()
+  return useMutation({
+    mutationFn: (body: ImportRequest) => api<ImportPreview>(`${base(spaceId!)}/imports/preview`, { method: 'POST', json: body }),
+  })
+}
+
+export function useCommitImport() {
+  return useMoneyMutation((spaceId, body: ImportRequest) =>
+    api<{ importId: string; imported: number; duplicates: number; skipped: number }>(`${base(spaceId)}/imports`, { method: 'POST', json: body }))
+}
+
+export function useImports() {
+  const spaceId = useSpaceId()
+  return useQuery({
+    queryKey: ['money', spaceId, 'imports'],
+    queryFn: () => api<ImportBatch[]>(`${base(spaceId!)}/imports`),
+    enabled: !!spaceId,
+  })
+}
+
+export function useUndoImport() {
+  return useMoneyMutation((spaceId, id: string) => api<void>(`${base(spaceId)}/imports/${id}`, { method: 'DELETE' }))
+}
+
+/** Where the template downloads from (same origin, so the session cookie goes with it). */
+export function templateUrl(spaceId: string): string {
+  return `${base(spaceId)}/imports/template.csv`
+}
+
+/** The preview's problems as a CSV the user can open next to their file. */
+export function problemsCsv(rows: ImportRow[]): string {
+  const cell = (v: string | number) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v))
+  const lines = rows.flatMap((r) => r.problems.map((p) => [p.line, p.column, p.reason].map(cell).join(',')))
+  return ['row,column,reason', ...lines].join('\r\n') + '\r\n'
+}
