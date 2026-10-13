@@ -26,11 +26,13 @@ public class UserProvisioning {
     private final JdbcClient jdbc;
     private final CategoryService categories;
     private final GroupService groups;
+    private final ActivityTracker activity;
 
-    public UserProvisioning(JdbcClient jdbc, CategoryService categories, GroupService groups) {
+    public UserProvisioning(JdbcClient jdbc, CategoryService categories, GroupService groups, ActivityTracker activity) {
         this.jdbc = jdbc;
         this.categories = categories;
         this.groups = groups;
+        this.activity = activity;
     }
 
     @Transactional
@@ -42,16 +44,18 @@ public class UserProvisioning {
         String email = jwt.getClaimAsString("email").toLowerCase();
 
         Optional<CurrentUser> existing = find(subject);
+        CurrentUser user;
         if (existing.isEmpty()) {
-            return create(subject, email, displayName(jwt, email));
-        }
-        CurrentUser user = existing.get();
-        if (!user.email().equals(email)) {
+            user = create(subject, email, displayName(jwt, email));
+        } else if (!existing.get().email().equals(email)) {
             // Email changed in Keycloak. The display name is only taken from Keycloak once:
             // afterwards it belongs to the user's PayLedger profile.
-            updateEmail(user.id(), email);
-            return new CurrentUser(user.id(), subject, email, user.displayName(), user.personalSpaceId());
+            updateEmail(existing.get().id(), email);
+            user = new CurrentUser(existing.get().id(), subject, email, existing.get().displayName(), existing.get().personalSpaceId());
+        } else {
+            user = existing.get();
         }
+        activity.seen(user.id());
         return user;
     }
 

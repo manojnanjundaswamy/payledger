@@ -230,6 +230,8 @@ services:
       KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/payledger/protocol/openid-connect/certs
       # Complimentary Premium (comma-separated): the demo user never meets a Free limit in the e2e tests.
       PREMIUM_EMAILS: ${PREMIUM_EMAILS:-demo@payledger.local}
+      # Owners of the admin console (comma-separated). Locally the demo user, so /admin can be tried.
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-demo@payledger.local}
     ports:
       - "${CORE_PORT:-8060}:8060"
       - "${CORE_MANAGEMENT_PORT:-8061}:8061"

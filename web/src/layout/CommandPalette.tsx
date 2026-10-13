@@ -8,7 +8,7 @@ import { ACCENT_PRESETS, type WidgetType } from '@/state/preferences'
 import { usePreferences } from '@/state/PreferencesProvider'
 import { signOut } from '@/state/session'
 import { dashboardEvents } from '@/dashboard/events'
-import { NAV } from './nav'
+import { useNav } from './nav'
 
 export function useCommandPaletteShortcut(toggle: () => void) {
   useEffect(() => {
@@ -26,6 +26,7 @@ export function useCommandPaletteShortcut(toggle: () => void) {
 export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const navigate = useNavigate()
   const { prefs, dispatch } = usePreferences()
+  const nav = useNav()
   const run = (fn: () => void) => () => {
     onOpenChange(false)
     fn()
@@ -52,7 +53,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
             <Command.List className="max-h-[min(60dvh,420px)] overflow-y-auto p-2">
               <Command.Empty className="py-10 text-center text-sm text-muted">Nothing found.</Command.Empty>
               <Command.Group heading="Go to">
-                {NAV.map((n) => (
+                {nav.map((n) => (
                   <Item key={n.to} icon={<n.icon />} onSelect={run(() => navigate({ to: n.to }))}>{n.label}</Item>
                 ))}
               </Command.Group>

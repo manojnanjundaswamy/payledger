@@ -9,6 +9,10 @@ export interface Space {
   role: 'OWNER' | 'PARTNER' | 'MEMBER' | 'VIEWER'
 }
 
+export type StaffRole = 'OWNER' | 'ADMIN' | 'SUPPORT' | 'ANALYST'
+export type StaffPermission = 'ANALYTICS_VIEW' | 'USERS_VIEW' | 'USERS_SUPPORT' | 'USERS_MANAGE' | 'PLANS_MANAGE'
+  | 'SETTINGS_MANAGE' | 'AUDIT_VIEW' | 'STAFF_MANAGE'
+
 export interface Profile {
   id: string
   email: string
@@ -16,6 +20,8 @@ export interface Profile {
   settings: { locale: string; timeZone: string; currency: string; budgetStartDay: number }
   preferences: Record<string, unknown>
   spaces: Space[]
+  /** PayLedger staff: their admin-console role and what it allows. Absent for customers. */
+  staff?: { role: StaffRole; permissions: StaffPermission[] } | null
 }
 
 export type ProfileUpdate = Partial<Pick<Profile, 'displayName'> & Profile['settings']> & { preferences?: unknown }

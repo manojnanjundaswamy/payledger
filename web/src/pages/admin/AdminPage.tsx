@@ -1,0 +1,55 @@
+import { useNavigate, useSearch } from '@tanstack/react-router'
+import { BarChart3, ShieldAlert } from 'lucide-react'
+import { Badge, Card } from '@/components/ui/card'
+import { cn } from '@/lib/cn'
+import { useProfile, type StaffPermission } from '@/state/profile'
+import { AdminOverview } from './AdminOverview'
+import { ADMIN_TABS_KEYS, type AdminTab } from './tabs'
+
+const TABS: Record<AdminTab, { label: string; icon: typeof BarChart3; needs: StaffPermission; component: () => React.JSX.Element }> = {
+  overview: { label: 'Overview', icon: BarChart3, needs: 'ANALYTICS_VIEW', component: AdminOverview },
+}
+
+const ROLE_LABEL = { OWNER: 'Owner', ADMIN: 'Admin', SUPPORT: 'Support', ANALYST: 'Analyst' } as const
+
+/** The admin console: only staff get here, and each tab only shows when the role allows it. */
+export function AdminPage() {
+  const staff = useProfile().data?.staff
+  const { tab } = useSearch({ from: '/app/admin' })
+  const navigate = useNavigate()
+
+  if (!staff) {
+    return (
+      <Card className="mx-auto flex max-w-md flex-col items-center gap-2 p-8 text-center">
+        <ShieldAlert className="size-8 text-muted" />
+        <p className="font-medium">This is for PayLedger staff</p>
+        <p className="text-sm text-muted">Your account doesn't have access to the admin console.</p>
+      </Card>
+    )
+  }
+  const allowed = ADMIN_TABS_KEYS.filter((k) => staff.permissions.includes(TABS[k].needs))
+  const current = allowed.find((k) => k === tab) ?? allowed[0]
+  const Body = current ? TABS[current].component : null
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <nav className="flex gap-1 overflow-x-auto" aria-label="Admin">
+          {allowed.map((k) => {
+            const t = TABS[k]
+            return (
+              <button key={k} onClick={() => navigate({ to: '/admin', search: { tab: k }, replace: true })}
+                aria-current={k === current ? 'page' : undefined}
+                className={cn('flex h-9 shrink-0 items-center gap-2 rounded-control px-3 text-sm font-medium transition-colors',
+                  k === current ? 'bg-surface-2 text-fg' : 'text-muted hover:bg-surface-2 hover:text-fg')}>
+                <t.icon className="size-4" />{t.label}
+              </button>
+            )
+          })}
+        </nav>
+        <Badge className="ml-auto" data-testid="staff-role">{ROLE_LABEL[staff.role]}</Badge>
+      </div>
+      {Body ? <Body /> : <Card className="p-pad text-sm text-muted">Your role has nothing to show here yet.</Card>}
+    </div>
+  )
+}
