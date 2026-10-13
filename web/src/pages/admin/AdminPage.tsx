@@ -1,13 +1,17 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { BarChart3, ShieldAlert } from 'lucide-react'
+import { BarChart3, ScrollText, ShieldAlert, Users } from 'lucide-react'
 import { Badge, Card } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
 import { useProfile, type StaffPermission } from '@/state/profile'
+import { AdminAudit } from './AdminAudit'
 import { AdminOverview } from './AdminOverview'
+import { AdminUsers } from './AdminUsers'
 import { ADMIN_TABS_KEYS, type AdminTab } from './tabs'
 
 const TABS: Record<AdminTab, { label: string; icon: typeof BarChart3; needs: StaffPermission; component: () => React.JSX.Element }> = {
   overview: { label: 'Overview', icon: BarChart3, needs: 'ANALYTICS_VIEW', component: AdminOverview },
+  users: { label: 'Users', icon: Users, needs: 'USERS_VIEW', component: AdminUsers },
+  audit: { label: 'Audit log', icon: ScrollText, needs: 'AUDIT_VIEW', component: AdminAudit },
 }
 
 const ROLE_LABEL = { OWNER: 'Owner', ADMIN: 'Admin', SUPPORT: 'Support', ANALYST: 'Analyst' } as const

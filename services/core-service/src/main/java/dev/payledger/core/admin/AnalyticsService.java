@@ -37,6 +37,10 @@ public class AnalyticsService {
         this.zone = activity.zone();
     }
 
+    ZoneId zone() {
+        return zone;
+    }
+
     /** @param newToday, new7Days, new30Days sign-ups (a user is created on their first visit after verifying) */
     public record Users(long total, long newToday, long new7Days, long new30Days) {
     }
@@ -46,10 +50,10 @@ public class AnalyticsService {
     }
 
     /**
-     * Premium by what gave it. {@code convertedFromTrial}: paying users who tried Premium first.
+     * Premium by what gave it (GRANTED: given by staff). {@code convertedFromTrial}: paying users who tried Premium first.
      * {@code trialsEndingSoon}: trials ending in the next 7 days.
      */
-    public record Plans(long free, long trial, long paid, long complimentary, long trialsStarted30Days,
+    public record Plans(long free, long trial, long paid, long granted, long complimentary, long trialsStarted30Days,
                         long trialsEndingSoon, long convertedFromTrial) {
     }
 
@@ -118,6 +122,7 @@ public class AnalyticsService {
                         select count(*) filter (where not comp and not coalesce(premium, false)) as free,
                                count(*) filter (where not comp and premium and premium_source = 'TRIAL') as trial,
                                count(*) filter (where not comp and premium and premium_source = 'PAID') as paid,
+                               count(*) filter (where not comp and premium and premium_source = 'GRANTED') as granted,
                                count(*) filter (where comp) as complimentary,
                                count(*) filter (where trial_started_at >= now() - interval '30 days') as trials_started30_days,
                                count(*) filter (where not comp and premium and premium_source = 'TRIAL'

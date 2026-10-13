@@ -21,7 +21,7 @@ export function AdminOverview() {
   if (isError) return <Card className="p-pad text-sm text-critical">Couldn't load the numbers. Refresh to try again.</Card>
   if (isPending || !data) return <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-28" />)}</div>
 
-  const premium = data.plans.trial + data.plans.paid + data.plans.complimentary
+  const premium = data.plans.trial + data.plans.paid + data.plans.granted + data.plans.complimentary
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -36,7 +36,7 @@ export function AdminOverview() {
         <Kpi label="Active today" value={n(data.active.daily)} note={`${pct(data.active.daily, data.active.monthly)} of monthly active (stickiness)`} testId="kpi-daily" />
         <Kpi label="Active in 7 days" value={n(data.active.weekly)} note={`${pct(data.active.weekly, data.users.total)} of all users`} />
         <Kpi label="Active in 30 days" value={n(data.active.monthly)} note={`${pct(data.active.monthly, data.users.total)} of all users`} />
-        <Kpi label="Premium" value={n(premium)} note={`${n(data.plans.paid)} paying · ${n(data.plans.trial)} on trial · ${n(data.plans.complimentary)} complimentary`} testId="kpi-premium" />
+        <Kpi label="Premium" value={n(premium)} note={`${n(data.plans.paid)} paying · ${n(data.plans.trial)} on trial · ${n(data.plans.granted + data.plans.complimentary)} given`} testId="kpi-premium" />
         <Kpi label="Trials ending in 7 days" value={n(data.plans.trialsEndingSoon)} note={`${n(data.plans.trialsStarted30Days)} trials started in 30 days`} />
         <Kpi label="Trial to paid" value={n(data.plans.convertedFromTrial)} note="paying users who tried Premium first" />
         <Kpi label="Sign-ups in 30 days" value={n(data.users.new30Days)} note={`${n(data.usage.transactions)} transactions added in 30 days`} />
@@ -53,6 +53,7 @@ export function AdminOverview() {
             { key: 'free', label: 'Free', value: data.plans.free, slot: 0 },
             { key: 'trial', label: 'Premium trial', value: data.plans.trial, slot: 3 },
             { key: 'paid', label: 'Premium, paying', value: data.plans.paid, slot: 1 },
+            { key: 'granted', label: 'Premium, given by staff', value: data.plans.granted, slot: 5 },
             { key: 'comp', label: 'Premium, complimentary', value: data.plans.complimentary, slot: 4 },
           ].filter((i) => i.value > 0)} />
         </Section>

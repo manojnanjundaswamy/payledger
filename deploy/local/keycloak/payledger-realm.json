@@ -78,9 +78,34 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "payledger-core-admin",
+      "name": "PayLedger admin console (core-service)",
+      "description": "core-service's service account for the admin console: create users, send their emails, block sign-in. Users only, this realm only.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "local-dev-core-admin-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": true
     }
   ],
   "users": [
+    {
+      "username": "service-account-payledger-core-admin",
+      "enabled": true,
+      "serviceAccountClientId": "payledger-core-admin",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users"
+        ]
+      }
+    },
     {
       "id": "9025ade0-58bb-450d-97cf-e3ed99a2bb35",
       "username": "demo@payledger.local",
