@@ -7,7 +7,7 @@ import { Dialog } from '@/components/ui/overlay'
 import { ApiError } from '@/lib/api'
 import { minorToInput, parseMoney } from '@/lib/money'
 import {
-  useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useUpdateTransaction,
+  categoryLabel, categoryTree, useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useUpdateTransaction,
   type Transaction, type TransactionFields, type TxnKind,
 } from '@/state/money'
 import { Field, Select, TXN_KINDS, today } from './parts'
@@ -156,7 +156,8 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
             <Field label="Category" htmlFor="txn-category">
               <Select id="txn-category" value={draft.categoryId} onChange={(e) => set('categoryId', e.target.value)}>
                 <option value="">Choose…</option>
-                {choices.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {categoryTree(choices).flatMap(({ category, children }) => [category, ...children]).map((c) =>
+                  <option key={c.id} value={c.id}>{categoryLabel(c, categories)}</option>)}
               </Select>
             </Field>
             <Field label={draft.kind === 'INCOME' ? 'Into' : 'Paid from'} htmlFor="txn-account">
