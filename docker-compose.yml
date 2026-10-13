@@ -80,7 +80,7 @@ services:
   # user) is imported from deploy/local/keycloak on first start; later changes made in the admin
   # console are kept in keycloak-db.
   keycloak:
-    image: keycloak/keycloak:26.4.2
+    image: keycloak/keycloak:26.8.0-0
     command: ["start-dev", "--import-realm"]
     depends_on:
       keycloak-db: { condition: service_healthy }
