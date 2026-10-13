@@ -33,6 +33,8 @@ test('a customised dashboard and theme come back exactly the same after signing 
   await page.getByRole('button', { name: 'Create dashboard' }).click()
   await expect(page.getByRole('tab', { name: 'Home', selected: true })).toBeVisible()
   await page.getByRole('tab', { name: 'Overview' }).click()
+  // goto() reloads the app; it would load the profile before the dashboard changes are saved.
+  await waitForSave(page)
 
   // Theme: dark with an indigo accent.
   await page.goto('/settings?tab=appearance')
