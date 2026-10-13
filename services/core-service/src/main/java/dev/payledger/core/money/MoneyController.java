@@ -5,10 +5,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -25,34 +25,40 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-/** Money accounts, categories and transactions of one space ({@code /api/core/me} lists your spaces). */
+/**
+ * Money accounts, categories and transactions of one space ({@code /api/core/me} lists your spaces).
+ * Constraints on parameters are checked by Spring MVC's built-in method validation (400 problem responses);
+ * no {@code @Validated} here, which would validate through a proxy and turn bad input into a 500.
+ */
 @RestController
 @RequestMapping("/api/core/spaces/{spaceId}")
-@Validated
 class MoneyController {
 
     private final AccountService accounts;
     private final CategoryService categories;
     private final TransactionService transactions;
+    private final BalanceService balances;
 
-    MoneyController(AccountService accounts, CategoryService categories, TransactionService transactions) {
+    MoneyController(AccountService accounts, CategoryService categories, TransactionService transactions,
+                    BalanceService balances) {
         this.accounts = accounts;
         this.categories = categories;
         this.transactions = transactions;
+        this.balances = balances;
     }
 
     // ---------------------------------------------------------------- accounts
 
     @GetMapping("/accounts")
-    @Operation(summary = "Bank, cash, card and wallet accounts; archived ones only when asked")
-    List<MoneyAccount> accounts(CurrentUser user, @PathVariable UUID spaceId,
-                                @RequestParam(defaultValue = "false") boolean includeArchived) {
-        return accounts.list(user, spaceId, includeArchived);
+    @Operation(summary = "Bank, cash, card and wallet accounts with balances from the ledger (null if it is unreachable)")
+    List<AccountView> accounts(CurrentUser user, @PathVariable UUID spaceId,
+                               @RequestParam(defaultValue = "false") boolean includeArchived) {
+        return balances.accounts(user, spaceId, includeArchived);
     }
 
     @GetMapping("/accounts/{accountId}")
-    MoneyAccount account(CurrentUser user, @PathVariable UUID spaceId, @PathVariable UUID accountId) {
-        return accounts.get(user, spaceId, accountId);
+    AccountView account(CurrentUser user, @PathVariable UUID spaceId, @PathVariable UUID accountId) {
+        return balances.account(user, spaceId, accountId);
     }
 
     @PostMapping("/accounts")
@@ -75,6 +81,16 @@ class MoneyController {
     @Operation(summary = "Expense and income categories, hidden ones included (flagged)")
     List<Category> categories(CurrentUser user, @PathVariable UUID spaceId) {
         return categories.list(user, spaceId);
+    }
+
+    @GetMapping("/category-totals")
+    @Operation(summary = "Spending (EXPENSE) or income (INCOME) per category between two dates, optionally per month; 503 if the ledger is unreachable")
+    List<BalanceService.CategoryTotal> categoryTotals(CurrentUser user, @PathVariable UUID spaceId,
+                                                      @RequestParam(defaultValue = "EXPENSE") @Pattern(regexp = "EXPENSE|INCOME") String kind,
+                                                      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                                      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                                                      @RequestParam(defaultValue = "false") boolean byMonth) {
+        return balances.categoryTotals(user, spaceId, kind, from, to, byMonth);
     }
 
     // ---------------------------------------------------------------- transactions

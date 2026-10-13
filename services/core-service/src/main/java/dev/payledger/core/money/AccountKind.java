@@ -15,4 +15,9 @@ public enum AccountKind {
     public long toLedger(long userAmount) {
         return this == CARD ? Math.negateExact(userAmount) : userAmount;
     }
+
+    /** The other way: a ledger balance in the user's terms (a card shows what you owe as a positive number). */
+    public long fromLedger(long ledgerAmount) {
+        return this == CARD ? Math.negateExact(ledgerAmount) : ledgerAmount;
+    }
 }

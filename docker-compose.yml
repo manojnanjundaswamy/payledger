@@ -224,6 +224,8 @@ services:
       DB_URL: jdbc:postgresql://core-db:5432/core
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       LEDGER_COMMANDS_TOPIC: ${LEDGER_COMMANDS_TOPIC:-ledger.commands.v1}
+      # Balances are read from the ledger; if it isn't running, the app shows accounts without numbers.
+      LEDGER_URL: http://ledger-service:8080
       KEYCLOAK_ISSUER: http://localhost:${KEYCLOAK_PORT:-8180}/realms/payledger
       KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/payledger/protocol/openid-connect/certs
     ports:
@@ -231,7 +233,7 @@ services:
       - "${CORE_MANAGEMENT_PORT:-8061}:8061"
 
   ledger-service:
-    profiles: [app, ledger]
+    profiles: [app, ledger, web]
     build: services/ledger-service
     depends_on:
       postgres: { condition: service_healthy }

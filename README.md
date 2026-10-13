@@ -47,8 +47,8 @@ Client ──HTTP──▶         │ LedgerController ─▶ LedgerService (bo
 ```
 
 In progress (Phase 4): core-service records accounts and transactions and queues the matching ledger commands in its
-own outbox; ledger-service consumes them ([docs/events/ledger-commands.md](docs/events/ledger-commands.md)).
-Balances in the app's API come next.
+own outbox; ledger-service consumes them ([docs/events/ledger-commands.md](docs/events/ledger-commands.md)), and
+core-service reads balances and per-category totals back from the ledger. The web screens come next.
 notification-service is **parked**: it still reads the wallet-era `ledger.entries.v1` events, which nothing
 publishes any more, and is repurposed for emails and the activity feed in Phase 6.
 
@@ -75,6 +75,7 @@ Prerequisites: Java 21 and Docker. Everything below works with no configuration;
 docker compose --profile app up -d --build   # infrastructure + gateway, core-service, ledger-service, notification-service
 scripts/login-smoke-test.sh                   # sign-in, sign-up + email verification, token relay, CSRF, logout
 scripts/smoke-test.sh                         # ledger: entries, reversal, totals, outbox -> Kafka
+scripts/money-smoke-test.sh                   # money: account + expense via gateway -> core -> Kafka -> ledger, edit, delete, balances
 docker compose --profile tools up -d          # optional: Kafka UI on http://localhost:8085
 ```
 
@@ -153,7 +154,8 @@ OpenAPI at http://localhost:8060/swagger-ui.html):
 | | |
 |---|---|
 | `GET/PATCH /me` | profile, settings, UI preferences, your spaces |
-| `GET/POST /spaces/{id}/accounts`, `GET/PATCH …/accounts/{accountId}` | bank, cash, card, wallet; opening balance; archive |
+| `GET/POST /spaces/{id}/accounts`, `GET/PATCH …/accounts/{accountId}` | bank, cash, card, wallet; opening balance; archive; `balance` from the ledger (owed, for a card; null if the ledger is unreachable) |
+| `GET /spaces/{id}/category-totals?kind=EXPENSE&from=…&to=…&byMonth=` | spending (or income) per category, positive amounts; 503 `ledger-unavailable` if the ledger is down |
 | `GET /spaces/{id}/categories` | the default set every space starts with |
 | `GET/POST /spaces/{id}/transactions`, `GET/PUT/DELETE …/transactions/{txnId}` | expense, income, transfer; keyset pages; optional client `id` makes a create safe to retry; edits and deletes send the `version` they saw (409 if stale) |
 
@@ -197,6 +199,13 @@ All tests run against real PostgreSQL and Kafka in Docker (Testcontainers): `./m
 - An account keeps its type and a book its kind
 - The database itself refuses unbalanced entries, postings into another book, and edits to postings
 - Wallet data from before the pivot is preserved in the legacy book
+
+`BalanceIntegrationTest` (core-service, against a fake ledger) proves balances are shown in the user's terms (a card's
+debt as a positive amount owed), a space with nothing posted yet shows zeros, a ledger outage leaves accounts loading
+without balances, and category totals read as positive spending and income.
+
+`scripts/money-smoke-test.sh` proves the whole chain on the running stack: an account and an expense go through the
+gateway, core-service, Kafka and the ledger, an edit and a delete reverse correctly, and the balances come back.
 
 `LedgerCommandIntegrationTest` proves core-service's commands arriving over Kafka are posted once even when
 delivered twice, an edit (reverse + new version) nets out correctly, and commands that can never succeed (bad JSON,

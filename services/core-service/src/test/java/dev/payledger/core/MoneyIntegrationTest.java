@@ -247,6 +247,8 @@ class MoneyIntegrationTest {
 
         mvc.perform(get(path("/transactions")).with(me).param("from", "2026-10-02").param("to", "2026-10-03"))
                 .andExpect(jsonPath("$.items.length()").value(3));
+        mvc.perform(get(path("/transactions")).with(me).param("limit", "0")).andExpect(status().isBadRequest());
+        mvc.perform(get(path("/transactions")).with(me).param("limit", "201")).andExpect(status().isBadRequest());
         mvc.perform(get(path("/transactions")).with(me).param("cursor", "garbage"))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("invalid-cursor"));
     }
