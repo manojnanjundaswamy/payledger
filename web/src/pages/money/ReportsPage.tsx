@@ -1,13 +1,14 @@
 import { useMemo } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, Download } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Card, Skeleton } from '@/components/ui/card'
 import { Input } from '@/components/ui/controls'
 import { BUDGET_STATUS, GroupedBars } from '@/dashboard/charts'
 import { cn } from '@/lib/cn'
 import { formatMoneyShort, formatMoneyWhole } from '@/lib/money'
 import { PERIOD_KEYS, financialYear, monthsIn, reportPeriod, type Period, type PeriodKey } from '@/lib/periods'
-import { useBudgetMonths, useCategories, useCategoryTotals, type Category, type CategoryTotal } from '@/state/money'
+import { exportUrl, useBudgetMonths, useCategories, useCategoryTotals, useSpaceId, type Category, type CategoryTotal } from '@/state/money'
 import { useProfile } from '@/state/profile'
 import { CategoryIcon, Select } from './parts'
 
@@ -24,6 +25,7 @@ export function ReportsPage() {
   const locale = profile?.settings.locale ?? 'en-IN'
   const period = reportPeriod(search.period ?? 'this-month', profile?.settings.budgetStartDay ?? 1, new Date(), search)
   const money = (minor: number) => formatMoneyWhole(minor, 'INR', locale)
+  const spaceId = useSpaceId()
 
   const spending = useCategoryTotals('EXPENSE', period.from, period.to)
   const income = useCategoryTotals('INCOME', period.from, period.to)
@@ -54,6 +56,12 @@ export function ReportsPage() {
               <Input id="report-to" type="date" value={period.to} onChange={(e) => e.target.value && void navigate({ search: (s) => ({ ...s, to: e.target.value }) })} />
             </div>
           </>
+        )}
+        {spaceId && (
+          <div className="ml-auto flex items-center gap-1 pb-1">
+            <Button asChild variant="ghost" size="sm"><a href={exportUrl(spaceId, 'xlsx', period.from, period.to)} download><Download />Excel</a></Button>
+            <Button asChild variant="ghost" size="sm"><a href={exportUrl(spaceId, 'csv', period.from, period.to)} download><Download />CSV</a></Button>
+          </div>
         )}
         <p className="pb-2 text-sm text-muted" data-testid="report-range">
           {period.key.endsWith('fy') && <span className="font-medium text-fg">{financialYear(new Date(`${period.from}T00:00`)).label} · </span>}

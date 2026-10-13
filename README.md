@@ -171,6 +171,7 @@ OpenAPI at http://localhost:8060/swagger-ui.html):
 | `POST /spaces/{id}/imports/preview` | `{fileName, csv or xlsx (base64), accounts?, categories?}`: checks every row (READY, DUPLICATE or ERROR with column and reason) and lists the account and category names the space doesn't have; saves nothing |
 | `POST /spaces/{id}/imports` | imports the READY rows; `accounts` / `categories` map unknown names to an id, or to `new:BANK` (CASH, CARD, WALLET) / `new` to create them. At most 2,000 rows; importing the same file again adds nothing |
 | `GET /spaces/{id}/imports`, `DELETE …/{importId}` | past imports; undo deletes every transaction an import added (409 `import-undone` the second time) |
+| `GET /spaces/{id}/exports/transactions.csv` or `.xlsx` `?from=&to=` | transactions in the template's columns; each row's `external_id` is the transaction's reference, so importing an export back adds nothing |
 | `GET /spaces/{id}/imports/template.xlsx`, `…/template.csv` | the template: the Excel one has dropdowns of your accounts and categories and an instructions tab; both have your account names in their example rows |
 | `GET /spaces/{id}/planner` | the annual planner: bills every 6+ months or only once (`endsOn = firstDue`), each with its next date, months left and this month's set-aside (amount ÷ months left) |
 | `DELETE /spaces/{id}/categories/{cid}` | only if no transaction ever used it: 409 `category-in-use` (hide it instead) or `category-has-subcategories` |

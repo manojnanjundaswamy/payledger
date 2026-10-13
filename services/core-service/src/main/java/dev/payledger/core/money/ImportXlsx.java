@@ -167,6 +167,50 @@ final class ImportXlsx {
         }
     }
 
+    /** Exported transactions: real Excel dates and numbers, so the sheet sorts and sums as people expect. */
+    static byte[] export(List<ExportService.Line> lines) {
+        try (XSSFWorkbook book = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = book.createSheet(SHEET);
+            var bold = book.createCellStyle();
+            var font = book.createFont();
+            font.setBold(true);
+            bold.setFont(font);
+            var date = book.createCellStyle();
+            date.setDataFormat(book.getCreationHelper().createDataFormat().getFormat("dd-mm-yyyy"));
+            var money = book.createCellStyle();
+            money.setDataFormat(book.getCreationHelper().createDataFormat().getFormat("#,##0.00"));
+            Row header = sheet.createRow(0);
+            for (int c = 0; c < COLUMNS.size(); c++) {
+                Cell cell = header.createCell(c);
+                cell.setCellValue(COLUMNS.get(c));
+                cell.setCellStyle(bold);
+                sheet.setColumnWidth(c, 16 * 256);
+            }
+            for (int r = 0; r < lines.size(); r++) {
+                ExportService.Line line = lines.get(r);
+                Row row = sheet.createRow(r + 1);
+                List<String> cells = line.cells();
+                for (int c = 0; c < cells.size(); c++) {
+                    Cell cell = row.createCell(c);
+                    if (c == 0) {
+                        cell.setCellValue(line.date());
+                        cell.setCellStyle(date);
+                    } else if (c == 1) {
+                        cell.setCellValue(line.amount().doubleValue());
+                        cell.setCellStyle(money);
+                    } else {
+                        cell.setCellValue(cells.get(c));
+                    }
+                }
+            }
+            sheet.createFreezePane(0, 1);
+            book.write(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     private static void fill(Sheet sheet, int column, List<String> values) {
         for (int i = 0; i < values.size(); i++) {
             Row row = sheet.getRow(i) != null ? sheet.getRow(i) : sheet.createRow(i);

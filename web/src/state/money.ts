@@ -531,3 +531,8 @@ export function problemsCsv(rows: ImportRow[]): string {
   const lines = rows.flatMap((r) => r.problems.map((p) => [p.line, p.column, p.reason].map(cell).join(',')))
   return ['row,column,reason', ...lines].join('\r\n') + '\r\n'
 }
+
+/** Transactions between two dates as a file in the import template's columns (importing it back adds nothing). */
+export function exportUrl(spaceId: string, format: 'csv' | 'xlsx', from: string, to: string): string {
+  return `${base(spaceId)}/exports/transactions.${format}?${new URLSearchParams({ from, to })}`
+}
