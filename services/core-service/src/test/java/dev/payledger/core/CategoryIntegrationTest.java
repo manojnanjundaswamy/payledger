@@ -133,6 +133,16 @@ class CategoryIntegrationTest {
     }
 
     @Test
+    void filteringTransactionsByACategoryIncludesItsSubcategories() throws Exception {
+        String snacks = id(create("EXPENSE", "Snacks", groceries));
+        String bank = createAccount();
+        createTransaction(bank, groceries).andExpect(status().isCreated());
+        createTransaction(bank, snacks).andExpect(status().isCreated());
+        mvc.perform(get(path("/transactions")).with(me).param("categoryId", groceries)).andExpect(jsonPath("$.items.length()").value(2));
+        mvc.perform(get(path("/transactions")).with(me).param("categoryId", snacks)).andExpect(jsonPath("$.items.length()").value(1));
+    }
+
+    @Test
     void onlyANeverUsedCategoryCanBeDeleted() throws Exception {
         String unused = id(create("EXPENSE", "Unused", null));
         mvc.perform(delete(path("/categories/" + unused)).with(me)).andExpect(status().isNoContent());
