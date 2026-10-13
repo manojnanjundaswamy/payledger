@@ -59,6 +59,8 @@ class PlannerIntegrationTest {
         bank = JsonPath.read(mvc.perform(post(path("/accounts")).with(me).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"kind\":\"BANK\",\"name\":\"HDFC\"}")).andReturn().getResponse().getContentAsString(), "$.id");
         period = BudgetPeriod.containing(LocalDate.now(ZoneId.of("Asia/Kolkata")), 1);
+        // These tests plan more big costs than the Free plan's one.
+        mvc.perform(post("/api/core/plan/trial").with(me)).andExpect(status().isOk());
     }
 
     @Test

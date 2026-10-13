@@ -1,15 +1,17 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { motion } from 'motion/react'
-import { Globe2, LayoutGrid, Palette, ShieldCheck, UserRound } from 'lucide-react'
+import { Globe2, LayoutGrid, Palette, ShieldCheck, Sparkles, UserRound } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { AppearanceSettings } from './AppearanceSettings'
 import { AccountSettings, DashboardSettings, ProfileSettings, RegionalSettings } from './OtherSettings'
+import { PlanSettings } from './PlanSettings'
 
 export const SETTINGS_TABS = [
   { key: 'appearance', label: 'Appearance', icon: Palette, component: AppearanceSettings },
   { key: 'profile', label: 'Profile', icon: UserRound, component: ProfileSettings },
   { key: 'regional', label: 'Region & money', icon: Globe2, component: RegionalSettings },
   { key: 'dashboards', label: 'Dashboards', icon: LayoutGrid, component: DashboardSettings },
+  { key: 'plan', label: 'Plan', icon: Sparkles, component: PlanSettings },
   { key: 'account', label: 'Account', icon: ShieldCheck, component: AccountSettings },
 ] as const
 

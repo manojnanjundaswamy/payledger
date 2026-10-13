@@ -3,11 +3,20 @@ import { createRoot } from 'react-dom/client'
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
 import { Toaster, toast } from 'sonner'
-import { UnauthorizedError } from '@/lib/api'
+import { ApiError, UnauthorizedError } from '@/lib/api'
 import { createAppRouter } from './router'
 import './styles.css'
 
 function onError(error: Error) {
+  // A Free limit, wherever it is hit: say which one, and where Premium and the trial are.
+  if (error instanceof ApiError && error.code === 'plan-limit') {
+    void queryClient.invalidateQueries({ queryKey: ['plan'] })
+    toast('That needs Premium', {
+      description: error.message.charAt(0).toUpperCase() + error.message.slice(1) + '.',
+      action: { label: 'See plans', onClick: () => void router.navigate({ to: '/settings', search: { tab: 'plan' } }) },
+    })
+    return
+  }
   if (error instanceof UnauthorizedError) {
     // The session expired (or was ended elsewhere): go back to sign in, once.
     queryClient.clear()
