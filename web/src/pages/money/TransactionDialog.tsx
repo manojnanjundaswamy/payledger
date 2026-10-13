@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -180,6 +181,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
           <Input id="txn-note" maxLength={1000} value={draft.note} onChange={(e) => set('note', e.target.value)} />
         </Field>
         {error && <p className="rounded-control bg-critical/10 px-3 py-2 text-sm text-critical" role="alert">{error}</p>}
+        {transaction && <Related transaction={transaction} categories={categories} accounts={accounts} onGo={() => onOpenChange(false)} />}
         <div className="flex items-center gap-2">
           {transaction && (
             <Button variant="ghost" onClick={onDelete} disabled={pending} className="text-critical">
@@ -192,6 +194,27 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
         </div>
       </form>
     </Dialog>
+  )
+}
+
+/** Where this transaction belongs: everything else in its category or account, and its month's budget. */
+function Related({ transaction: t, categories, accounts, onGo }: {
+  transaction: Transaction
+  categories: { id: string; name: string }[]
+  accounts: { id: string; name: string }[]
+  onGo: () => void
+}) {
+  const category = categories.find((c) => c.id === t.categoryId)
+  const account = accounts.find((a) => a.id === t.accountId)
+  const month = t.occurredOn.slice(0, 7)
+  const link = 'rounded-full border border-border px-2.5 py-1 hover:border-border-strong hover:bg-surface-2'
+  return (
+    <nav aria-label="Related" className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+      <span>See:</span>
+      {category && <Link to="/transactions" search={{ category: category.id }} onClick={onGo} className={link}>All {category.name}</Link>}
+      {account && <Link to="/transactions" search={{ account: account.id }} onClick={onGo} className={link}>All from {account.name}</Link>}
+      {t.kind === 'EXPENSE' && <Link to="/budgets" search={{ month }} onClick={onGo} className={link}>Budget for {new Date(`${month}-01T00:00:00`).toLocaleDateString('en-IN', { month: 'long' })}</Link>}
+    </nav>
   )
 }
 

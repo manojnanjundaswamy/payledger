@@ -6,8 +6,10 @@ import { daysUntil, type Due } from '@/state/money'
  * period's start to its end, weeks from Monday, with what is due that day. Paid items are ticked, overdue
  * ones are red; marking paid stays in the list view.
  */
-export function BillCalendar({ start, end, due, money, locale }: {
+export function BillCalendar({ start, end, due, money, locale, onOpen }: {
   start: string; end: string; due: Due[]; money: (m: number) => string; locale: string
+  /** Opens a bill or saving when its chip is clicked. */
+  onOpen?: (commitmentId: string) => void
 }) {
   const first = parse(start)
   const last = parse(end)
@@ -35,11 +37,12 @@ export function BillCalendar({ start, end, due, money, locale }: {
               {items.map((x) => {
                 const overdue = !x.paid && daysUntil(x.dueDate) < 0
                 return (
-                  <span key={x.commitmentId} title={`${x.name}: ${money(x.amount)}${x.paid ? ', paid' : overdue ? ', overdue' : ''}`}
-                    className={cn('truncate rounded px-1 py-0.5 text-[0.6875rem] leading-tight',
+                  <button type="button" key={x.commitmentId} title={`${x.name}: ${money(x.amount)}${x.paid ? ', paid' : overdue ? ', overdue' : ''}`}
+                    onClick={() => onOpen?.(x.commitmentId)} aria-label={`Open ${x.name}`}
+                    className={cn('truncate rounded px-1 py-0.5 text-left text-[0.6875rem] leading-tight hover:ring-1 hover:ring-border-strong',
                       x.paid ? 'bg-good/10 text-good-text line-through decoration-1' : overdue ? 'bg-critical/10 text-critical' : 'bg-surface-2 text-fg')}>
                     {x.paid && '✓ '}{x.name} · {money(x.amount)}
-                  </span>
+                  </button>
                 )
               })}
             </div>

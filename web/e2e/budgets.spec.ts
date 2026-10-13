@@ -34,7 +34,8 @@ test('a budget shows spending from the ledger, its status, and only from its mon
   await dialog.getByRole('switch', { name: 'Roll over' }).click()
   await dialog.getByRole('button', { name: 'Set budget' }).click()
   await expect(dialog).toBeHidden()
-  const card = page.getByRole('button', { name: `Edit ${food} budget` })
+  const card = page.getByTestId(`budget-card-${food}`)
+  const edit = page.getByRole('button', { name: `Edit ${food} budget` })
   await expect(card).toContainText('₹0 of ₹1,000')
   await expect(card).toContainText('On track')
 
@@ -56,7 +57,7 @@ test('a budget shows spending from the ledger, its status, and only from its mon
   await expect(card).toContainText('Close')
   await expect(card).toContainText('₹100 left')
   // Rollover stays on for the next edit.
-  await card.click()
+  await edit.click()
   await expect(page.getByRole('dialog', { name: `${food} budget` }).getByRole('switch', { name: 'Roll over' })).toBeChecked()
   await page.getByRole('dialog', { name: `${food} budget` }).getByRole('button', { name: 'Cancel' }).click()
 
@@ -68,7 +69,7 @@ test('a budget shows spending from the ledger, its status, and only from its mon
   await expect(page.getByTestId('budget-month')).toHaveText(thisMonth!)
 
   // Clean up: stop the budget, delete the expense, hide the category, archive the account.
-  await card.click()
+  await edit.click()
   await page.getByRole('dialog', { name: `${food} budget` }).getByRole('button', { name: 'Stop budgeting' }).click()
   await expect(card).toBeHidden()
 

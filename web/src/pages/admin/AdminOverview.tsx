@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from 'react'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { Lock } from 'lucide-react'
 import { Card, Skeleton } from '@/components/ui/card'
 import { Segmented } from '@/components/ui/controls'
 import { BarList, Progress } from '@/dashboard/charts'
 import { cn } from '@/lib/cn'
-import { useOverview, type Overview } from '@/state/admin'
+import { useCan, useOverview, type Overview } from '@/state/admin'
 import { useProfile } from '@/state/profile'
 import { DailyChart } from './DailyChart'
 
@@ -14,6 +15,8 @@ const RANGES = [{ value: '7', label: '7 days' }, { value: '30', label: '30 days'
 export function AdminOverview() {
   const [range, setRange] = useState<'7' | '30' | '90'>('30')
   const { data, isPending, isError } = useOverview(Number(range))
+  const navigate = useNavigate()
+  const canSeeUsers = useCan('USERS_VIEW')
   const locale = useProfile().data?.settings.locale ?? 'en-IN'
   const n = (v: number) => v.toLocaleString(locale)
   const pct = (v: number, of: number) => (of > 0 ? `${Math.round((v / of) * 100)}%` : '—')
@@ -32,12 +35,12 @@ export function AdminOverview() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Users" value={n(data.users.total)} note={`+${n(data.users.new7Days)} this week · +${n(data.users.newToday)} today`} testId="kpi-users" />
+        <Kpi label="Users" value={n(data.users.total)} note={`+${n(data.users.new7Days)} this week · +${n(data.users.newToday)} today`} testId="kpi-users" show={canSeeUsers ? 'all' : undefined} />
         <Kpi label="Active today" value={n(data.active.daily)} note={`${pct(data.active.daily, data.active.monthly)} of monthly active (stickiness)`} testId="kpi-daily" />
         <Kpi label="Active in 7 days" value={n(data.active.weekly)} note={`${pct(data.active.weekly, data.users.total)} of all users`} />
         <Kpi label="Active in 30 days" value={n(data.active.monthly)} note={`${pct(data.active.monthly, data.users.total)} of all users`} />
-        <Kpi label="Premium" value={n(premium)} note={`${n(data.plans.paid)} paying · ${n(data.plans.trial)} on trial · ${n(data.plans.granted + data.plans.complimentary)} given`} testId="kpi-premium" />
-        <Kpi label="Trials ending in 7 days" value={n(data.plans.trialsEndingSoon)} note={`${n(data.plans.trialsStarted30Days)} trials started in 30 days`} />
+        <Kpi label="Premium" show={canSeeUsers ? 'PREMIUM' : undefined} value={n(premium)} note={`${n(data.plans.paid)} paying · ${n(data.plans.trial)} on trial · ${n(data.plans.granted + data.plans.complimentary)} given`} testId="kpi-premium" />
+        <Kpi label="Trials ending in 7 days" show={canSeeUsers ? 'TRIAL' : undefined} value={n(data.plans.trialsEndingSoon)} note={`${n(data.plans.trialsStarted30Days)} trials started in 30 days`} />
         <Kpi label="Trial to paid" value={n(data.plans.convertedFromTrial)} note="paying users who tried Premium first" />
         <Kpi label="Sign-ups in 30 days" value={n(data.users.new30Days)} note={`${n(data.usage.transactions)} transactions added in 30 days`} />
       </div>
@@ -49,7 +52,7 @@ export function AdminOverview() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Section title="Plans" note={`${n(data.users.total)} users`}>
-          <BarList format={n} items={[
+          <BarList format={n} onSelect={canSeeUsers ? (key) => void navigate({ to: '/admin', search: { tab: 'users', show: key === 'free' ? 'FREE' : key === 'trial' ? 'TRIAL' : key === 'granted' ? 'GRANTED' : 'PREMIUM' } }) : undefined} items={[
             { key: 'free', label: 'Free', value: data.plans.free, slot: 0 },
             { key: 'trial', label: 'Premium trial', value: data.plans.trial, slot: 3 },
             { key: 'paid', label: 'Premium, paying', value: data.plans.paid, slot: 1 },
@@ -84,13 +87,21 @@ export function AdminOverview() {
   )
 }
 
-function Kpi({ label, value, note, testId }: { label: string; value: string; note: string; testId?: string }) {
-  return (
-    <Card className="flex flex-col gap-1 p-pad" data-testid={testId}>
+/** A number; with {@code show}, it opens the users behind it. */
+function Kpi({ label, value, note, testId, show }: { label: string; value: string; note: string; testId?: string; show?: 'all' | 'PREMIUM' | 'TRIAL' }) {
+  const body = (
+    <>
       <span className="text-sm text-muted">{label}</span>
       <span className="text-2xl font-semibold tracking-tight tabular">{value}</span>
       <span className="text-xs text-subtle">{note}</span>
-    </Card>
+    </>
+  )
+  if (!show) return <Card className="flex flex-col gap-1 p-pad" data-testid={testId}>{body}</Card>
+  return (
+    <Link to="/admin" search={{ tab: 'users', show: show === 'all' ? undefined : show }} data-testid={testId} aria-label={`${label}: ${value}. Open the list`}
+      className="flex flex-col gap-1 rounded-card border border-border bg-surface p-pad shadow-card transition-colors hover:border-border-strong hover:bg-surface-2">
+      {body}
+    </Link>
   )
 }
 

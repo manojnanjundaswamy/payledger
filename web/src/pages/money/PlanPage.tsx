@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { CalendarClock, CalendarDays, Check, List, PiggyBank, Plus, Receipt } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useSearch } from '@tanstack/react-router'
+import { CalendarClock, CalendarDays, Check, History, List, PiggyBank, Plus, Receipt } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Skeleton } from '@/components/ui/card'
@@ -24,6 +25,16 @@ export function PlanPage() {
   const safe = useSafeToSpend()
   const [editing, setEditing] = useState<Commitment | 'new' | null>(null)
   const money = (minor: number) => formatMoneyWhole(minor, 'INR', locale)
+  const { open } = useSearch({ from: '/app/plan' })
+  const navigate = useNavigate({ from: '/plan' })
+  const openById = (id: string) => {
+    const c = commitments?.find((x) => x.id === id)
+    if (c) setEditing(c)
+  }
+  // ?open=<id>: open that bill once the plan has loaded.
+  useEffect(() => {
+    if (open && commitments) openById(open)
+  }, [open, commitments])
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
@@ -47,7 +58,7 @@ export function PlanPage() {
       )}
 
       {commitments && commitments.length > 0 && safe.data && (
-        <DueThisMonth start={safe.data.start} end={safe.data.end} money={money} locale={locale} />
+        <DueThisMonth start={safe.data.start} end={safe.data.end} money={money} locale={locale} onOpen={openById} />
       )}
 
       {commitments && commitments.length > 0 && <BigCosts money={money} locale={locale} />}
@@ -59,8 +70,9 @@ export function PlanPage() {
           <h2 className="text-sm font-medium text-muted">Your plan</h2>
           <Card className="divide-y divide-border p-0">
             {commitments.map((c) => (
-              <button key={c.id} type="button" onClick={() => setEditing(c)} aria-label={`Edit ${c.name}`}
-                className="flex w-full items-center gap-3 px-pad py-3 text-left hover:bg-surface-2 first:rounded-t-card last:rounded-b-card">
+              <div key={c.id} className="flex items-center gap-1 pr-2 hover:bg-surface-2 first:rounded-t-card last:rounded-b-card">
+              <button type="button" onClick={() => setEditing(c)} aria-label={`Edit ${c.name}`}
+                className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-pad text-left">
                 <KindIcon kind={c.kind} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{c.name}</span>
@@ -72,19 +84,30 @@ export function PlanPage() {
                 </span>
                 <span className="tabular shrink-0 font-medium">{money(c.amount)}</span>
               </button>
+              {/* What was actually paid: its category from its account. */}
+              <Link to="/transactions" search={{ account: c.accountId, ...(c.categoryId ? { category: c.categoryId } : {}) }}
+                aria-label={`${c.name} payments`} title="Payments"
+                className="flex size-8 shrink-0 items-center justify-center rounded-control text-subtle hover:bg-surface-3 hover:text-fg">
+                <History className="size-4" />
+              </Link>
+              </div>
             ))}
           </Card>
         </section>
       )}
 
-      <CommitmentDialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}
+      <CommitmentDialog open={editing !== null} onOpenChange={(o) => {
+        if (o) return
+        setEditing(null)
+        if (open) void navigate({ search: {}, replace: true })
+      }}
         commitment={editing === 'new' || editing === null ? undefined : editing} />
     </div>
   )
 }
 
 /** This budget month's due dates, plus anything from the month before that is still unpaid. */
-function DueThisMonth({ start, end, money, locale }: { start: string; end: string; money: (m: number) => string; locale: string }) {
+function DueThisMonth({ start, end, money, locale, onOpen }: { start: string; end: string; money: (m: number) => string; locale: string; onOpen: (id: string) => void }) {
   const [y, m, d] = start.split('-').map(Number)
   const { data: due = [], isPending } = useDue(isoDate(new Date(y!, m! - 2, d!)), end)
   const pay = usePayCommitment()
@@ -114,7 +137,7 @@ function DueThisMonth({ start, end, money, locale }: { start: string; end: strin
           options={[{ value: 'list', label: <><List />List</> }, { value: 'calendar', label: <><CalendarDays />Calendar</> }]} />
       </div>
       {isPending ? <Skeleton className="h-24" /> : view === 'calendar' ? (
-        <BillCalendar start={start} end={end} due={due.filter((x) => x.dueDate >= start)} money={money} locale={locale} />
+        <BillCalendar start={start} end={end} due={due.filter((x) => x.dueDate >= start)} money={money} locale={locale} onOpen={onOpen} />
       ) : rows.length === 0 ? (
         <Card className="p-pad text-sm text-muted">Nothing due this month.</Card>
       ) : (

@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { api } from '@/lib/api'
 import { formatMoneyShort, formatMoneyWhole } from '@/lib/money'
 import { useSpaceId } from '@/state/money'
@@ -18,6 +19,12 @@ export function NetWorthChart() {
   })
   const [active, setActive] = useState<number | null>(null)
   const gradient = useId()
+  const navigate = useNavigate()
+  const openMonth = (month: string) => {
+    const [y, m] = month.split('-').map(Number)
+    const last = new Date(y!, m!, 0).getDate()
+    void navigate({ to: '/transactions', search: { from: `${month.slice(0, 7)}-01`, to: `${month.slice(0, 7)}-${String(last).padStart(2, '0')}` } })
+  }
 
   if (isError) return <p className="text-xs text-subtle">The net-worth trend is unavailable right now.</p>
   if (isPending || !data) return <div className="h-32 animate-pulse rounded-control bg-surface-2" />
@@ -59,7 +66,9 @@ export function NetWorthChart() {
         <path d={line} fill="none" stroke="var(--series-1)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
         {data.map((p, i) => (
           <rect key={p.month} x={x(i) - W / data.length / 2} y={0} width={W / data.length} height={H} fill="transparent"
-            onMouseEnter={() => setActive(i)} />
+            className="cursor-pointer" onMouseEnter={() => setActive(i)} onClick={() => openMonth(p.month)}>
+            <title>{`${label(p.month)}: open its transactions`}</title>
+          </rect>
         ))}
         <circle cx={x(shown)} cy={y(data[shown]!.netWorth)} r={4} fill="var(--series-1)" vectorEffect="non-scaling-stroke" />
       </svg>

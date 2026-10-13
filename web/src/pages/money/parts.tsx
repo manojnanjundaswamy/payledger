@@ -3,8 +3,7 @@ import {
   Coffee, Coins, Cookie, CreditCard, Dumbbell, Film, Fuel, Gamepad2, Gift, GraduationCap, HandCoins, HandHelping, Heart,
   HeartPulse, Hotel, House, Landmark, Laptop, Music, PawPrint, Percent, PiggyBank, Pill, Pizza, Plane, Receipt, Repeat,
   Scissors, Shield, Shirt, ShoppingBag, ShoppingBasket, Smartphone, Sofa, Sparkles, Store, Tag, Ticket, TrainFront,
-  TreePalm, TrendingUp, Trophy, Tv, Undo2, Utensils, Wallet, Wifi, Wrench, Zap, type LucideIcon,
-} from 'lucide-react'
+  TreePalm, TrendingUp, Trophy, Tv, Undo2, Utensils, Wallet, Wifi, Wrench, Zap, Pencil, type LucideIcon, } from 'lucide-react'
 import { formatMoney } from '@/lib/money'
 import { cn } from '@/lib/cn'
 import { useProfile } from '@/state/profile'
@@ -80,6 +79,16 @@ export function dayLabel(isoDate: string, locale = 'en-IN'): string {
     weekday: 'short', day: 'numeric', month: 'short',
     year: year === new Date().getFullYear() ? undefined : 'numeric',
   })
+}
+
+/** The pencil on a row whose main click opens something else (its transactions). */
+export function EditButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={label} title="Edit"
+      className="flex size-8 shrink-0 items-center justify-center rounded-control text-subtle hover:bg-surface-3 hover:text-fg focus-visible:text-fg">
+      <Pencil className="size-4" />
+    </button>
+  )
 }
 
 export function Field({ label, htmlFor, hint, error, children }: {

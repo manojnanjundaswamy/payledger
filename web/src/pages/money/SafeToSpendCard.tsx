@@ -28,11 +28,12 @@ export function SafeToSpendCard({ compact }: { compact?: boolean }) {
   }
 
   const short = s.safeToSpend < 0
-  const lines: [string, number][] = [
-    ['Income', s.income ?? 0], ['Spent', -(s.spent ?? 0)], ['Bills still due', -s.billsLeft], ['Savings', -s.savings],
+  // Each line opens where it comes from: this month's report, or the plan.
+  const lines: [string, number, '/reports' | '/plan'][] = [
+    ['Income', s.income ?? 0, '/reports'], ['Spent', -(s.spent ?? 0), '/reports'], ['Bills still due', -s.billsLeft, '/plan'], ['Savings', -s.savings, '/plan'],
   ]
   // Only once there is something to set aside, so people without big costs see four simple lines.
-  if (s.setAside > 0) lines.push(['Set aside for big costs', -s.setAside])
+  if (s.setAside > 0) lines.push(['Set aside for big costs', -s.setAside, '/plan'])
   return (
     <div className="flex h-full flex-col justify-between gap-4">
       <div>
@@ -48,14 +49,14 @@ export function SafeToSpendCard({ compact }: { compact?: boolean }) {
             : <>about <span className="font-medium text-fg">{money(s.perDay ?? 0)}</span> a day for the next {s.daysLeft} day{s.daysLeft === 1 ? '' : 's'}</>}
         </p>
       </div>
-      <dl className={cn('grid grid-cols-2 gap-x-4 gap-y-1 text-xs', lines.length > 4 ? 'sm:grid-cols-5' : 'sm:grid-cols-4')}>
-        {lines.map(([label, value]) => (
-          <div key={label} className="flex flex-col">
-            <dt className="text-subtle">{label}</dt>
-            <dd className="tabular text-muted">{value < 0 ? `−${money(-value)}` : money(Math.abs(value))}</dd>
-          </div>
+      <nav aria-label="Where it comes from" className={cn('grid grid-cols-2 gap-x-4 gap-y-1 text-xs', lines.length > 4 ? 'sm:grid-cols-5' : 'sm:grid-cols-4')}>
+        {lines.map(([label, value, to]) => (
+          <Link key={label} to={to} search={to === '/reports' ? { period: 'this-month' } : {}} className="-m-1 flex flex-col rounded-control p-1 hover:bg-surface-2">
+            <span className="text-subtle">{label}</span>
+            <span className="tabular text-muted">{value < 0 ? `−${money(-value)}` : money(Math.abs(value))}</span>
+          </Link>
         ))}
-      </dl>
+      </nav>
     </div>
   )
 }

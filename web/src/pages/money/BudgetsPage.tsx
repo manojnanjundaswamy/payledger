@@ -9,7 +9,7 @@ import { BUDGET_STATUS, Progress } from '@/dashboard/charts'
 import { shiftMonth, useBudgets, useCategories, type Budget, type BudgetMonth } from '@/state/money'
 import { useProfile } from '@/state/profile'
 import { BudgetDialog, monthLabel } from './BudgetDialog'
-import { CategoryIcon } from './parts'
+import { CategoryIcon, EditButton } from './parts'
 
 /** This month's budgets (or another month's, with the switcher): spent against the limit, status and pace. */
 export function BudgetsPage() {
@@ -118,8 +118,10 @@ function BudgetCard({ budget: b, month, money, onEdit }: { budget: Budget; month
   const available = b.available ?? b.limit
   const pace = b.projected !== null && b.projected > available
   return (
-    <button type="button" onClick={onEdit} aria-label={`Edit ${name} budget`}
-      className="flex w-full flex-col gap-2.5 rounded-card border border-border bg-surface p-pad text-left shadow-sm hover:bg-surface-2">
+    <div className="relative flex w-full flex-col gap-2.5 rounded-card border border-border bg-surface p-pad text-left shadow-sm hover:bg-surface-2" data-testid={`budget-card-${name}`}>
+      {/* The whole card opens this month's spending in the category; the pencil edits the budget. */}
+      <Link to="/transactions" search={{ category: b.categoryId, from: month.start, to: month.end }} aria-label={`${name} spending`}
+        className="absolute inset-0 rounded-card" />
       <div className="flex items-center gap-3">
         <CategoryIcon category={category} />
         <span className="min-w-0 flex-1">
@@ -132,6 +134,7 @@ function BudgetCard({ budget: b, month, money, onEdit }: { budget: Budget; month
           </span>
         </span>
         {look && <Badge tone={look.tone}><look.icon className="size-3" />{look.label}</Badge>}
+        <span className="relative"><EditButton label={`Edit ${name} budget`} onClick={onEdit} /></span>
       </div>
       {b.spent !== null && look && <Progress value={available > 0 ? b.spent / available : 1} color={look.color} label={`${name} budget used`} />}
       {b.remaining !== null && (
@@ -147,7 +150,7 @@ function BudgetCard({ budget: b, month, money, onEdit }: { budget: Budget; month
             : `At this rate, about ${money(b.projected)} by ${shortDate(month.end)}.`}
         </p>
       )}
-    </button>
+    </div>
   )
 }
 

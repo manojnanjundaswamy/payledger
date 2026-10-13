@@ -31,7 +31,8 @@ public class GroupService {
         this.jdbc = jdbc;
     }
 
-    public record Summary(UUID id, String name, String emoji, String currency, String role, int members, boolean archived) {
+    /** @param you the signed-in user's member id in this group (their balance is under it) */
+    public record Summary(UUID id, String name, String emoji, String currency, String role, int members, boolean archived, UUID you) {
     }
 
     /**
@@ -52,7 +53,7 @@ public class GroupService {
         return jdbc.sql("""
                         select g.id, g.name, g.emoji, g.currency, m.role,
                                (select count(*) from group_members x where x.group_id = g.id and x.left_at is null)::int as members,
-                               g.archived_at is not null as archived
+                               g.archived_at is not null as archived, m.id as you
                         from group_members m join groups g on g.id = m.group_id
                         where m.user_id = :userId and m.left_at is null
                         order by g.archived_at is not null, g.created_at desc

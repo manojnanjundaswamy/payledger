@@ -8,7 +8,7 @@ import { cn } from '@/lib/cn'
 import { useAccounts, type Account } from '@/state/money'
 import { AccountDialog } from './AccountDialog'
 import { NetWorthChart } from './NetWorthChart'
-import { ACCOUNT_KINDS, useMoneyFormat } from './parts'
+import { ACCOUNT_KINDS, EditButton, useMoneyFormat } from './parts'
 
 /** Bank accounts, cash, cards and wallets with balances from the ledger. */
 export function AccountsPage() {
@@ -61,8 +61,9 @@ export function AccountsPage() {
             {g.rows.map((a) => {
               const { icon: Icon, label } = ACCOUNT_KINDS[a.kind]
               return (
-                <button key={a.id} type="button" onClick={() => setEditing(a)} aria-label={`Edit ${a.name}`}
-                  className="flex w-full items-center gap-3 px-pad py-3 text-left hover:bg-surface-2 first:rounded-t-card last:rounded-b-card">
+                <div key={a.id} className="flex items-center gap-1 pr-2 hover:bg-surface-2 first:rounded-t-card last:rounded-b-card">
+                <Link to="/transactions" search={{ account: a.id }} aria-label={`${a.name} transactions`}
+                  className="flex min-w-0 flex-1 items-center gap-3 py-3 pl-pad text-left">
                   <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted"><Icon className="size-4" /></span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{a.name}</span>
@@ -75,7 +76,9 @@ export function AccountsPage() {
                     {a.kind === 'CARD' && a.balance !== null && <span className="block text-xs text-subtle">owed</span>}
                   </span>
                   {a.archived && <Badge>Archived</Badge>}
-                </button>
+                </Link>
+                <EditButton label={`Edit ${a.name}`} onClick={() => setEditing(a)} />
+                </div>
               )
             })}
           </Card>
