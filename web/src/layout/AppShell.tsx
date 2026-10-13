@@ -11,6 +11,8 @@ import { cn } from '@/lib/cn'
 import { usePreferences } from '@/state/PreferencesProvider'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { AddMenu } from './AddMenu'
+import { EdgeDock } from '@/utilities/EdgeDock'
+import { UtilityWindowsProvider } from '@/utilities/windows'
 import { AnnouncementBanner } from './AnnouncementBanner'
 import { NotificationBell } from './NotificationBell'
 import { CommandPalette, useCommandPaletteShortcut } from './CommandPalette'
@@ -48,6 +50,7 @@ export function AppShell() {
   return (
     <MotionConfig reducedMotion={reduced} transition={{ type: 'spring', stiffness: 420, damping: 38 }}>
       <TooltipPrimitive.Provider>
+      <UtilityWindowsProvider>
         <div className="flex min-h-dvh bg-bg">
           <Sidebar collapsed={collapsed} onToggle={() => dispatch({ type: 'sidebar', collapsed: !collapsed })} pathname={pathname} />
           <div className="flex min-w-0 flex-1 flex-col">
@@ -69,7 +72,9 @@ export function AppShell() {
           </div>
           <MobileTabBar pathname={pathname} />
           <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+          <EdgeDock />
         </div>
+      </UtilityWindowsProvider>
       </TooltipPrimitive.Provider>
     </MotionConfig>
   )
