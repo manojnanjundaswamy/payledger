@@ -14,8 +14,12 @@ test('a customised dashboard and theme come back exactly the same after signing 
   await page.getByRole('button', { name: 'Customize' }).click()
   const handle = page.getByRole('button', { name: 'Move Getting started' })
   await handle.focus()
+  // Each key waits for the screen-reader announcement: a key pressed before the drag has started is ignored.
+  const announcement = page.locator('[id^="DndLiveRegion"]')
   await page.keyboard.press('Space')
+  await expect(announcement).toHaveText('Getting started is in its current place.')
   await page.keyboard.press('ArrowRight')
+  await expect(announcement).toHaveText('Getting started is over Safe to spend.')
   await page.keyboard.press('Space')
   await expect.poll(() => widgetOrder(page)).toEqual(['safeToSpend', 'gettingStarted', ...before.slice(2)])
 
