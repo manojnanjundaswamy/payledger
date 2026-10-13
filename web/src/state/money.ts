@@ -188,3 +188,46 @@ export function useCategoryTotals(kind: 'EXPENSE' | 'INCOME', from: string, to: 
 export function isoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+
+export interface CategoryFields {
+  name: string
+  icon: string
+  color: string
+  parentId: string | null
+}
+
+export function useCreateCategory() {
+  return useMoneyMutation((spaceId, body: CategoryFields & { kind: Category['kind'] }) =>
+    api<Category>(`${base(spaceId)}/categories`, { method: 'POST', json: body }))
+}
+
+/** Sends the whole category; hiding or showing a parent does the same to its subcategories. */
+export function useUpdateCategory() {
+  return useMoneyMutation((spaceId, { id, ...body }: CategoryFields & { id: string; hidden: boolean }) =>
+    api<Category>(`${base(spaceId)}/categories/${id}`, { method: 'PUT', json: body }))
+}
+
+/** Only works for a category no transaction ever used (409 category-in-use otherwise: hide it instead). */
+export function useDeleteCategory() {
+  return useMoneyMutation((spaceId, id: string) =>
+    api<void>(`${base(spaceId)}/categories/${id}`, { method: 'DELETE' }))
+}
+
+export interface CategoryNode { category: Category; children: Category[] }
+
+/**
+ * Top-level categories in the API's order, each with its subcategories. A subcategory whose parent
+ * isn't in the list (it shouldn't happen) is shown at the top level rather than lost.
+ */
+export function categoryTree(categories: Category[]): CategoryNode[] {
+  const ids = new Set(categories.map((c) => c.id))
+  return categories
+    .filter((c) => !c.parentId || !ids.has(c.parentId))
+    .map((category) => ({ category, children: categories.filter((c) => c.parentId === category.id) }))
+}
+
+/** "Groceries › Snacks" for a subcategory, so a choice is never ambiguous. */
+export function categoryLabel(category: Category, categories: Category[]): string {
+  const parent = category.parentId ? categories.find((c) => c.id === category.parentId) : undefined
+  return parent ? `${parent.name} › ${category.name}` : category.name
+}

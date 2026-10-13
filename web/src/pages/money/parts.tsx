@@ -1,20 +1,34 @@
 import {
-  ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Banknote, Briefcase, Car, CircleDashed, CreditCard, Gift, GraduationCap,
-  HandHelping, HeartPulse, House, Landmark, Percent, Plane, Repeat, Shield, ShoppingBag, ShoppingBasket, Store, Undo2,
-  Utensils, Wallet, Zap, type LucideIcon,
+  Apple, ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Baby, Banknote, Bike, BookOpen, Briefcase, Bus, Cake, Car, CircleDashed,
+  Coffee, Coins, Cookie, CreditCard, Dumbbell, Film, Fuel, Gamepad2, Gift, GraduationCap, HandCoins, HandHelping, Heart,
+  HeartPulse, Hotel, House, Landmark, Laptop, Music, PawPrint, Percent, PiggyBank, Pill, Pizza, Plane, Receipt, Repeat,
+  Scissors, Shield, Shirt, ShoppingBag, ShoppingBasket, Smartphone, Sofa, Sparkles, Store, Tag, Ticket, TrainFront,
+  TreePalm, TrendingUp, Trophy, Tv, Undo2, Utensils, Wallet, Wifi, Wrench, Zap, type LucideIcon,
 } from 'lucide-react'
 import { formatMoney } from '@/lib/money'
 import { cn } from '@/lib/cn'
 import { useProfile } from '@/state/profile'
 import type { AccountKind, Category, TxnKind } from '@/state/money'
 
-/** The icons the default categories use (core-service V2 migration); anything else falls back to a dashed circle. */
-const CATEGORY_ICONS: Record<string, LucideIcon> = {
+/**
+ * Icons a category can have, by lucide name (what core-service stores). The first row are the
+ * defaults' icons (V2 migration); anything unknown falls back to a dashed circle.
+ */
+export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   'shopping-basket': ShoppingBasket, utensils: Utensils, house: House, zap: Zap, car: Car, 'shopping-bag': ShoppingBag,
   'heart-pulse': HeartPulse, 'graduation-cap': GraduationCap, repeat: Repeat, landmark: Landmark, shield: Shield,
   gift: Gift, plane: Plane, 'hand-helping': HandHelping, briefcase: Briefcase, store: Store, percent: Percent,
   'undo-2': Undo2, 'circle-dashed': CircleDashed,
+  tag: Tag, coffee: Coffee, pizza: Pizza, cookie: Cookie, apple: Apple, cake: Cake, fuel: Fuel, bus: Bus,
+  'train-front': TrainFront, bike: Bike, smartphone: Smartphone, wifi: Wifi, tv: Tv, laptop: Laptop, film: Film,
+  music: Music, 'gamepad-2': Gamepad2, ticket: Ticket, 'book-open': BookOpen, shirt: Shirt, scissors: Scissors,
+  sparkles: Sparkles, pill: Pill, dumbbell: Dumbbell, baby: Baby, 'paw-print': PawPrint, sofa: Sofa, wrench: Wrench,
+  hotel: Hotel, 'tree-palm': TreePalm, heart: Heart, receipt: Receipt, 'hand-coins': HandCoins, coins: Coins,
+  'piggy-bank': PiggyBank, 'trending-up': TrendingUp, trophy: Trophy, wallet: Wallet,
 }
+
+/** The validated chart palette (styles.css): a category's colour is also its colour in every chart. */
+export const CATEGORY_COLORS = ['series-1', 'series-2', 'series-3', 'series-4', 'series-5', 'series-6', 'series-7', 'series-8'] as const
 
 export const ACCOUNT_KINDS: Record<AccountKind, { label: string; icon: LucideIcon; hint: string }> = {
   BANK: { label: 'Bank account', icon: Landmark, hint: 'Savings or current account' },

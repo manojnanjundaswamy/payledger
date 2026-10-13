@@ -83,6 +83,27 @@ class MoneyController {
         return categories.list(user, spaceId);
     }
 
+    @PostMapping("/categories")
+    @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Add a category or subcategory; 409 category-name-in-use if the name is taken (ignoring case)")
+    Category createCategory(CurrentUser user, @PathVariable UUID spaceId, @Valid @RequestBody CategoryRequests.Create request) {
+        return categories.create(user, spaceId, request);
+    }
+
+    @PutMapping("/categories/{categoryId}")
+    @Operation(summary = "Rename, change icon or colour, move under a parent, hide or show (subcategories follow)")
+    Category replaceCategory(CurrentUser user, @PathVariable UUID spaceId, @PathVariable UUID categoryId,
+                             @Valid @RequestBody CategoryRequests.Replace request) {
+        return categories.replace(user, spaceId, categoryId, request);
+    }
+
+    @DeleteMapping("/categories/{categoryId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Delete a category nothing ever used; 409 category-in-use (hide it instead) or category-has-subcategories")
+    void deleteCategory(CurrentUser user, @PathVariable UUID spaceId, @PathVariable UUID categoryId) {
+        categories.delete(user, spaceId, categoryId);
+    }
+
     @GetMapping("/category-totals")
     @Operation(summary = "Spending (EXPENSE) or income (INCOME) per category between two dates, optionally per month; 503 if the ledger is unreachable")
     List<BalanceService.CategoryTotal> categoryTotals(CurrentUser user, @PathVariable UUID spaceId,

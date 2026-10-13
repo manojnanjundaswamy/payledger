@@ -48,8 +48,8 @@ Client ──HTTP──▶         │ LedgerController ─▶ LedgerService (bo
 
 In progress (Phase 4): core-service records accounts and transactions and queues the matching ledger commands in its
 own outbox; ledger-service consumes them ([docs/events/ledger-commands.md](docs/events/ledger-commands.md)), and
-core-service reads balances and per-category totals back from the ledger. The web app has Accounts and Transactions
-screens on real data; budgets and the dashboard widgets come next.
+core-service reads balances and per-category totals back from the ledger. The web app has Accounts, Transactions and
+Categories screens on real data, and the dashboard widgets use it once you have an account; budgets come next.
 notification-service is **parked**: it still reads the wallet-era `ledger.entries.v1` events, which nothing
 publishes any more, and is repurposed for emails and the activity feed in Phase 6.
 
@@ -157,7 +157,10 @@ OpenAPI at http://localhost:8060/swagger-ui.html):
 | `GET/PATCH /me` | profile, settings, UI preferences, your spaces |
 | `GET/POST /spaces/{id}/accounts`, `GET/PATCH …/accounts/{accountId}` | bank, cash, card, wallet; opening balance; archive; `balance` from the ledger (owed, for a card; null if the ledger is unreachable) |
 | `GET /spaces/{id}/category-totals?kind=EXPENSE&from=…&to=…&byMonth=` | spending (or income) per category, positive amounts; 503 `ledger-unavailable` if the ledger is down |
-| `GET /spaces/{id}/categories` | the default set every space starts with |
+| `GET /spaces/{id}/categories` | every space starts with a default set; hidden ones are included (flagged) |
+| `POST /spaces/{id}/categories` | `{kind, name, icon, color, parentId?}`; subcategories go one level deep; 409 `category-name-in-use` (unique per kind, ignoring case) |
+| `PUT /spaces/{id}/categories/{cid}` | the whole category (`name, icon, color, parentId, hidden`); hiding a parent hides its subcategories |
+| `DELETE /spaces/{id}/categories/{cid}` | only if no transaction ever used it: 409 `category-in-use` (hide it instead) or `category-has-subcategories` |
 | `GET/POST /spaces/{id}/transactions`, `GET/PUT/DELETE …/transactions/{txnId}` | expense, income, transfer; keyset pages; optional client `id` makes a create safe to retry; edits and deletes send the `version` they saw (409 if stale) |
 
 The ledger API (`/api/v2`) is internal: core-service calls it, browsers won't. Amounts are signed minor units
@@ -231,6 +234,11 @@ and transfers queue balanced ledger commands with the right signs (a card is a l
 live version and posts the next while a note edit leaves the ledger alone; 8 concurrent retries of one create add it
 once; 8 concurrent edits of one version let exactly one win; pages have no gaps or duplicates; other people's spaces
 answer 404; and the commands reach Kafka keyed by space.
+
+`CategoryIntegrationTest` (core-service) proves names are unique per kind ignoring case (also under 8 concurrent
+creates), subcategories stay one level deep and of the same kind, hiding a parent hides its subcategories and stops new
+transactions in them while old ones stay editable, and a category any transaction ever used (even a deleted one) can't
+be deleted.
 
 `NotificationIntegrationTest` proves a redelivered event creates no duplicate notification, system accounts are skipped,
 unknown fields are ignored, and poison messages go to the dead-letter topic without blocking the events behind them.

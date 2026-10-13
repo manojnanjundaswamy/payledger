@@ -1,5 +1,5 @@
 import {
-  ArrowLeftRight, CalendarClock, Home, LayoutDashboard, PieChart, Settings, UserRoundPlus, Users, Wallet, type LucideIcon,
+  ArrowLeftRight, CalendarClock, Home, LayoutDashboard, PieChart, Settings, Tags, UserRoundPlus, Users, Wallet, type LucideIcon,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -16,6 +16,7 @@ export const NAV: NavItem[] = [
   { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight, section: 'money', primary: true },
   { to: '/budgets', label: 'Budgets', icon: PieChart, section: 'money', primary: true },
   { to: '/accounts', label: 'Accounts', icon: Wallet, section: 'money' },
+  { to: '/categories', label: 'Categories', icon: Tags, section: 'money' },
   { to: '/plan', label: 'Plan', icon: CalendarClock, section: 'money' },
   { to: '/household', label: 'Household', icon: Home, section: 'together' },
   { to: '/groups', label: 'Groups', icon: Users, section: 'together' },
