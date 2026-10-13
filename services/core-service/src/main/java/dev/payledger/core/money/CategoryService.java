@@ -53,6 +53,14 @@ public class CategoryService {
                 .list();
     }
 
+    /** Every category of a space, for callers that already checked access. */
+    List<Category> all(UUID spaceId) {
+        return jdbc.sql("select " + COLUMNS + " from categories where space_id = :spaceId order by kind, sort_order, name")
+                .param("spaceId", spaceId)
+                .query(Category.class)
+                .list();
+    }
+
     @Transactional
     public Category create(CurrentUser user, UUID spaceId, CategoryRequests.Create request) {
         access.write(user, spaceId);
@@ -144,7 +152,7 @@ public class CategoryService {
         return category;
     }
 
-    private Category find(UUID spaceId, UUID id) {
+    Category find(UUID spaceId, UUID id) {
         return jdbc.sql("select " + COLUMNS + " from categories where id = :id and space_id = :spaceId")
                 .param("id", id).param("spaceId", spaceId)
                 .query(Category.class)

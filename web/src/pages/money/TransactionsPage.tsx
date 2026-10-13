@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { ArrowLeftRight, Plus } from 'lucide-react'
+import { ArrowLeftRight, FileUp, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, Skeleton } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
@@ -57,6 +57,7 @@ export function TransactionsPage() {
           {accounts?.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
         </Select>
         <span className="flex-1" />
+        <Button asChild variant="ghost"><Link to="/import"><FileUp />Import</Link></Button>
         <Button variant="outline" onClick={() => setAdding('TRANSFER')}><ArrowLeftRight />Transfer</Button>
         <Button variant="primary" onClick={() => setAdding('EXPENSE')}><Plus />Add</Button>
       </div>

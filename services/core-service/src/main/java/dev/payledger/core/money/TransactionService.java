@@ -139,6 +139,27 @@ public class TransactionService {
         return new Outcome(find(spaceId, id, false).transaction(), true);
     }
 
+    /**
+     * For imports: a row the importer already checked against this space's open accounts and visible
+     * categories, inside its transaction. It skips the lookups {@link #create} makes for every row, so a
+     * file of 2,000 rows imports well within the gateway's timeout.
+     */
+    void createChecked(Space space, CurrentUser user, UUID id, TransactionRequests.Fields f, MoneyAccount from,
+                       MoneyAccount to, Category category, UUID importId, String externalId) {
+        Resolved r = new Resolved(f, from, to, category);
+        jdbc.sql("""
+                        insert into transactions (id, space_id, kind, amount, currency, account_id, to_account_id, category_id,
+                                                  occurred_on, description, note, tags, created_by, import_id, external_id)
+                        values (:id, :spaceId, :kind, :amount, :currency, :accountId, :toAccountId, :categoryId,
+                                :occurredOn, :description, :note, :tags, :userId, :importId, :externalId)
+                        """)
+                .param("id", id).param("spaceId", space.id())
+                .params(r.params())
+                .param("userId", user.id()).param("importId", importId).param("externalId", externalId)
+                .update();
+        postToLedger(space, id, 1, r);
+    }
+
     @Transactional
     public Transaction replace(CurrentUser user, UUID spaceId, UUID id, TransactionRequests.Replace request) {
         Space space = access.write(user, spaceId);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { categoryLabel, categoryTree, daysUntil, everyLabel, shiftMonth, type Category } from './money'
+import { categoryLabel, categoryTree, daysUntil, everyLabel, problemsCsv, shiftMonth, type Category, type ImportRow } from './money'
 
 const cat = (id: string, name: string, parentId: string | null = null): Category =>
   ({ id, kind: 'EXPENSE', name, icon: 'tag', color: 'series-1', parentId, hidden: false })
@@ -53,5 +53,19 @@ describe('everyLabel', () => {
     expect(everyLabel(1)).toBe('Every month')
     expect(everyLabel(3)).toBe('Every 3 months')
     expect(everyLabel(12)).toBe('Every year')
+  })
+})
+
+describe('problemsCsv', () => {
+  it('lists every problem with its row and quotes cells that need it', () => {
+    const row = (line: number, problems: ImportRow['problems']): ImportRow => ({
+      line, status: problems.length ? 'ERROR' : 'READY', problems, kind: null, amount: null, date: null,
+      account: '', toAccount: null, category: null, description: '',
+    })
+    expect(problemsCsv([
+      row(2, []),
+      row(3, [{ line: 3, column: 'date', reason: 'not a date: use DD-MM-YYYY' }, { line: 3, column: 'amount', reason: 'missing' }]),
+      row(5, [{ line: 5, column: 'account', reason: 'no account called "ICICI, card"' }]),
+    ])).toBe('row,column,reason\r\n3,date,not a date: use DD-MM-YYYY\r\n3,amount,missing\r\n5,account,"no account called ""ICICI, card"""\r\n')
   })
 })
