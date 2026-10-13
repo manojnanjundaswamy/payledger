@@ -12,6 +12,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -41,6 +43,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 class TenantIsolationIntegrationTest {
+
+    /** The same fake ledger everywhere (locally a running ledger would otherwise answer, in CI none would). */
+    @DynamicPropertySource
+    static void ledger(DynamicPropertyRegistry registry) {
+        registry.add("payledger.ledger.url", FakeLedger::url);
+    }
 
     @Autowired MockMvc mvc;
     @Autowired JdbcClient jdbc;
