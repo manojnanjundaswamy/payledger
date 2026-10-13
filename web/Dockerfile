@@ -4,7 +4,7 @@
 # gateway: the browser sees one origin, exactly like `npm run dev` with its proxy.
 #   docker build -t payledger/web .
 
-FROM --platform=$BUILDPLATFORM node:22-alpine AS build
+FROM --platform=$BUILDPLATFORM node:26-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
