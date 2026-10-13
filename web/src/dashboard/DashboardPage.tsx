@@ -140,7 +140,11 @@ function WidgetGrid({ dashboard, editing, onAdd }: { dashboard: Dashboard; editi
   }
   const announcements: Announcements = {
     onDragStart: ({ active }) => `Picked up ${nameOf(active.id)}.`,
-    onDragOver: ({ active, over }) => (over ? `${nameOf(active.id)} is over ${nameOf(over.id)}.` : `${nameOf(active.id)} is not over a position.`),
+    onDragOver: ({ active, over }) => {
+      if (!over) return `${nameOf(active.id)} is not over a position.`
+      // Right after pick-up it is "over" itself; say so plainly instead of "X is over X".
+      return over.id === active.id ? `${nameOf(active.id)} is in its current place.` : `${nameOf(active.id)} is over ${nameOf(over.id)}.`
+    },
     onDragEnd: ({ active, over }) => (over ? `Dropped ${nameOf(active.id)} at ${nameOf(over.id)}'s place.` : `Dropped ${nameOf(active.id)}.`),
     onDragCancel: ({ active }) => `Moving ${nameOf(active.id)} was cancelled.`,
   }
