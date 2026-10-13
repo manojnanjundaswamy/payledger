@@ -5,6 +5,7 @@ categories, April–March FY), global-ready. A SaaS where people sign up by emai
 splitting groups by link without an account. Owner: Manoj. Read these before changing anything:
 
 - Product plan (features, guests, households, roadmap): `docs/plan/product-plan.md`
+- Market scan (Goodbudget, Mint, Monarch, Spendee) and the Free / Premium plans: `docs/plan/market-and-pricing.md`
 - Name ideas (undecided, "PayLedger" is the code name): `docs/plan/naming.md`
 - Design decisions: `docs/adr/0001`–`0006` (ledger, locking, idempotency, outbox, ledger v2 books, identity/BFF)
 - Event contract: `docs/events/ledger-entry-posted.md`

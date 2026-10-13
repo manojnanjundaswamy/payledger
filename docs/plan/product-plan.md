@@ -284,6 +284,7 @@ Budgeting first, because splitting writes into the personal book that budgeting 
 |---|---|---|
 | **3. Foundations** | Ledger redesign (books, account types, reversals, period queries); spaces (personal + household) in the data model; Keycloak; gateway; core-service skeleton; frontend shell with design system, theming, login and sign-up | You can sign up, log in, switch theme and see an empty dashboard |
 | **4. Personal budgeting** | Money accounts, transactions, categories, budgets, commitments and safe-to-spend, annual planner, dashboard widgets, reports v1 (incl. FY), template import and export | A month of real spending can be entered or imported and tracked against budgets |
+| **4.5 Plans and what the market scan added** | Free and Premium with limits and a 30-day trial; budget rollover and "fill budgets from income"; net-worth chart; bill calendar; bill suggestions from repeated transactions | A user can try Premium, and Free limits are explained where they are hit |
 | **5. Households and splitting** | Households (members, dependents, shared vs personal, contributions), groups, roles, email invites, join links, placeholders, guest sessions, all split types, settle up, simplify debts, lending, daily services | A guest with no account can open a link, add an expense and settle up; your share shows in your budget |
 | **6. Engagement and SaaS** | Insights (spending pace, can I afford it, suggestions, health score), monthly review, emails and in-app notifications, budget alerts, recurring transactions, goals, tax tags, activity history, data export, account deletion, plan limits scaffold | |
 | **7. Operability** | OpenTelemetry tracing, Grafana dashboards, k6 load tests, then cloud deployment | |
@@ -294,19 +295,22 @@ Each phase ends with passing tests (unit, Testcontainers, Playwright for the mai
 1. **Name**: shortlist in [naming.md](naming.md). "PayLedger" stays as the code name until then.
 2. **Households in which phase?** Proposed: the space model (personal + household books) is built in Phase 3 so nothing
    is redone, the household UI ships in Phase 5 together with splitting.
-3. **Pricing**: the free / paid line in section 9 is a first guess; validate it with 10–20 real users before building billing.
+3. **Pricing**: two plans (section 9, from the market scan); validate the limits and price with 10–20 real users before turning on billing.
 
-## 9. Monetisation (later, but designed for now)
-| | Free | Plus (about ₹99/month or ₹799/year) | Family (about ₹1,499/year) |
-|---|---|---|---|
-| Personal budgeting, accounts, transactions | ✓ | ✓ | ✓ |
-| Groups and splitting, guests | ✓ unlimited (this is how new users arrive) | ✓ | ✓ |
-| Budgets and goals | up to 5 each | unlimited | unlimited |
-| History | 12 months | unlimited | unlimited |
-| Imports | 3 a month | unlimited, statement parsing when available | ✓ |
-| Insights, annual planner, "Can I afford it?" | basic | full | full |
-| Household | 2 members | 2 members | up to 6 members, dependents |
-| Reports and exports | basic | FY tax report, Excel export | ✓ |
+## 9. Monetisation
+Two plans, set after a scan of Goodbudget, Mint, Monarch and Spendee (features, business models and prices:
+[market-and-pricing.md](market-and-pricing.md)).
+
+| | Free | Premium (₹99/month or ₹799/year) |
+|---|---|---|
+| Personal budgeting, accounts, transactions, reports (incl. FY), export, full history | ✓ (up to 5 open accounts) | ✓ unlimited |
+| Budgets / bills and savings on the plan / big yearly costs | 5 / 5 / 1 | unlimited |
+| Imports | 3 a month | unlimited |
+| Groups and splitting, guests | ✓ unlimited (this is how new users arrive) | ✓ |
+| Household (one shared budget) | – | up to 6 members, dependents |
+| Bank sync, statement parsing, insights, CA access (later) | – | ✓ |
+
+A 30-day Premium trial needs no card. Limits stop adding, never viewing or exporting.
 
 Principles: **splitting stays free** because every guest is a future user; we never sell data and never push financial
 products inside the budget (trust is the product). Later options: annual reports for CAs, a B2B version for small
