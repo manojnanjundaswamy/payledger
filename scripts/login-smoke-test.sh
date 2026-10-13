@@ -72,6 +72,15 @@ updated=$(curl -fsS -c "$jar" -b "$jar" -X PATCH -H 'Content-Type: application/j
 grep -q '"budgetStartDay":25' <<<"$updated" || fail "update failed: $updated"
 echo "updated settings through the gateway (CSRF enforced)"
 
+# 4b. Sessions and the user's tokens live in Redis: restarting the gateway must not break a signed-in session.
+if [ "${SKIP_GATEWAY_RESTART:-0}" != 1 ]; then
+  docker compose restart gateway >/dev/null 2>&1
+  for _ in $(seq 1 60); do curl -fsS -o /dev/null "$GATEWAY/api/session" 2>/dev/null && break; sleep 2; done
+  status=$(curl -s -o /dev/null -w '%{http_code}' -c "$jar" -b "$jar" "$GATEWAY/api/core/me")
+  [ "$status" = 200 ] || fail "after a gateway restart the API answered $status instead of 200 (tokens lost?)"
+  echo "gateway restarted: still signed in, API calls still work"
+fi
+
 # 5. Logout ends the gateway session and points the browser at Keycloak's logout.
 logout=$(curl -fsS -c "$jar" -b "$jar" -X POST -H "X-XSRF-TOKEN: $(xsrf)" "$GATEWAY/logout")
 grep -q 'protocol/openid-connect/logout' <<<"$logout" || fail "unexpected logout response: $logout"

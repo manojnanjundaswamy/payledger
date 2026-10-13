@@ -33,9 +33,12 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
     method,
     headers: h,
     credentials: 'same-origin',
+    // The gateway answers a redirect to Keycloak when it needs the user to sign in again (their
+    // refresh token expired). A fetch can't follow that cross-site; treat it like a 401.
+    redirect: 'manual',
     body: json !== undefined ? JSON.stringify(json) : rest.body,
   })
-  if (response.status === 401) throw new UnauthorizedError()
+  if (response.status === 401 || response.type === 'opaqueredirect') throw new UnauthorizedError()
   if (!response.ok) {
     const problem = await response.json().catch(() => ({}))
     throw new ApiError(response.status, problem.code ?? String(response.status), problem.detail ?? response.statusText)

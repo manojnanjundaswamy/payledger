@@ -3,6 +3,8 @@ package dev.payledger.gateway;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 import org.springframework.session.web.http.CookieSerializer;
 import org.springframework.session.web.http.DefaultCookieSerializer;
 
@@ -25,5 +27,16 @@ class SessionConfig {
         cookie.setUseSecureCookie(secure);
         cookie.setCookiePath("/");
         return cookie;
+    }
+
+    /**
+     * The user's tokens live in the session (Redis), next to the login itself. Spring Boot's default
+     * keeps them in this instance's memory: after a gateway restart or on a second instance the
+     * session still said "signed in" but had no tokens, so every API call was redirected to Keycloak,
+     * which the web app's fetch can't follow. The app broke until the user signed in again.
+     */
+    @Bean
+    OAuth2AuthorizedClientRepository authorizedClientRepository() {
+        return new HttpSessionOAuth2AuthorizedClientRepository();
     }
 }
