@@ -117,7 +117,7 @@ export function useTransactions(filter: TransactionFilter) {
  */
 function refreshAfterWrite(client: QueryClient, spaceId: string) {
   void client.invalidateQueries({ queryKey: ['money', spaceId] })
-  const fromLedger = new Set(['accounts', 'category-totals'])
+  const fromLedger = new Set(['accounts', 'category-totals', 'budgets'])
   for (const delay of [800, 2500]) {
     setTimeout(() => void client.invalidateQueries({
       predicate: (q) => q.queryKey[0] === 'money' && q.queryKey[1] === spaceId && fromLedger.has(q.queryKey[2] as string),
@@ -230,4 +230,58 @@ export function categoryTree(categories: Category[]): CategoryNode[] {
 export function categoryLabel(category: Category, categories: Category[]): string {
   const parent = category.parentId ? categories.find((c) => c.id === category.parentId) : undefined
   return parent ? `${parent.name} › ${category.name}` : category.name
+}
+
+export type BudgetStatus = 'ON_TRACK' | 'CLOSE' | 'OVER'
+
+export interface Budget {
+  categoryId: string
+  limit: number
+  currency: string
+  /** Null when the ledger couldn't be reached. A parent's spending includes its subcategories'. */
+  spent: number | null
+  remaining: number | null
+  status: BudgetStatus | null
+  /** Spending by the end of the period at the current pace: current period, from its 5th day. */
+  projected: number | null
+}
+
+/** One budget month: "2026-10" is the period that starts in October (on the user's start day). */
+export interface BudgetMonth {
+  month: string
+  start: string
+  end: string
+  days: number
+  daysElapsed: number
+  today: string
+  spentKnown: boolean
+  budgets: Budget[]
+}
+
+/** `month` undefined: the current period. */
+export function useBudgets(month?: string) {
+  const spaceId = useSpaceId()
+  return useQuery({
+    queryKey: ['money', spaceId, 'budgets', { month }],
+    queryFn: () => api<BudgetMonth>(`${base(spaceId!)}/budgets${month ? `?month=${month}` : ''}`),
+    enabled: !!spaceId,
+  })
+}
+
+/** Sets the limit from `from` onwards; earlier months keep theirs. */
+export function useSetBudget() {
+  return useMoneyMutation((spaceId, { categoryId, amount, from }: { categoryId: string; amount: number; from: string }) =>
+    api<BudgetMonth>(`${base(spaceId)}/budgets/${categoryId}`, { method: 'PUT', json: { amount, from } }))
+}
+
+export function useRemoveBudget() {
+  return useMoneyMutation((spaceId, { categoryId, from }: { categoryId: string; from: string }) =>
+    api<void>(`${base(spaceId)}/budgets/${categoryId}?from=${from}`, { method: 'DELETE' }))
+}
+
+/** "2026-10" plus or minus months. */
+export function shiftMonth(month: string, by: number): string {
+  const [y, m] = month.split('-').map(Number)
+  const d = new Date(y!, m! - 1 + by, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }

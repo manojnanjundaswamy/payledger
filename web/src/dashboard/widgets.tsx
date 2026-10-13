@@ -10,10 +10,10 @@ import { cn } from '@/lib/cn'
 import type { SettingsTab } from '@/pages/settings/tabs'
 import type { Widget } from '@/state/preferences'
 import { usePreferences } from '@/state/PreferencesProvider'
-import { BarList, budgetStatus, GroupedBars, Progress } from './charts'
+import { BarList, BUDGET_STATUS, budgetStatus, GroupedBars, Progress } from './charts'
 import { useWidgetEnv } from './context'
 import { budgetPeriod, safeToSpend, sample } from './sample'
-import { isoDate, useAccounts, useCategories, useCategoryTotals, useTransactions, type Category } from '@/state/money'
+import { isoDate, useAccounts, useBudgets, useCategories, useCategoryTotals, useTransactions, type Budget, type Category } from '@/state/money'
 
 export interface WidgetProps { widget: Widget; dashboardId: string; editing: boolean }
 
@@ -55,8 +55,51 @@ function SafeToSpend() {
   )
 }
 
+/** This month's budgets from core-service, the closest to their limit first. */
+function RealBudgets({ widget }: { widget: Widget }) {
+  const { money } = useWidgetEnv()
+  const { data: month, isPending, isError } = useBudgets()
+  const { data: categories = [] } = useCategories()
+  if (isError) return <Unavailable what="Budgets" />
+  if (isPending) return <div className="h-28 animate-pulse rounded-control bg-surface-2" />
+  if (month.budgets.length === 0) {
+    return (
+      <div className="flex min-h-28 flex-col items-start justify-center gap-1.5 text-sm text-muted">
+        No budgets yet.
+        <Link to="/budgets" className="text-fg underline underline-offset-4">Set a budget</Link>
+      </div>
+    )
+  }
+  const ratio = (b: Budget) => (b.spent ?? 0) / b.limit
+  const rows = [...month.budgets].sort((a, b) => ratio(b) - ratio(a)).slice(0, widget.size === 's' ? 3 : 5)
+  return (
+    <div className="flex flex-col gap-3">
+      <ul className="flex flex-col gap-3.5">
+        {rows.map((b) => {
+          const name = categories.find((c) => c.id === b.categoryId)?.name ?? 'Category'
+          const look = b.status ? BUDGET_STATUS[b.status] : null
+          return (
+            <li key={b.categoryId}>
+              <div className="mb-1.5 flex items-center justify-between gap-2 text-[0.8125rem]">
+                <span className="truncate font-medium">{name}</span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="tabular text-muted">{b.spent === null ? '—' : money(b.spent, { whole: true })} <span className="text-subtle">/ {money(b.limit, { whole: true })}</span></span>
+                  {look && <Badge tone={look.tone}><look.icon className="size-3" />{look.label}</Badge>}
+                </span>
+              </div>
+              <Progress value={ratio(b)} color={look?.color} label={`${name} budget used`} />
+            </li>
+          )
+        })}
+      </ul>
+      <Link to="/budgets" className="self-start text-xs text-muted underline underline-offset-4 hover:text-fg">All budgets</Link>
+    </div>
+  )
+}
+
 function Budgets({ widget }: WidgetProps) {
-  const { sample: on, money } = useWidgetEnv()
+  const { sample: on, real, money } = useWidgetEnv()
+  if (real) return <RealBudgets widget={widget} />
   if (!on) return <Empty>Monthly limits per category, with a heads-up before you go over.</Empty>
   const rows = widget.size === 's' ? sample.budgets.slice(0, 3) : sample.budgets
   return (

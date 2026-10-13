@@ -48,8 +48,9 @@ Client ──HTTP──▶         │ LedgerController ─▶ LedgerService (bo
 
 In progress (Phase 4): core-service records accounts and transactions and queues the matching ledger commands in its
 own outbox; ledger-service consumes them ([docs/events/ledger-commands.md](docs/events/ledger-commands.md)), and
-core-service reads balances and per-category totals back from the ledger. The web app has Accounts, Transactions and
-Categories screens on real data, and the dashboard widgets use it once you have an account; budgets come next.
+core-service reads balances and per-category totals back from the ledger. The web app has Accounts, Transactions,
+Categories and Budgets screens on real data, and the dashboard widgets use it once you have an account; commitments and
+safe-to-spend come next.
 notification-service is **parked**: it still reads the wallet-era `ledger.entries.v1` events, which nothing
 publishes any more, and is repurposed for emails and the activity feed in Phase 6.
 
@@ -160,6 +161,9 @@ OpenAPI at http://localhost:8060/swagger-ui.html):
 | `GET /spaces/{id}/categories` | every space starts with a default set; hidden ones are included (flagged) |
 | `POST /spaces/{id}/categories` | `{kind, name, icon, color, parentId?}`; subcategories go one level deep; 409 `category-name-in-use` (unique per kind, ignoring case) |
 | `PUT /spaces/{id}/categories/{cid}` | the whole category (`name, icon, color, parentId, hidden`); hiding a parent hides its subcategories |
+| `GET /spaces/{id}/budgets?month=2026-10` | one budget month (default: the current one; named by the month it starts in, on the user's start day): per category limit, spent (a parent includes its subcategories; null if the ledger is down), remaining, status `ON_TRACK`/`CLOSE` (80%)/`OVER`, and the projected spend from day 5 |
+| `PUT /spaces/{id}/budgets/{cid}` | `{amount, from?}`: the monthly limit from that month on; earlier months keep theirs |
+| `DELETE /spaces/{id}/budgets/{cid}?from=2026-10` | stop budgeting it from that month on |
 | `DELETE /spaces/{id}/categories/{cid}` | only if no transaction ever used it: 409 `category-in-use` (hide it instead) or `category-has-subcategories` |
 | `GET/POST /spaces/{id}/transactions`, `GET/PUT/DELETE …/transactions/{txnId}` | expense, income, transfer; keyset pages; optional client `id` makes a create safe to retry; edits and deletes send the `version` they saw (409 if stale) |
 
@@ -239,6 +243,10 @@ answer 404; and the commands reach Kafka keyed by space.
 creates), subcategories stay one level deep and of the same kind, hiding a parent hides its subcategories and stops new
 transactions in them while old ones stay editable, and a category any transaction ever used (even a deleted one) can't
 be deleted.
+
+`BudgetIntegrationTest` (core-service, with a fake ledger) proves spending, remaining and status per budget, a parent
+counting its subcategories, a limit change applying from its month on while earlier months keep theirs, periods that
+follow the user's start day, limits still showing when the ledger is down, and bad budgets refused.
 
 `NotificationIntegrationTest` proves a redelivered event creates no duplicate notification, system accounts are skipped,
 unknown fields are ignored, and poison messages go to the dead-letter topic without blocking the events behind them.

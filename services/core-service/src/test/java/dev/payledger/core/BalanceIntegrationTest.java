@@ -1,8 +1,6 @@
 package dev.payledger.core;
 
 import com.jayway.jsonpath.JsonPath;
-import com.sun.net.httpserver.HttpServer;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,13 +13,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -35,19 +27,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class BalanceIntegrationTest {
 
-    /** Path (with query) -> JSON body. Anything else: 404, like a book the ledger has never seen. */
-    static final Map<String, String> LEDGER_RESPONSES = new ConcurrentHashMap<>();
-    static final AtomicBoolean LEDGER_DOWN = new AtomicBoolean();
-    static final HttpServer LEDGER = startFakeLedger();
-
     @DynamicPropertySource
     static void ledgerUrl(DynamicPropertyRegistry registry) {
-        registry.add("payledger.ledger.url", () -> "http://localhost:" + LEDGER.getAddress().getPort());
-    }
-
-    @AfterAll
-    static void stopFakeLedger() {
-        LEDGER.stop(0);
+        registry.add("payledger.ledger.url", FakeLedger::url);
     }
 
     @Autowired MockMvc mvc;
@@ -57,7 +39,7 @@ class BalanceIntegrationTest {
 
     @BeforeEach
     void newUser() throws Exception {
-        LEDGER_DOWN.set(false);
+        FakeLedger.DOWN.set(false);
         String subject = UUID.randomUUID().toString();
         me = jwt().jwt(j -> j.subject(subject).claim("email", subject + "@example.com").claim("email_verified", true));
         space = JsonPath.read(mvc.perform(get("/api/core/me").with(me)).andReturn().getResponse().getContentAsString(), "$.spaces[0].id");
@@ -68,7 +50,7 @@ class BalanceIntegrationTest {
         String bank = createAccount("BANK", "HDFC");
         String card = createAccount("CARD", "ICICI");
         String cash = createAccount("CASH", "Cash");
-        LEDGER_RESPONSES.put("/api/v2/books/space:" + space + "/balances", """
+        FakeLedger.RESPONSES.put("/api/v2/books/space:" + space + "/balances", """
                 [{"accountRef":"account:%s","accountType":"ASSET","currency":"INR","balance":4951400},
                  {"accountRef":"account:%s","accountType":"LIABILITY","currency":"INR","balance":-48600},
                  {"accountRef":"category:x","accountType":"EXPENSE","currency":"INR","balance":48600},
@@ -94,7 +76,7 @@ class BalanceIntegrationTest {
     @Test
     void whenTheLedgerIsDownAccountsStillLoadWithoutBalances() throws Exception {
         createAccount("BANK", "HDFC");
-        LEDGER_DOWN.set(true);
+        FakeLedger.DOWN.set(true);
         mvc.perform(get(path("/accounts")).with(me))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].name").value("HDFC"))
@@ -108,10 +90,10 @@ class BalanceIntegrationTest {
     void categoryTotalsArePositiveForSpendingAndIncome() throws Exception {
         String groceries = UUID.randomUUID().toString();
         String salary = UUID.randomUUID().toString();
-        LEDGER_RESPONSES.put("/api/v2/books/space:%s/totals?type=EXPENSE&from=2026-10-01&to=2026-10-31&byMonth=false".formatted(space), """
+        FakeLedger.RESPONSES.put("/api/v2/books/space:%s/totals?type=EXPENSE&from=2026-10-01&to=2026-10-31&byMonth=false".formatted(space), """
                 [{"accountRef":"category:%s","accountType":"EXPENSE","currency":"INR","periodStart":null,"total":48600}]
                 """.formatted(groceries));
-        LEDGER_RESPONSES.put("/api/v2/books/space:%s/totals?type=INCOME&from=2026-10-01&to=2026-10-31&byMonth=false".formatted(space), """
+        FakeLedger.RESPONSES.put("/api/v2/books/space:%s/totals?type=INCOME&from=2026-10-01&to=2026-10-31&byMonth=false".formatted(space), """
                 [{"accountRef":"category:%s","accountType":"INCOME","currency":"INR","periodStart":null,"total":-12000000}]
                 """.formatted(salary));
 
@@ -134,27 +116,5 @@ class BalanceIntegrationTest {
         return JsonPath.read(mvc.perform(post(path("/accounts")).with(me).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"kind\":\"%s\",\"name\":\"%s\"}".formatted(kind, name)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.id");
-    }
-
-    private static HttpServer startFakeLedger() {
-        try {
-            HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
-            server.createContext("/", exchange -> {
-                // Decoded, as Spring decodes path variables: the client may send "space%3A..." for "space:...".
-                String query = exchange.getRequestURI().getQuery();
-                String uri = exchange.getRequestURI().getPath() + (query == null ? "" : "?" + query);
-                String body = LEDGER_RESPONSES.get(uri);
-                int status = LEDGER_DOWN.get() ? 500 : body == null ? 404 : 200;
-                byte[] bytes = (body == null ? "{\"code\":\"book-not-found\"}" : body).getBytes(StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/json");
-                exchange.sendResponseHeaders(status, bytes.length);
-                exchange.getResponseBody().write(bytes);
-                exchange.close();
-            });
-            server.start();
-            return server;
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
     }
 }

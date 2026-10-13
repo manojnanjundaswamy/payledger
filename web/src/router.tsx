@@ -96,6 +96,16 @@ const categories = createRoute({
   component: lazyRouteComponent(() => import('@/pages/money/CategoriesPage'), 'CategoriesPage'),
 })
 
+const budgets = createRoute({
+  getParentRoute: () => app,
+  path: '/budgets',
+  // ?month=2026-10 shows another budget month; none: the current one.
+  validateSearch: z.object({
+    month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional().catch(undefined),
+  }),
+  component: lazyRouteComponent(() => import('@/pages/money/BudgetsPage'), 'BudgetsPage'),
+})
+
 const transactions = createRoute({
   getParentRoute: () => app,
   path: '/transactions',
@@ -110,7 +120,7 @@ const transactions = createRoute({
 const comingSoon = (Object.keys(COMING) as (keyof typeof COMING)[]).map((page) =>
   createRoute({ getParentRoute: () => app, path: `/${page}`, component: () => <ComingSoon page={page} /> }))
 
-const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, categories, transactions, ...comingSoon])])
+const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, categories, budgets, transactions, ...comingSoon])])
 
 export function createAppRouter(queryClient: QueryClient) {
   return createRouter({

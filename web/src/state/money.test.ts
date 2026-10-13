@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { categoryLabel, categoryTree, type Category } from './money'
+import { categoryLabel, categoryTree, shiftMonth, type Category } from './money'
 
 const cat = (id: string, name: string, parentId: string | null = null): Category =>
   ({ id, kind: 'EXPENSE', name, icon: 'tag', color: 'series-1', parentId, hidden: false })
@@ -27,5 +27,13 @@ describe('categoryLabel', () => {
     const all = [cat('f', 'Food'), cat('s', 'Snacks', 'f')]
     expect(categoryLabel(all[1]!, all)).toBe('Food › Snacks')
     expect(categoryLabel(all[0]!, all)).toBe('Food')
+  })
+})
+
+describe('shiftMonth', () => {
+  it('crosses year boundaries both ways', () => {
+    expect(shiftMonth('2026-12', 1)).toBe('2027-01')
+    expect(shiftMonth('2026-01', -1)).toBe('2025-12')
+    expect(shiftMonth('2026-10', -3)).toBe('2026-07')
   })
 })
