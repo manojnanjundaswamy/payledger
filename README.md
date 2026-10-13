@@ -48,7 +48,8 @@ Client ──HTTP──▶         │ LedgerController ─▶ LedgerService (bo
 
 In progress (Phase 4): core-service records accounts and transactions and queues the matching ledger commands in its
 own outbox; ledger-service consumes them ([docs/events/ledger-commands.md](docs/events/ledger-commands.md)), and
-core-service reads balances and per-category totals back from the ledger. The web screens come next.
+core-service reads balances and per-category totals back from the ledger. The web app has Accounts and Transactions
+screens on real data; budgets and the dashboard widgets come next.
 notification-service is **parked**: it still reads the wallet-era `ledger.entries.v1` events, which nothing
 publishes any more, and is repurposed for emails and the activity feed in Phase 6.
 
@@ -58,7 +59,7 @@ and can be deployed, scaled or stopped on its own. They share only the documente
 
 | Service | Port (API / actuator) | Owns | Needs |
 |---|---|---|---|
-| [web](web) | 5173 | the React app: dashboards, theme builder, settings | gateway |
+| [web](web) | 5173 | the React app: dashboards, accounts, transactions, theme builder, settings | gateway |
 | [gateway](services/gateway) | 8000 / 8001 | login, sessions, CSRF, routing | Keycloak, Redis |
 | [core-service](services/core-service) | 8060 / 8061 | users, spaces, money accounts, categories, transactions, topic `ledger.commands.v1` | Postgres, Keycloak (keys); Kafka optional (`OUTBOX_RELAY_ENABLED=false`) |
 | [ledger-service](services/ledger-service) | 8080 / 8081 | books, accounts, journal, outbox, topic `ledger.entries.v2`; consumes `ledger.commands.v1` | Postgres; Kafka optional (`OUTBOX_RELAY_ENABLED=false`) |
@@ -203,6 +204,9 @@ All tests run against real PostgreSQL and Kafka in Docker (Testcontainers): `./m
 `BalanceIntegrationTest` (core-service, against a fake ledger) proves balances are shown in the user's terms (a card's
 debt as a positive amount owed), a space with nothing posted yet shows zeros, a ledger outage leaves accounts loading
 without balances, and category totals read as positive spending and income.
+
+`web/e2e/money.spec.ts` (Playwright, real stack) adds an account and an expense through the UI, waits for the ledger's
+balance, edits and deletes the expense, and checks the balance after each step.
 
 `scripts/money-smoke-test.sh` proves the whole chain on the running stack: an account and an expense go through the
 gateway, core-service, Kafka and the ledger, an edit and a delete reverse correctly, and the balances come back.

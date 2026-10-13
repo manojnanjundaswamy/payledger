@@ -1,8 +1,8 @@
 import { Link } from '@tanstack/react-router'
 import { motion } from 'motion/react'
 import {
-  ArrowLeftRight, Bell, CalendarClock, CalendarRange, Home, Import, Landmark, LayoutGrid, Link2, Lock, Milk, PieChart,
-  Repeat, Scale, Search, ShieldCheck, Split, UserPlus, UserRoundPlus, Users, Wallet, type LucideIcon,
+  Bell, CalendarClock, CalendarRange, Home, LayoutGrid, Link2, Lock, Milk, PieChart,
+  Repeat, Scale, ShieldCheck, Split, UserPlus, UserRoundPlus, Users, type LucideIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/card'
@@ -11,15 +11,6 @@ interface Feature { icon: LucideIcon; title: string; text: string }
 interface PageInfo { icon: LucideIcon; title: string; lead: string; phase: string; features: Feature[] }
 
 export const COMING: Record<string, PageInfo> = {
-  transactions: {
-    icon: ArrowLeftRight, phase: 'Phase 4', title: 'Every rupee, in one list',
-    lead: 'Record spending in two taps, or import it all at once. Search, filter and fix categories in bulk.',
-    features: [
-      { icon: ArrowLeftRight, title: 'Quick add', text: 'Amount first, category second. Built for dozens of small UPI payments.' },
-      { icon: Import, title: 'Import from a template', text: 'CSV or Excel with Indian dates and ₹1,00,000 amounts. Preview, fix, undo.' },
-      { icon: Search, title: 'Search & saved views', text: 'Find anything, save the filters you use every week.' },
-    ],
-  },
   budgets: {
     icon: PieChart, phase: 'Phase 4', title: 'Budgets that warn you early',
     lead: 'Monthly limits per category that follow your payday, with a heads-up before you go over, not after.',
@@ -27,15 +18,6 @@ export const COMING: Record<string, PageInfo> = {
       { icon: CalendarRange, title: 'Payday months', text: 'Your month can start on the 25th. Budgets follow it.' },
       { icon: Bell, title: 'Spending pace', text: '“At this rate you’ll spend ₹6,000 over on food” from the 5th of the month.' },
       { icon: Split, title: 'Only your share counts', text: 'A ₹3,000 dinner split three ways is ₹1,000 of your budget.' },
-    ],
-  },
-  accounts: {
-    icon: Wallet, phase: 'Phase 4', title: 'All your money, one view',
-    lead: 'Bank accounts, cash, credit cards and wallets, with balances kept exact by a double-entry ledger.',
-    features: [
-      { icon: Landmark, title: 'Banks, cards, cash', text: 'Opening balances, transfers between your own accounts.' },
-      { icon: Scale, title: 'Always balanced', text: 'Every transaction is a balanced ledger entry. Nothing drifts.' },
-      { icon: ShieldCheck, title: 'Private by default', text: 'Personal accounts stay personal, even inside a household.' },
     ],
   },
   plan: {

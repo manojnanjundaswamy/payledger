@@ -1,6 +1,7 @@
-import { Outlet, createRootRouteWithContext, createRoute, createRouter, lazyRouteComponent, redirect } from '@tanstack/react-router'
+import { Outlet, createRootRouteWithContext, createRoute, createRouter, lazyRouteComponent, redirect, useRouter } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/card'
 import { DashboardPage } from '@/dashboard/DashboardPage'
 import { AppShell } from '@/layout/AppShell'
@@ -32,6 +33,8 @@ const app = createRoute({
   },
   loader: ({ context }) => context.queryClient.ensureQueryData(profileQuery),
   pendingComponent: AppPending,
+  // Without this, a failed profile load (a service restarting, a network blip) left the skeleton up forever.
+  errorComponent: AppError,
   component: AppRoot,
 })
 
@@ -42,6 +45,17 @@ function AppRoot() {
     <PreferencesProvider key={profile.id} initial={profile.preferences}>
       <AppShell />
     </PreferencesProvider>
+  )
+}
+
+function AppError() {
+  const router = useRouter()
+  return (
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-3 px-6 text-center">
+      <p className="text-lg font-semibold">PayLedger couldn't load</p>
+      <p className="max-w-sm text-sm text-muted">Something on our side didn't answer. Your data is safe; try again in a moment.</p>
+      <Button variant="primary" onClick={() => void router.invalidate()}>Try again</Button>
+    </div>
   )
 }
 
@@ -70,10 +84,27 @@ const settings = createRoute({
   component: lazyRouteComponent(() => import('@/pages/settings/SettingsPage'), 'SettingsPage'),
 })
 
+const accounts = createRoute({
+  getParentRoute: () => app,
+  path: '/accounts',
+  component: lazyRouteComponent(() => import('@/pages/money/AccountsPage'), 'AccountsPage'),
+})
+
+const transactions = createRoute({
+  getParentRoute: () => app,
+  path: '/transactions',
+  // ?add=EXPENSE opens the add dialog (the sidebar's Add menu links here); ?account= filters.
+  validateSearch: z.object({
+    add: z.enum(['EXPENSE', 'INCOME', 'TRANSFER']).optional().catch(undefined),
+    account: z.string().uuid().optional().catch(undefined),
+  }),
+  component: lazyRouteComponent(() => import('@/pages/money/TransactionsPage'), 'TransactionsPage'),
+})
+
 const comingSoon = (Object.keys(COMING) as (keyof typeof COMING)[]).map((page) =>
   createRoute({ getParentRoute: () => app, path: `/${page}`, component: () => <ComingSoon page={page} /> }))
 
-const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, ...comingSoon])])
+const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, transactions, ...comingSoon])])
 
 export function createAppRouter(queryClient: QueryClient) {
   return createRouter({
