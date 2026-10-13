@@ -536,3 +536,9 @@ export function problemsCsv(rows: ImportRow[]): string {
 export function exportUrl(spaceId: string, format: 'csv' | 'xlsx', from: string, to: string): string {
   return `${base(spaceId)}/exports/transactions.${format}?${new URLSearchParams({ from, to })}`
 }
+
+/** Moves every transaction and bill of a category to another of the same kind, then hides it. */
+export function useMergeCategory() {
+  return useMoneyMutation((spaceId, { id, into }: { id: string; into: string }) =>
+    api<{ into: string; moved: number }>(`${base(spaceId)}/categories/${id}/merge`, { method: 'POST', json: { into } }))
+}

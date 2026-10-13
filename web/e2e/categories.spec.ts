@@ -74,3 +74,52 @@ test('add a category with a subcategory, use it, hide it, show it and delete bot
     await expect(page.getByRole('button', { name: `Edit ${name}` })).toBeHidden()
   }
 })
+
+test('merging a category moves its transactions to the other one and hides it', async ({ page }) => {
+  const run = Date.now()
+  const old = `E2E old ${run}`
+  const bank = `E2E merge bank ${run}`
+
+  await page.goto('/categories')
+  await page.getByRole('button', { name: 'Add category' }).click()
+  let dialog = page.getByRole('dialog', { name: 'Add a spending category' })
+  await dialog.getByLabel('Name').fill(old)
+  await dialog.getByRole('button', { name: 'Add category' }).click()
+  await expect(dialog).toBeHidden()
+  await page.goto('/accounts')
+  await page.getByRole('button', { name: 'Add account' }).first().click()
+  dialog = page.getByRole('dialog', { name: 'Add an account' })
+  await dialog.getByLabel('Name').fill(bank)
+  await dialog.getByRole('button', { name: 'Add account' }).click()
+  await expect(dialog).toBeHidden()
+  await page.goto('/transactions?add=EXPENSE')
+  const add = page.getByRole('dialog', { name: 'Add expense' })
+  await add.getByLabel('Amount').fill('75')
+  await add.getByLabel('Category').selectOption({ label: old })
+  await add.getByLabel('Paid from').selectOption({ label: bank })
+  await add.getByLabel('Description').fill('Merge me')
+  await add.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(add).toBeHidden()
+
+  await page.goto('/categories')
+  await page.getByRole('button', { name: `Edit ${old}` }).click()
+  dialog = page.getByRole('dialog', { name: `Edit ${old}` })
+  await dialog.getByLabel('Merge into another category').selectOption({ label: 'Groceries' })
+  await dialog.getByRole('button', { name: 'Merge', exact: true }).click()
+  await expect(dialog).toBeHidden()
+  await expect(page.getByRole('region', { name: 'Hidden' }).getByRole('button', { name: `Edit ${old}` })).toBeVisible()
+
+  await page.goto('/transactions')
+  await page.getByLabel('Filter by account').selectOption({ label: bank })
+  const row = page.getByRole('button', { name: 'Edit Merge me' })
+  await expect(row).toContainText(`Groceries · ${bank}`)
+
+  // Clean up.
+  await row.click()
+  await page.getByRole('dialog', { name: 'Edit expense' }).getByRole('button', { name: 'Delete' }).click()
+  await expect(page.getByText('Nothing here yet')).toBeVisible()
+  await page.goto('/accounts')
+  await page.getByRole('button', { name: `Edit ${bank}` }).click()
+  await page.getByRole('dialog', { name: `Edit ${bank}` }).getByRole('button', { name: 'Archive' }).click()
+  await expect(page.getByRole('button', { name: `Edit ${bank}` })).toBeHidden()
+})
