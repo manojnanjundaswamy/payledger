@@ -14,9 +14,11 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolver {
 
     private final UserProvisioning provisioning;
+    private final UserEvents events;
 
-    CurrentUserArgumentResolver(UserProvisioning provisioning) {
+    CurrentUserArgumentResolver(UserProvisioning provisioning, UserEvents events) {
         this.provisioning = provisioning;
+        this.events = events;
     }
 
     @Override
@@ -30,6 +32,9 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
         if (!(SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken token)) {
             throw new IllegalStateException("CurrentUser requires an authenticated API request");
         }
-        return provisioning.resolve(token.getToken());
+        CurrentUser user = provisioning.resolve(token.getToken());
+        // Keycloak's session id: the first request of a session is a sign-in.
+        events.seen(user, token.getToken().getClaimAsString("sid"), webRequest.getNativeRequest(jakarta.servlet.http.HttpServletRequest.class));
+        return user;
     }
 }

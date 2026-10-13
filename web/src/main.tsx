@@ -47,7 +47,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
-      <Toaster position="bottom-right" closeButton toastOptions={{
+      <Toaster position="top-right" closeButton toastOptions={{
         classNames: {
           toast: '!rounded-card !border-border !bg-surface !text-fg !shadow-lift',
           description: '!text-muted',

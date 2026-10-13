@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowRight, HandCoins, Plus, Receipt } from 'lucide-react'
+import { ArrowRight, HandCoins, MessageCircle, Plus, Receipt } from 'lucide-react'
+import { whatsAppShare } from '@/lib/whatsapp'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, Skeleton } from '@/components/ui/card'
@@ -51,6 +52,13 @@ export function GroupMoney({ group }: { group: Group }) {
               <div key={`${p.from}-${p.to}`} className="flex flex-wrap items-center gap-3 px-pad py-3 text-sm" data-testid={`payment-${name(p.from)}-${name(p.to)}`}>
                 <span className="font-medium">{name(p.from)}</span><ArrowRight className="size-4 text-muted" /><span className="font-medium">{name(p.to)}</span>
                 <span className="flex-1 tabular">{formatMoney(p.amount)}</span>
+                {/* A friendly nudge, written for them; they pay by UPI and the payment is recorded here. */}
+                {p.to === group.you && (
+                  <Button asChild size="sm" variant="ghost">
+                    <a href={whatsAppShare(`Hi ${name(p.from)}, a reminder for ${group.name}: you owe me ${formatMoney(p.amount)}. Thanks!`)}
+                      target="_blank" rel="noopener noreferrer" aria-label={`Remind ${name(p.from)} on WhatsApp`}><MessageCircle />Remind</a>
+                  </Button>
+                )}
                 {!group.archived && <Button size="sm" variant="outline" onClick={() => setSettling(p)}><HandCoins />Record payment</Button>}
               </div>
             ))}

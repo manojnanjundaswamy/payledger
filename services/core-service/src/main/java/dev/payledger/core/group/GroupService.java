@@ -27,8 +27,13 @@ public class GroupService {
 
     private final JdbcClient jdbc;
 
-    public GroupService(JdbcClient jdbc) {
+    private final dev.payledger.core.notify.Notifications notifications;
+    private final dev.payledger.core.notify.Inbox inbox;
+
+    public GroupService(JdbcClient jdbc, dev.payledger.core.notify.Notifications notifications, dev.payledger.core.notify.Inbox inbox) {
         this.jdbc = jdbc;
+        this.notifications = notifications;
+        this.inbox = inbox;
     }
 
     /** @param you the signed-in user's member id in this group (their balance is under it) */
@@ -136,14 +141,46 @@ public class GroupService {
             }
             existingUser = jdbc.sql("select id from users where email = :email").param("email", email).query(UUID.class).optional().orElse(null);
         }
+        UUID memberId = Uuid7.next();
         jdbc.sql("""
                         insert into group_members (id, group_id, user_id, display_name, email, role, added_by, joined_at)
                         values (:id, :groupId, :userId, :name, :email, 'MEMBER', :addedBy, case when cast(:userId as uuid) is null then null else now() end)
                         """)
-                .param("id", Uuid7.next()).param("groupId", groupId).param("userId", existingUser)
+                .param("id", memberId).param("groupId", groupId).param("userId", existingUser)
                 .param("name", request.name().strip()).param("email", email).param("addedBy", user.id())
                 .update();
+        if (email != null) {
+            invite(user, groupId, memberId, email, existingUser);
+        }
         return get(user, groupId);
+    }
+
+    /**
+     * Tells the person: someone with an account that they were added (they can turn that off), someone without one
+     * how to join (the group's link, which also signs them up).
+     */
+    private void invite(CurrentUser user, UUID groupId, UUID memberId, String email, UUID existingUser) {
+        String group = jdbc.sql("select name from groups where id = :id").param("id", groupId).query(String.class).single();
+        String inviter = user.displayName();
+        if (existingUser != null) {
+            inbox.notify(existingUser, dev.payledger.core.notify.Inbox.Kind.GROUP_MEMBER, inviter + " added you to " + group,
+                    "Split expenses and settle up together.", "/groups/" + groupId, user.id(), "group-added:" + memberId,
+                    dev.payledger.core.notify.Email.titled(inviter + " added you to " + group)
+                            .heading("You're in " + group)
+                            .para(inviter + " added you to the group " + group + " on PayLedger, to split expenses and settle up.")
+                            .button("Open " + group, notifications.url("/groups/" + groupId))
+                            .footer("You got this because someone added you to a group.", notifications.settingsUrl()));
+            return;
+        }
+        String token = jdbc.sql("select token from group_links where group_id = :groupId and revoked_at is null")
+                .param("groupId", groupId).query(String.class).optional()
+                .orElseGet(() -> newLink(user, groupId));
+        notifications.toAddress(email, "GROUP_INVITE", "group-invite:" + memberId,
+                dev.payledger.core.notify.Email.titled(inviter + " invited you to split expenses in " + group)
+                        .heading(inviter + " invited you to " + group)
+                        .para("Track who paid what and settle up in the fewest payments. Join with this link; signing up takes a minute and is free.")
+                        .button("Join " + group, notifications.url("/join/" + token))
+                        .footer("You got this because " + inviter + " added your email to a group on PayLedger. If you don't know them, ignore it.", null));
     }
 
     /** Owners can remove anyone but themselves; anyone can leave. The member's history stays. */
@@ -239,6 +276,12 @@ public class GroupService {
                         .param("name", truncate(user.displayName()))
                         .update();
             }
+            // Everyone already in the group hears about it.
+            String group = jdbc.sql("select name from groups where id = :id").param("id", groupId).query(String.class).single();
+            jdbc.sql("select user_id from group_members where group_id = :groupId and user_id is not null and user_id <> :me and left_at is null")
+                    .param("groupId", groupId).param("me", user.id()).query(UUID.class).list()
+                    .forEach(other -> inbox.notify(other, dev.payledger.core.notify.Inbox.Kind.GROUP_MEMBER,
+                            user.displayName() + " joined " + group, null, "/groups/" + groupId, user.id()));
         }
         return get(user, groupId);
     }

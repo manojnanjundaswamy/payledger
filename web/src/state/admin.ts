@@ -138,6 +138,7 @@ export const ACTION_LABEL: Record<string, string> = {
   'staff.grant': 'gave a staff role',
   'staff.remove': 'removed a staff role',
   'settings.update': 'changed the settings',
+  'reminders.run': 'ran the morning reminders',
 }
 
 export interface StaffMember {

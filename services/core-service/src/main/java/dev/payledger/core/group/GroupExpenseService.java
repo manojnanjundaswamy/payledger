@@ -35,15 +35,18 @@ public class GroupExpenseService {
     private static final String MEMBER = "member:";
 
     private final JdbcClient jdbc;
+    private final dev.payledger.core.notify.Inbox inbox;
     private final GroupService groups;
     private final LedgerCommands ledger;
     private final LedgerClient ledgerReads;
 
-    public GroupExpenseService(JdbcClient jdbc, GroupService groups, LedgerCommands ledger, LedgerClient ledgerReads) {
+    public GroupExpenseService(JdbcClient jdbc, GroupService groups, LedgerCommands ledger, LedgerClient ledgerReads,
+                               dev.payledger.core.notify.Inbox inbox) {
         this.jdbc = jdbc;
         this.groups = groups;
         this.ledger = ledger;
         this.ledgerReads = ledgerReads;
+        this.inbox = inbox;
     }
 
     public record Part(UUID memberId, long paid, long share, Long input) {
@@ -133,6 +136,7 @@ public class GroupExpenseService {
         writeParts(id, parts, request.fields());
         int ledgerVersion = post(groupId, id, 1, request.fields(), parts) ? 1 : 0;
         jdbc.sql("update group_expenses set ledger_version = :v where id = :id").param("v", ledgerVersion).param("id", id).update();
+        tell(user, groupId, parts, "added", request.fields().description(), request.fields().amount());
         return find(groupId, id);
     }
 
@@ -167,6 +171,7 @@ public class GroupExpenseService {
                 .update();
         jdbc.sql("delete from group_expense_parts where expense_id = :id").param("id", id).update();
         writeParts(id, parts, f);
+        tell(user, groupId, parts, "edited", f.description(), f.amount());
         return find(groupId, id);
     }
 
@@ -184,8 +189,13 @@ public class GroupExpenseService {
         if (before.version() != version) {
             throw new VersionConflictException("expense");
         }
+        Map<UUID, Long[]> was = new java.util.LinkedHashMap<>();
+        jdbc.sql("select member_id, paid, share from group_expense_parts where expense_id = :id").param("id", id)
+                .query((rs, i) -> was.put(rs.getObject("member_id", UUID.class), new Long[]{rs.getLong("paid"), rs.getLong("share")})).list();
+        long amount = jdbc.sql("select amount from group_expenses where id = :id").param("id", id).query(Long.class).single();
         jdbc.sql("update group_expenses set deleted_at = now(), version = version + 1, updated_at = now() where id = :id")
                 .param("id", id).update();
+        tell(user, groupId, was, "deleted", before.description(), amount);
         if (before.ledgerVersion() > 0) {
             ledger.reverse(Book.group(groupId), key(id, before.ledgerVersion()) + ":reversal", key(id, before.ledgerVersion()),
                     "Deleted: " + before.description());
@@ -218,6 +228,7 @@ public class GroupExpenseService {
                 note != null ? note : "Settled up", "settle:" + id, List.of(
                         new Leg(MEMBER + request.fromMemberId(), "ASSET", currency, -request.amount()),
                         new Leg(MEMBER + request.toMemberId(), "ASSET", currency, request.amount())));
+        tellPayment(user, groupId, request.fromMemberId(), request.toMemberId(), request.amount(), false);
         return new Settlement(id, request.fromMemberId(), request.toMemberId(), request.amount(), currency, request.occurredOn(), note);
     }
 
@@ -230,6 +241,62 @@ public class GroupExpenseService {
             throw new NotFoundException("settlement");
         }
         ledger.reverse(Book.group(groupId), "settle:" + id + ":v1:reversal", "settle:" + id + ":v1", "Deleted settlement");
+        record Paid(UUID fromMember, UUID toMember, long amount) {
+        }
+        Paid p = jdbc.sql("select from_member, to_member, amount from group_settlements where id = :id").param("id", id).query(Paid.class).single();
+        tellPayment(user, groupId, p.fromMember(), p.toMember(), p.amount(), true);
+    }
+
+    // ---------------------------------------------------------------- telling people
+
+    /** Everyone with an account who is part of the expense (paid or shares), except whoever did it. */
+    private void tell(CurrentUser user, UUID groupId, Map<UUID, Long[]> parts, String verb, String description, long amount) {
+        String group = groupName(groupId);
+        String who = user.displayName();
+        for (var e : parts.entrySet()) {
+            UUID to = userOf(e.getKey());
+            if (to == null || to.equals(user.id())) {
+                continue;
+            }
+            long paid = e.getValue()[0] == null ? 0 : e.getValue()[0];
+            long share = e.getValue()[1] == null ? 0 : e.getValue()[1];
+            String body = verb.equals("deleted") ? "It no longer counts in your balance."
+                    : (paid > 0 ? "You paid " + money(paid) + "; your share is " + money(share) + "."
+                    : "Your share is " + money(share) + ".");
+            inbox.notify(to, dev.payledger.core.notify.Inbox.Kind.GROUP_EXPENSE,
+                    who + " " + verb + " " + description + " (" + money(amount) + ") in " + group, body, "/groups/" + groupId, user.id());
+        }
+    }
+
+    private void tellPayment(CurrentUser user, UUID groupId, UUID from, UUID to, long amount, boolean undone) {
+        String group = groupName(groupId);
+        String title = undone
+                ? user.displayName() + " undid a payment of " + money(amount) + " in " + group
+                : memberName(from) + " paid " + memberName(to) + " " + money(amount) + " in " + group;
+        for (UUID member : List.of(from, to)) {
+            UUID target = userOf(member);
+            if (target != null && !target.equals(user.id())) {
+                inbox.notify(target, dev.payledger.core.notify.Inbox.Kind.SETTLEMENT, title,
+                        undone ? "Your balance is back to what it was before it." : "Recorded by " + user.displayName() + ".",
+                        "/groups/" + groupId, user.id());
+            }
+        }
+    }
+
+    private UUID userOf(UUID memberId) {
+        return jdbc.sql("select user_id from group_members where id = :id").param("id", memberId).query(UUID.class).optional().orElse(null);
+    }
+
+    private String memberName(UUID memberId) {
+        return jdbc.sql("select display_name from group_members where id = :id").param("id", memberId).query(String.class).optional().orElse("Someone");
+    }
+
+    private String groupName(UUID groupId) {
+        return jdbc.sql("select name from groups where id = :id").param("id", groupId).query(String.class).single();
+    }
+
+    private static String money(long paise) {
+        return dev.payledger.core.notify.Reminders.money(paise);
     }
 
     /** Each current member's balance from the group's ledger book, and the fewest payments that settle them. */

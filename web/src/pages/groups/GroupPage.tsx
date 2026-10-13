@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { ArrowLeft, Check, Copy, Link2, RefreshCw, UserMinus, UserPlus } from 'lucide-react'
+import { ArrowLeft, Check, Copy, Link2, MessageCircle, RefreshCw, UserMinus, UserPlus } from 'lucide-react'
+import { whatsAppShare } from '@/lib/whatsapp'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Skeleton } from '@/components/ui/card'
@@ -153,6 +154,13 @@ function InviteLink({ groupId }: { groupId: string }) {
           <div className="flex flex-wrap gap-2">
             <Input readOnly value={url} aria-label="Invite link" className="min-w-0 flex-1 font-mono text-xs" onFocus={(e) => e.target.select()} />
             <Button variant="outline" onClick={copy} disabled={!url}>{copied ? <><Check />Copied</> : <><Copy />Copy</>}</Button>
+            {url && (
+              <Button asChild variant="outline">
+                <a href={whatsAppShare(`Join our group on PayLedger to split expenses: ${url}`)} target="_blank" rel="noopener noreferrer">
+                  <MessageCircle />WhatsApp
+                </a>
+              </Button>
+            )}
             <Button variant="ghost" onClick={() => reset.mutate()} disabled={reset.isPending}><RefreshCw />Reset</Button>
           </div>
         )}
