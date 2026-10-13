@@ -64,6 +64,7 @@ class TenantIsolationIntegrationTest {
 
     @BeforeEach
     void twoTenants() throws Exception {
+        FakeLedger.DOWN.set(false);
         secret = "SECRET" + UUID.randomUUID().toString().substring(0, 8);
         alice = user();
         bob = user();

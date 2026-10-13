@@ -37,12 +37,15 @@ public class BudgetService {
     private final SpaceAccess access;
     private final LedgerClient ledger;
     private final PlanService plans;
+    private final dev.payledger.core.money.BalanceService balances;
 
-    public BudgetService(JdbcClient jdbc, SpaceAccess access, LedgerClient ledger, PlanService plans) {
+    public BudgetService(JdbcClient jdbc, SpaceAccess access, LedgerClient ledger, PlanService plans,
+                         dev.payledger.core.money.BalanceService balances) {
         this.jdbc = jdbc;
         this.access = access;
         this.ledger = ledger;
         this.plans = plans;
+        this.balances = balances;
     }
 
     public enum Status { ON_TRACK, CLOSE, OVER }
@@ -262,6 +265,47 @@ public class BudgetService {
             throw new InvalidRequestException("budget-category-invalid", "budgets are for spending; " + row.name() + " is income");
         }
         return row.name();
+    }
+
+    /**
+     * @param average  what the category spent per budget month, on average over the months looked at
+     * @param suggested the average rounded up to the next ₹500, a limit that is realistic from day one
+     */
+    public record Suggestion(UUID categoryId, long average, long suggested) {
+    }
+
+    /**
+     * Budgets suggested from the last {@code months} complete budget months: each spending category's average,
+     * rounded up to the next ₹500. Categories already budgeted, hidden ones and anything under ₹100 a month are
+     * left out. Empty if the ledger can't be reached (suggestions are a nicety, not a page that should fail).
+     */
+    public List<Suggestion> suggestions(CurrentUser user, UUID spaceId, int months) {
+        access.read(user, spaceId);
+        Settings settings = settings(user);
+        BudgetPeriod current = BudgetPeriod.containing(settings.today(), settings.startDay());
+        BudgetPeriod first = BudgetPeriod.of(current.month().minusMonths(months), settings.startDay());
+        LocalDate to = current.start().minusDays(1);
+        java.util.Set<UUID> budgeted = new java.util.HashSet<>();
+        limits(spaceId, current.month()).forEach(l -> budgeted.add(l.categoryId()));
+        java.util.Set<UUID> visible = new java.util.HashSet<>(jdbc.sql(
+                        "select id from categories where space_id = :spaceId and kind = 'EXPENSE' and not hidden")
+                .param("spaceId", spaceId).query(UUID.class).list());
+        List<dev.payledger.core.money.BalanceService.CategoryTotal> totals;
+        try {
+            totals = balances.categoryTotals(user, spaceId, "EXPENSE", first.start(), to, false);
+        } catch (dev.payledger.core.common.ApiException e) {
+            return List.of();
+        }
+        long step = 50_000; // ₹500
+        return totals.stream()
+                .filter(t -> visible.contains(t.categoryId()) && !budgeted.contains(t.categoryId()))
+                .map(t -> {
+                    long average = t.amount() / months;
+                    return new Suggestion(t.categoryId(), average, ((average + step - 1) / step) * step);
+                })
+                .filter(x -> x.average() >= 10_000)
+                .sorted(java.util.Comparator.comparingLong(Suggestion::average).reversed())
+                .toList();
     }
 
     private record Settings(int startDay, LocalDate today) {
