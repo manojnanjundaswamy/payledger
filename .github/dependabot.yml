@@ -80,8 +80,9 @@ updates:
         update-types: ["version-update:semver-major"]
       # Keycloak 26.8 makes every new sign-up set their password twice (UPDATE_PASSWORD right after
       # email verification). Stay on 26.4 until a release passes scripts/login-smoke-test.sh.
+      # Keycloak publishes rebuilds as 26.8.0-0, 26.8.0-1, which "26.8.x" alone doesn't match (#27).
       - dependency-name: "keycloak/keycloak"
-        versions: ["26.8.x"]
+        versions: ["26.8.x", ">= 26.8.0-0, < 26.9.0"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
