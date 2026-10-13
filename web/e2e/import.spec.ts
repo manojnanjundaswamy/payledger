@@ -19,11 +19,11 @@ test('a CSV is checked row by row, new names are mapped, and the import can be u
     `07-10-2026,"1,00,000",income,${bank},Salary,October salary,,E2E-${run}-3`,
     `31-02-2026,99,expense,${bank},Groceries,Bad date,,E2E-${run}-4`,
   ].join('\r\n')
-  const upload = () => page.getByLabel('CSV file').setInputFiles({ name: file, mimeType: 'text/csv', buffer: Buffer.from(csv) })
+  const upload = () => page.getByLabel('File to import').setInputFiles({ name: file, mimeType: 'text/csv', buffer: Buffer.from(csv) })
 
   await page.goto('/transactions')
   await page.getByRole('link', { name: 'Import' }).click()
-  await expect(page.getByRole('link', { name: 'Download the template' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Excel template' })).toBeVisible()
   await upload()
 
   // Nothing matches the new account yet, so every row needs it; the bad date is reported either way.
@@ -63,11 +63,22 @@ test('a CSV is checked row by row, new names are mapped, and the import can be u
 
   // The template downloads through the gateway with the session, pre-filled with this user's accounts.
   await page.goto('/import')
-  const download = page.waitForEvent('download')
-  await page.getByRole('link', { name: 'Download the template' }).click()
-  const template = await download
-  expect(template.suggestedFilename()).toBe('payledger-template.csv')
-  expect(readFileSync(await template.path(), 'utf-8')).toContain('date,amount,type,account,category')
+  for (const [link, file] of [['CSV template', 'payledger-template.csv'], ['Excel template', 'payledger-template.xlsx']]) {
+    const download = page.waitForEvent('download')
+    await page.getByRole('link', { name: link }).click()
+    const template = await download
+    expect(template.suggestedFilename()).toBe(file)
+    const bytes = readFileSync(await template.path())
+    // A CSV starts with its header; an .xlsx is a zip ("PK").
+    expect(bytes.subarray(0, file.endsWith('csv') ? 4 : 2).toString()).toBe(file.endsWith('csv') ? 'date' : 'PK')
+  }
+  // The Excel template itself reads back: its three example rows are checked like any file.
+  await page.getByLabel('File to import').setInputFiles({
+    name: 'payledger-template.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: readFileSync(await (await Promise.all([page.waitForEvent('download'), page.getByRole('link', { name: 'Excel template' }).click()]))[0].path()),
+  })
+  const counts = await Promise.all(['ready-to-import', 'already-there', 'with-problems'].map(async (k) => Number(await page.getByTestId(`import-${k}`).textContent())))
+  expect(counts.reduce((a, b) => a + b, 0)).toBe(3)
 
   // Clean up: hide the category (its history stays), archive the account.
   await page.goto('/categories')

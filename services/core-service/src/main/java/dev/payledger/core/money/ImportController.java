@@ -33,13 +33,14 @@ class ImportController {
     }
 
     /**
-     * @param csv the file's text (UTF-8); at most {@value ImportService#MAX_ROWS} rows
+     * @param csv  the file's text (UTF-8), or
+     * @param xlsx an Excel workbook, base64-encoded (2 MB of file at most)
      */
-    record Body(@Size(max = 200) String fileName, @Size(max = 2_000_000) String csv,
+    record Body(@Size(max = 200) String fileName, @Size(max = 2_000_000) String csv, @Size(max = 2_800_000) String xlsx,
                 @Size(max = 500) Map<String, String> accounts, @Size(max = 500) Map<String, String> categories) {
 
         ImportService.Request request() {
-            return new ImportService.Request(fileName, csv, accounts, categories);
+            return new ImportService.Request(fileName, csv, xlsx, accounts, categories);
         }
     }
 
@@ -66,6 +67,15 @@ class ImportController {
     @Operation(summary = "Undo an import: deletes every transaction it added (the ledger reverses them)")
     void undo(CurrentUser user, @PathVariable UUID spaceId, @PathVariable UUID importId) {
         imports.undo(user, spaceId, importId);
+    }
+
+    @GetMapping("/template.xlsx")
+    @Operation(summary = "The template as an Excel workbook: dropdowns of your accounts and categories, and an instructions tab")
+    ResponseEntity<byte[]> templateXlsx(CurrentUser user, @PathVariable UUID spaceId) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"payledger-template.xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(imports.templateXlsx(user, spaceId));
     }
 
     @GetMapping(value = "/template.csv", produces = "text/csv")

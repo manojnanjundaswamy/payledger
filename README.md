@@ -50,7 +50,7 @@ In progress (Phase 4): core-service records accounts and transactions and queues
 own outbox; ledger-service consumes them ([docs/events/ledger-commands.md](docs/events/ledger-commands.md)), and
 core-service reads balances and per-category totals back from the ledger. The web app has Accounts, Transactions,
 Categories, Budgets, Plan (commitments, safe to spend, annual planner), Import and Reports (including the April–March
-financial year) screens on real data, and the dashboard widgets use it once you have an account; Excel import comes next.
+financial year) screens on real data, and the dashboard widgets use it once you have an account.
 notification-service is **parked**: it still reads the wallet-era `ledger.entries.v1` events, which nothing
 publishes any more, and is repurposed for emails and the activity feed in Phase 6.
 
@@ -168,10 +168,10 @@ OpenAPI at http://localhost:8060/swagger-ui.html):
 | `GET /spaces/{id}/commitments/due?from=&to=` | every due date in the range (at most two years), with `paid` and the paying `transactionId` |
 | `POST /spaces/{id}/commitments/{cid}/payments` | `{dueDate, amount?, occurredOn?}`: records the expense or transfer once (409 `already-paid`); deleting that transaction makes the date due again |
 | `GET /spaces/{id}/safe-to-spend` | this budget month: income − spent − bills still due − savings due − set aside for big costs, and per day for the days left (amounts null if the ledger is down) |
-| `POST /spaces/{id}/imports/preview` | `{fileName, csv, accounts?, categories?}`: checks every row (READY, DUPLICATE or ERROR with column and reason) and lists the account and category names the space doesn't have; saves nothing |
+| `POST /spaces/{id}/imports/preview` | `{fileName, csv or xlsx (base64), accounts?, categories?}`: checks every row (READY, DUPLICATE or ERROR with column and reason) and lists the account and category names the space doesn't have; saves nothing |
 | `POST /spaces/{id}/imports` | imports the READY rows; `accounts` / `categories` map unknown names to an id, or to `new:BANK` (CASH, CARD, WALLET) / `new` to create them. At most 2,000 rows; importing the same file again adds nothing |
 | `GET /spaces/{id}/imports`, `DELETE …/{importId}` | past imports; undo deletes every transaction an import added (409 `import-undone` the second time) |
-| `GET /spaces/{id}/imports/template.csv` | the template, with your own account names in its example rows |
+| `GET /spaces/{id}/imports/template.xlsx`, `…/template.csv` | the template: the Excel one has dropdowns of your accounts and categories and an instructions tab; both have your account names in their example rows |
 | `GET /spaces/{id}/planner` | the annual planner: bills every 6+ months or only once (`endsOn = firstDue`), each with its next date, months left and this month's set-aside (amount ÷ months left) |
 | `DELETE /spaces/{id}/categories/{cid}` | only if no transaction ever used it: 409 `category-in-use` (hide it instead) or `category-has-subcategories` |
 | `GET/POST /spaces/{id}/transactions`, `GET/PUT/DELETE …/transactions/{txnId}` | expense, income, transfer; keyset pages, filtered by `from`, `to`, `accountId` or `categoryId` (with its subcategories); optional client `id` makes a create safe to retry; edits and deletes send the `version` they saw (409 if stale) |
@@ -268,7 +268,8 @@ counts neither as a bill still due nor, once paid, as spending.
 
 `ImportIntegrationTest` (core-service) proves the preview checks every row and saves nothing, unknown names can be mapped
 or created, a bank statement with debit and credit columns imports, importing the same file again adds nothing, undo
-deletes what an import added (and then it imports again), and a 2,000-row file imports in one request. `ImportParserTest`
+deletes what an import added (and then it imports again), a 2,000-row file imports in one request, and the Excel template
+has dropdowns of your names and imports once filled in (real Excel dates, numbers and formulas included). `ImportParserTest`
 covers Indian amounts (₹1,00,000.50, (500)), day-first dates (05/10/26, 05-Oct-2026) and quoted CSV cells.
 
 `NotificationIntegrationTest` proves a redelivered event creates no duplicate notification, system accounts are skipped,
