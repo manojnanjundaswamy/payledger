@@ -89,7 +89,8 @@ public class ImportService {
      * @param accounts   unknown account key (its lower-case name) -> an account id, or {@code new:BANK} (CASH, CARD, WALLET)
      * @param categories unknown category key -> a category id, or {@code new}
      */
-    public record Request(String fileName, String csv, Map<String, String> accounts, Map<String, String> categories) {
+    /** @param xlsx an Excel workbook, base64-encoded, instead of csv */
+    public record Request(String fileName, String csv, String xlsx, Map<String, String> accounts, Map<String, String> categories) {
 
         Map<String, String> accountMap() {
             return accounts == null ? Map.of() : accounts;
@@ -184,30 +185,58 @@ public class ImportService {
         jdbc.sql("update imports set undone_at = now() where id = :id").param("id", importId).update();
     }
 
-    /** The template with this space's own account and category names in its example rows. */
+    /** The template with this space's own account names in its example rows. */
     @Transactional(readOnly = true)
     public String template(CurrentUser user, UUID spaceId) {
         access.read(user, spaceId);
-        List<String> names = jdbc.sql("select name from money_accounts where space_id = :spaceId and archived_at is null order by created_at")
+        StringBuilder csv = new StringBuilder(String.join(",", ImportXlsx.COLUMNS)).append("\r\n");
+        for (List<String> row : examples(openAccounts(spaceId))) {
+            csv.append(String.join(",", row.stream().map(ImportService::csvCell).toList())).append("\r\n");
+        }
+        return csv.toString();
+    }
+
+    /** The template as an Excel workbook, with dropdowns of this space's accounts and categories. */
+    @Transactional(readOnly = true)
+    public byte[] templateXlsx(CurrentUser user, UUID spaceId) {
+        access.read(user, spaceId);
+        List<String> names = openAccounts(spaceId);
+        List<String> categoryNames = categories.all(spaceId).stream().filter(c -> !c.hidden()).map(Category::name).distinct().toList();
+        return ImportXlsx.template(names, categoryNames, examples(names));
+    }
+
+    private List<String> openAccounts(UUID spaceId) {
+        return jdbc.sql("select name from money_accounts where space_id = :spaceId and archived_at is null order by created_at")
                 .param("spaceId", spaceId).query(String.class).list();
-        String account = names.isEmpty() ? "HDFC savings" : names.getFirst();
-        String other = names.size() > 1 ? names.get(1) : "Cash";
-        return String.join("\r\n",
-                "date,amount,type,account,category,subcategory,description,merchant,payment_mode,to_account,tags,notes,currency,external_id",
-                "05-10-2026,486,expense," + csvCell(account) + ",Groceries,,BigBasket order,BigBasket,UPI,,,,INR,",
-                "01-10-2026,\"1,20,000\",income," + csvCell(account) + ",Salary,,October salary,,netbanking,,,,INR,",
-                "06-10-2026,2000,transfer," + csvCell(account) + ",,,Cash from ATM,,,"
-                        + csvCell(other) + ",,,INR,",
-                "") ;
+    }
+
+    /** Three example rows (expense, income, transfer) in the template's column order. */
+    private static List<List<String>> examples(List<String> accounts) {
+        String account = accounts.isEmpty() ? "HDFC savings" : accounts.getFirst();
+        String other = accounts.size() > 1 ? accounts.get(1) : "Cash";
+        return List.of(
+                List.of("05-10-2026", "486", "expense", account, "Groceries", "", "BigBasket order", "BigBasket", "UPI", "", "", "", "INR", ""),
+                List.of("01-10-2026", "1,20,000", "income", account, "Salary", "", "October salary", "", "netbanking", "", "", "", "INR", ""),
+                List.of("06-10-2026", "2000", "transfer", account, "", "", "Cash from ATM", "", "", other, "", "", "INR", ""));
     }
 
     // ---------------------------------------------------------------- checking rows
 
     private List<ImportParser.Line> lines(Request request) {
-        if (request.csv() == null || request.csv().isBlank()) {
+        List<ImportParser.Line> lines;
+        if (request.xlsx() != null && !request.xlsx().isBlank()) {
+            byte[] file;
+            try {
+                file = java.util.Base64.getDecoder().decode(request.xlsx());
+            } catch (IllegalArgumentException e) {
+                throw new InvalidRequestException("unreadable-file", "the Excel file didn't arrive intact; try again");
+            }
+            lines = ImportXlsx.read(file);
+        } else if (request.csv() != null && !request.csv().isBlank()) {
+            lines = ImportParser.csv(request.csv());
+        } else {
             throw new InvalidRequestException("empty-import", "the file is empty");
         }
-        List<ImportParser.Line> lines = ImportParser.csv(request.csv());
         if (lines.isEmpty()) {
             throw new InvalidRequestException("empty-import", "the file has a header but no rows");
         }

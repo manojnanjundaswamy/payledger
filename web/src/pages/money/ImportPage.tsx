@@ -7,7 +7,7 @@ import { Badge, Card } from '@/components/ui/card'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import {
-  categoryLabel, problemsCsv, templateUrl, useAccounts, useCategories, useCommitImport, useImports, usePreviewImport,
+  base64Of, categoryLabel, problemsCsv, templateUrl, useAccounts, useCategories, useCommitImport, useImports, usePreviewImport,
   useSpaceId, useUndoImport, type ImportPreview, type ImportRequest, type ImportUnknown,
 } from '@/state/money'
 import { ACCOUNT_KINDS, Select, useMoneyFormat } from './parts'
@@ -36,7 +36,13 @@ export function ImportPage() {
   async function choose(file: File | undefined) {
     if (!file) return
     if (file.size > 2_000_000) return setError('The file is bigger than 2 MB. Split it into smaller files.')
-    void check({ fileName: file.name, csv: await file.text(), accounts: {}, categories: {} })
+    const excel = /\.xlsx$/i.test(file.name)
+    if (!excel && !/\.csv$/i.test(file.name) && file.type !== 'text/csv') {
+      return setError('Choose a CSV or Excel (.xlsx) file. An older .xls file can be saved as .xlsx from Excel.')
+    }
+    void check(excel
+      ? { fileName: file.name, xlsx: await base64Of(file), accounts: {}, categories: {} }
+      : { fileName: file.name, csv: await file.text(), accounts: {}, categories: {} })
   }
 
   async function importIt() {
@@ -59,19 +65,23 @@ export function ImportPage() {
         <div>
           <h2 className="font-semibold">Import from a spreadsheet</h2>
           <p className="mt-1 text-sm text-muted">
-            Save your sheet or bank statement as CSV in the template's columns: date, amount, type and account are needed;
+            Use an Excel (.xlsx) or CSV file in the template's columns: date, amount, type and account are needed;
             category, description, notes and more are optional. Dates like 05-10-2026 and amounts like 1,00,000 are fine.
             Nothing is saved until you press Import.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-control bg-accent px-4 text-sm font-medium text-accent-fg shadow-sm hover:opacity-90 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring">
-            <FileUp className="size-4" />Choose a CSV file
-            <input type="file" accept=".csv,text/csv" className="sr-only" aria-label="CSV file"
+            <FileUp className="size-4" />Choose a file
+            <input type="file" className="sr-only" aria-label="File to import"
+              accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={(e) => { void choose(e.target.files?.[0]); e.target.value = '' }} />
           </label>
           {spaceId && (
-            <Button asChild variant="outline"><a href={templateUrl(spaceId)} download><Download />Download the template</a></Button>
+            <>
+              <Button asChild variant="outline"><a href={templateUrl(spaceId, 'xlsx')} download><Download />Excel template</a></Button>
+              <Button asChild variant="ghost"><a href={templateUrl(spaceId, 'csv')} download><Download />CSV template</a></Button>
+            </>
           )}
         </div>
         {request && <p className="text-sm text-muted">File: <span className="font-medium text-fg">{request.fileName}</span></p>}
@@ -191,7 +201,7 @@ function Problems({ preview, fileName }: { preview: ImportPreview; fileName: str
     const url = URL.createObjectURL(new Blob([problemsCsv(bad)], { type: 'text/csv' }))
     const a = document.createElement('a')
     a.href = url
-    a.download = fileName.replace(/\.csv$/i, '') + '-problems.csv'
+    a.download = fileName.replace(/\.(csv|xlsx)$/i, '') + '-problems.csv'
     a.click()
     URL.revokeObjectURL(url)
   }

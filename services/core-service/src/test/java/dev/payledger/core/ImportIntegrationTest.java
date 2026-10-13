@@ -1,6 +1,7 @@
 package dev.payledger.core;
 
 import com.jayway.jsonpath.JsonPath;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.time.LocalDate;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -24,6 +29,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -196,6 +202,72 @@ class ImportIntegrationTest {
                 .andExpect(content().string(containsString("date,amount,type,account,category")))
                 .andExpect(content().string(containsString(",HDFC savings,Groceries,")))
                 .andExpect(content().string(containsString(",Cash,")));
+    }
+
+    @Test
+    void theExcelTemplateHasDropdownsOfYourNamesAndImportsOnceFilledIn() throws Exception {
+        byte[] template = mvc.perform(get(path("/imports/template.xlsx")).with(me))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("payledger-template.xlsx")))
+                .andReturn().getResponse().getContentAsByteArray();
+        byte[] filled;
+        try (var book = new XSSFWorkbook(new ByteArrayInputStream(template))) {
+            assertThat(book.getSheet("Instructions")).isNotNull();
+            var lists = book.getSheet("Lists");
+            assertThat(lists.getRow(0).getCell(1).getStringCellValue()).isEqualTo("HDFC savings");
+            assertThat(lists.getRow(1).getCell(1).getStringCellValue()).isEqualTo("Cash");
+            var sheet = book.getSheet("Transactions");
+            assertThat(sheet.getDataValidations()).hasSizeGreaterThanOrEqualTo(4);
+            assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("date");
+
+            // Replace the examples with rows the way people type them in Excel: a real date, a number.
+            for (int r = sheet.getLastRowNum(); r >= 1; r--) {
+                sheet.removeRow(sheet.getRow(r));
+            }
+            var dateStyle = book.createCellStyle();
+            dateStyle.setDataFormat(book.getCreationHelper().createDataFormat().getFormat("dd-mm-yyyy"));
+            var row = sheet.createRow(1);
+            var date = row.createCell(0);
+            date.setCellValue(LocalDate.of(2026, 10, 5));
+            date.setCellStyle(dateStyle);
+            row.createCell(1).setCellValue(1250.5);
+            row.createCell(2).setCellValue("expense");
+            row.createCell(3).setCellValue("HDFC savings");
+            row.createCell(4).setCellValue("Groceries");
+            row.createCell(6).setCellValue("BigBasket");
+            var formula = sheet.createRow(2);
+            formula.createCell(0).setCellValue("06-10-2026");
+            formula.createCell(1).setCellFormula("100*2");
+            formula.createCell(2).setCellValue("expense");
+            formula.createCell(3).setCellValue("HDFC savings");
+            formula.createCell(6).setCellValue("Doubled");
+            book.getCreationHelper().createFormulaEvaluator().evaluateAll();
+            var out = new ByteArrayOutputStream();
+            book.write(out);
+            filled = out.toByteArray();
+        }
+
+        String body = tools.jackson.databind.json.JsonMapper.builder().build().writeValueAsString(
+                Map.of("fileName", "october.xlsx", "xlsx", Base64.getEncoder().encodeToString(filled)));
+        mvc.perform(post(path("/imports/preview")).with(me).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ready").value(2))
+                .andExpect(jsonPath("$.rows[0].line").value(2))
+                .andExpect(jsonPath("$.rows[0].date").value("2026-10-05")).andExpect(jsonPath("$.rows[0].amount").value(125_050))
+                .andExpect(jsonPath("$.rows[1].amount").value(20_000)).andExpect(jsonPath("$.rows[1].category").value("Other"));
+        mvc.perform(post(path("/imports")).with(me).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.imported").value(2));
+    }
+
+    @Test
+    void aFileThatIsntAWorkbookIsRefused() throws Exception {
+        String body = tools.jackson.databind.json.JsonMapper.builder().build().writeValueAsString(
+                Map.of("fileName", "photo.xlsx", "xlsx", Base64.getEncoder().encodeToString("not a workbook".getBytes())));
+        mvc.perform(post(path("/imports/preview")).with(me).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("unreadable-file"));
+        mvc.perform(post(path("/imports/preview")).with(me).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fileName\":\"x.xlsx\",\"xlsx\":\"%%%\"}"))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("unreadable-file"));
     }
 
     // ---------------------------------------------------------------- helpers

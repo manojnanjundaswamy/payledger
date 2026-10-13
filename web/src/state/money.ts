@@ -476,7 +476,10 @@ export interface ImportPreview {
  */
 export interface ImportRequest {
   fileName: string
-  csv: string
+  /** The file's text, for a CSV, or */
+  csv?: string
+  /** an Excel workbook, base64-encoded. */
+  xlsx?: string
   accounts: Record<string, string>
   categories: Record<string, string>
 }
@@ -510,8 +513,16 @@ export function useUndoImport() {
 }
 
 /** Where the template downloads from (same origin, so the session cookie goes with it). */
-export function templateUrl(spaceId: string): string {
-  return `${base(spaceId)}/imports/template.csv`
+export function templateUrl(spaceId: string, format: 'csv' | 'xlsx' = 'csv'): string {
+  return `${base(spaceId)}/imports/template.${format}`
+}
+
+/** A file's bytes as base64, for sending an Excel workbook inside JSON. */
+export async function base64Of(file: Blob): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(binary)
 }
 
 /** The preview's problems as a CSV the user can open next to their file. */
