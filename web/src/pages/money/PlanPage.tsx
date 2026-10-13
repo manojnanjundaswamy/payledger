@@ -13,6 +13,7 @@ import {
 } from '@/state/money'
 import { useProfile } from '@/state/profile'
 import { BillCalendar } from './BillCalendar'
+import { BillSuggestions } from './BillSuggestions'
 import { CommitmentDialog } from './CommitmentDialog'
 import { SafeToSpendCard } from './SafeToSpendCard'
 
@@ -50,6 +51,8 @@ export function PlanPage() {
       )}
 
       {commitments && commitments.length > 0 && <BigCosts money={money} locale={locale} />}
+
+      <BillSuggestions money={money} />
 
       {commitments && commitments.length > 0 && (
         <section aria-label="Your plan" className="flex flex-col gap-2">

@@ -126,6 +126,66 @@ public class CommitmentService {
         }
     }
 
+    /**
+     * An expense that looks like a bill: the same description, account and category in at least
+     * {@value #SUGGEST_MIN_MONTHS} of the last six months, at a steady amount and on about the same day.
+     *
+     * @param amount     the median amount
+     * @param dayOfMonth the median day it was paid
+     * @param nextDue    that day next (this month if still ahead, else next month)
+     */
+    public record Suggestion(String name, long amount, UUID accountId, UUID categoryId, int dayOfMonth, int months,
+                             LocalDate lastPaid, LocalDate nextDue) {
+    }
+
+    static final int SUGGEST_MIN_MONTHS = 3;
+
+    /** Suggestions not already on the plan (by name), most months first. */
+    @Transactional(readOnly = true)
+    public List<Suggestion> suggestions(CurrentUser user, UUID spaceId) {
+        access.read(user, spaceId);
+        LocalDate today = accounts.today(user);
+        record Candidate(String name, long amount, UUID accountId, UUID categoryId, int dayOfMonth, int months, LocalDate lastPaid) {
+        }
+        List<Candidate> candidates = jdbc.sql("""
+                        select (array_agg(description order by occurred_on desc))[1] as name,
+                               round(percentile_cont(0.5) within group (order by amount))::bigint as amount,
+                               account_id, category_id,
+                               round(percentile_cont(0.5) within group (order by extract(day from occurred_on)))::int as day_of_month,
+                               count(distinct date_trunc('month', occurred_on))::int as months,
+                               max(occurred_on) as last_paid
+                        from transactions
+                        where space_id = :spaceId and kind = 'EXPENSE' and deleted_at is null
+                          and occurred_on > :since
+                        group by account_id, category_id, lower(description)
+                        having count(distinct date_trunc('month', occurred_on)) >= :minMonths
+                           -- Steady: every amount within 10% of the median, every day within a week of each other.
+                           and max(amount) <= 1.1 * percentile_cont(0.5) within group (order by amount)
+                           and min(amount) >= 0.9 * percentile_cont(0.5) within group (order by amount)
+                           and max(extract(day from occurred_on)) - min(extract(day from occurred_on)) <= 7
+                           -- Still going: paid within the last ~6 weeks.
+                           and max(occurred_on) >= :recent
+                        order by months desc, amount desc
+                        limit 10
+                        """)
+                .param("spaceId", spaceId).param("since", today.minusMonths(6)).param("minMonths", SUGGEST_MIN_MONTHS)
+                .param("recent", today.minusDays(45))
+                .query(Candidate.class)
+                .list();
+        java.util.Set<String> planned = new java.util.HashSet<>(jdbc.sql("select lower(name) from commitments where space_id = :spaceId")
+                .param("spaceId", spaceId).query(String.class).list());
+        return candidates.stream()
+                .filter(c -> !planned.contains(c.name().toLowerCase(java.util.Locale.ROOT)))
+                .map(c -> {
+                    LocalDate thisMonth = today.withDayOfMonth(Math.min(c.dayOfMonth(), today.lengthOfMonth()));
+                    LocalDate next = thisMonth.isAfter(today) && thisMonth.isAfter(c.lastPaid()) ? thisMonth
+                            : today.plusMonths(1).withDayOfMonth(Math.min(c.dayOfMonth(), today.plusMonths(1).lengthOfMonth()));
+                    return new Suggestion(c.name(), c.amount(), c.accountId(), c.categoryId(), c.dayOfMonth(), c.months(),
+                            c.lastPaid(), next);
+                })
+                .toList();
+    }
+
     /** Every due date between the two dates, paid or not, oldest first. */
     @Transactional(readOnly = true)
     public List<Due> due(CurrentUser user, UUID spaceId, LocalDate from, LocalDate to) {

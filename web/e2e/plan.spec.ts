@@ -108,3 +108,58 @@ test('a yearly cost and a one-off cost are spread into a monthly set-aside', asy
     await expect(page.getByRole('button', { name: `Edit ${name}` })).toBeHidden()
   }
 })
+
+test('a steady monthly expense is suggested as a bill and added in one tap', async ({ page }) => {
+  const run = Date.now()
+  const bank = `E2E suggest bank ${run}`
+  const name = `E2E Hotstar ${run}`
+  const monthsAgo = (n: number) => {
+    const d = new Date()
+    d.setDate(Math.min(d.getDate(), 10))
+    d.setMonth(d.getMonth() - n)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+
+  await page.goto('/accounts')
+  await page.getByRole('button', { name: 'Add account' }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'Add an account' })
+  await dialog.getByLabel('Name').fill(bank)
+  await dialog.getByRole('button', { name: 'Add account' }).click()
+  await expect(dialog).toBeHidden()
+  for (const n of [1, 2, 3]) {
+    await page.goto('/transactions?add=EXPENSE')
+    const add = page.getByRole('dialog', { name: 'Add expense' })
+    await add.getByLabel('Amount').fill('299')
+    await add.getByLabel('Category').selectOption({ label: 'Subscriptions' })
+    await add.getByLabel('Paid from').selectOption({ label: bank })
+    await add.getByLabel('Description').fill(name)
+    await add.getByLabel('Date').fill(monthsAgo(n))
+    await add.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(add).toBeHidden()
+  }
+
+  await page.goto('/plan')
+  const suggestion = page.getByTestId(`suggestion-${name}`)
+  await expect(suggestion).toContainText('₹299 around the')
+  await expect(suggestion).toContainText('seen in 3 months')
+  await suggestion.getByRole('button', { name: 'Add to plan' }).click()
+  await expect(page.getByRole('button', { name: `Edit ${name}` })).toContainText('Every month')
+  await expect(suggestion).toBeHidden()
+
+  // Clean up: the bill, the three expenses, the account.
+  await page.getByRole('button', { name: `Edit ${name}` }).click()
+  await page.getByRole('dialog', { name: `Edit ${name}` }).getByRole('button', { name: 'Remove' }).click()
+  await expect(page.getByRole('button', { name: `Edit ${name}` })).toBeHidden()
+  await page.goto('/transactions')
+  await page.getByLabel('Filter by account').selectOption({ label: bank })
+  for (let i = 0; i < 3; i++) {
+    await page.getByRole('button', { name: `Edit ${name}` }).first().click()
+    await page.getByRole('dialog', { name: 'Edit expense' }).getByRole('button', { name: 'Delete' }).click()
+    await expect(page.getByRole('dialog', { name: 'Edit expense' })).toBeHidden()
+  }
+  await expect(page.getByText('Nothing here yet')).toBeVisible()
+  await page.goto('/accounts')
+  await page.getByRole('button', { name: `Edit ${bank}` }).click()
+  await page.getByRole('dialog', { name: `Edit ${bank}` }).getByRole('button', { name: 'Archive' }).click()
+  await expect(page.getByRole('button', { name: `Edit ${bank}` })).toBeHidden()
+})
