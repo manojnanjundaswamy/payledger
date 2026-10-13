@@ -38,6 +38,13 @@ test('a bill on the plan is due, can be marked paid once, and paying it records 
   await expect(due.getByText('Paid', { exact: true }).first()).toBeVisible()
   await expect(due.getByRole('button', { name: 'Mark paid' })).toBeHidden()
 
+  // The calendar shows it on today's date, paid.
+  await page.getByRole('radio', { name: 'Calendar' }).click()
+  const now = new Date()
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  await expect(page.getByTestId(`day-${todayIso}`)).toContainText(`✓ ${bill}`)
+  await page.getByRole('radio', { name: 'List' }).click()
+
   // The payment is an ordinary expense from that account.
   await page.goto('/transactions')
   await page.getByLabel('Filter by account').selectOption({ label: bank })

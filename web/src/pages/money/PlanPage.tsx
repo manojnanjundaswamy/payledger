@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { CalendarClock, Check, PiggyBank, Plus, Receipt } from 'lucide-react'
+import { CalendarClock, CalendarDays, Check, List, PiggyBank, Plus, Receipt } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Skeleton } from '@/components/ui/card'
+import { Segmented } from '@/components/ui/controls'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatMoneyWhole } from '@/lib/money'
@@ -11,6 +12,7 @@ import {
   type Commitment, type Due,
 } from '@/state/money'
 import { useProfile } from '@/state/profile'
+import { BillCalendar } from './BillCalendar'
 import { CommitmentDialog } from './CommitmentDialog'
 import { SafeToSpendCard } from './SafeToSpendCard'
 
@@ -84,6 +86,13 @@ function DueThisMonth({ start, end, money, locale }: { start: string; end: strin
   const { data: due = [], isPending } = useDue(isoDate(new Date(y!, m! - 2, d!)), end)
   const pay = usePayCommitment()
   const rows = due.filter((x) => x.dueDate >= start || !x.paid)
+  const [view, setView] = useState<'list' | 'calendar'>(() => {
+    try { return localStorage.getItem('plan-view') === 'calendar' ? 'calendar' : 'list' } catch { return 'list' }
+  })
+  const choose = (v: 'list' | 'calendar') => {
+    setView(v)
+    try { localStorage.setItem('plan-view', v) } catch { /* a private window: just don't remember */ }
+  }
 
   async function markPaid(x: Due) {
     try {
@@ -96,8 +105,14 @@ function DueThisMonth({ start, end, money, locale }: { start: string; end: strin
 
   return (
     <section aria-label="Due this month" className="flex flex-col gap-2">
-      <h2 className="text-sm font-medium text-muted">Due this month</h2>
-      {isPending ? <Skeleton className="h-24" /> : rows.length === 0 ? (
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-medium text-muted">Due this month</h2>
+        <Segmented label="View" value={view} onChange={choose}
+          options={[{ value: 'list', label: <><List />List</> }, { value: 'calendar', label: <><CalendarDays />Calendar</> }]} />
+      </div>
+      {isPending ? <Skeleton className="h-24" /> : view === 'calendar' ? (
+        <BillCalendar start={start} end={end} due={due.filter((x) => x.dueDate >= start)} money={money} locale={locale} />
+      ) : rows.length === 0 ? (
         <Card className="p-pad text-sm text-muted">Nothing due this month.</Card>
       ) : (
         <Card className="divide-y divide-border p-0">
