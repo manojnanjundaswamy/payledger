@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { Check, Minus, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -7,6 +8,9 @@ import { ApiError } from '@/lib/api'
 import { LIMIT_LABELS, PLAN_LINES, PRICE } from '@/lib/plans'
 import { usePlan, useStartTrial } from '@/state/plan'
 import { useProfile } from '@/state/profile'
+
+/** Where each limited thing lives, so a limit opens its page. */
+const LIMIT_PAGES: Record<string, string> = { accounts: '/accounts', budgets: '/budgets', bills: '/plan', 'big-costs': '/plan', imports: '/import' }
 
 /** Your plan, what Free's limits leave, the trial, and what Premium adds. */
 export function PlanSettings() {
@@ -58,7 +62,7 @@ export function PlanSettings() {
               return (
                 <li key={key} data-testid={`limit-${key}`}>
                   <div className="mb-1 flex justify-between text-sm">
-                    <span>{LIMIT_LABELS[key] ?? key}</span>
+                    <Link to={LIMIT_PAGES[key] ?? '/dashboard'} className="hover:underline hover:underline-offset-4">{LIMIT_LABELS[key] ?? key}</Link>
                     <span className="tabular text-muted">{used} of {max}</span>
                   </div>
                   <Progress value={used / max} color={used >= max ? 'var(--warning)' : 'var(--accent)'} label={`${LIMIT_LABELS[key] ?? key} used`} />

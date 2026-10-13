@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { useQueries } from '@tanstack/react-query'
+import { api } from '@/lib/api'
+import { useGroups, type GroupBalances } from '@/state/groups'
 import {
   ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BarChart3, CalendarClock, Check, Goal, Home, ListChecks, ListOrdered,
   PieChart, Rocket, StickyNote, Upload, Users, Wallet, Zap,
@@ -84,14 +87,17 @@ function RealBudgets({ widget }: { widget: Widget }) {
           const look = b.status ? BUDGET_STATUS[b.status] : null
           return (
             <li key={b.categoryId}>
+              <Link to="/transactions" search={{ category: b.categoryId, from: month.start, to: month.end }}
+                aria-label={`${name}: spending this month`} className="group -m-1 block rounded-control p-1 hover:bg-surface-2">
               <div className="mb-1.5 flex items-center justify-between gap-2 text-[0.8125rem]">
-                <span className="truncate font-medium">{name}</span>
+                <span className="truncate font-medium group-hover:underline group-hover:underline-offset-4">{name}</span>
                 <span className="flex shrink-0 items-center gap-2">
                   <span className="tabular text-muted">{b.spent === null ? '—' : money(b.spent, { whole: true })} <span className="text-subtle">/ {money(b.limit, { whole: true })}</span></span>
                   {look && <Badge tone={look.tone}><look.icon className="size-3" />{look.label}</Badge>}
                 </span>
               </div>
               <Progress value={ratio(b)} color={look?.color} label={`${name} budget used`} />
+              </Link>
             </li>
           )
         })}
@@ -149,6 +155,7 @@ function SpendingByCategory({ widget }: WidgetProps) {
 /** This budget month (it may start on payday), from the ledger. */
 function RealSpendingByCategory({ widget, budgetStartDay }: { widget: Widget; budgetStartDay: number }) {
   const { money } = useWidgetEnv()
+  const navigate = useNavigate()
   const period = budgetPeriod(budgetStartDay)
   const { data: totals, isPending, isError } = useCategoryTotals('EXPENSE', isoDate(period.start), isoDate(period.end))
   const { data: categories = [] } = useCategories()
@@ -165,7 +172,8 @@ function RealSpendingByCategory({ widget, budgetStartDay }: { widget: Widget; bu
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-baseline gap-2"><span className="text-2xl font-semibold tracking-tight">{money(total, { whole: true })}</span><span className="text-sm text-muted">spent this month</span></div>
-      <BarList items={widget.size === 's' ? items.slice(0, 4) : items} format={(v) => money(v, { whole: true })} />
+      <BarList items={widget.size === 's' ? items.slice(0, 4) : items} format={(v) => money(v, { whole: true })}
+        onSelect={(categoryId) => void navigate({ to: '/transactions', search: { category: categoryId, from: isoDate(period.start), to: isoDate(period.end) } })} />
     </div>
   )
 }
@@ -173,6 +181,7 @@ function RealSpendingByCategory({ widget, budgetStartDay }: { widget: Widget; bu
 /** Last six calendar months, this one included. */
 function RealCashFlow() {
   const { money, profile } = useWidgetEnv()
+  const navigate = useNavigate()
   const now = new Date()
   const from = isoDate(new Date(now.getFullYear(), now.getMonth() - 5, 1))
   const to = isoDate(new Date(now.getFullYear(), now.getMonth() + 1, 0))
@@ -192,6 +201,10 @@ function RealCashFlow() {
       series={[{ name: 'Income', slot: 1 }, { name: 'Spending', slot: 2 }]}
       format={(v) => money(v, { whole: true })}
       formatAxis={(v) => money(v, { compact: true })}
+      onSelect={(i) => {
+        const m = months[i]!
+        void navigate({ to: '/reports', search: { period: 'custom', from: isoDate(m), to: isoDate(new Date(m.getFullYear(), m.getMonth() + 1, 0)) } })
+      }}
     />
   )
 }
@@ -214,7 +227,8 @@ function RealRecentTransactions({ widget }: { widget: Widget }) {
             ? `${accountName(t.accountId)} → ${accountName(t.toAccountId)}`
             : `${categories.find((c) => c.id === t.categoryId)?.name ?? ''} · ${accountName(t.accountId)}`
           return (
-            <li key={t.id} className="flex items-center gap-3 rounded-control px-2 py-2 hover:bg-surface-2">
+            <li key={t.id}>
+              <Link to="/transactions" search={{ open: t.id }} aria-label={`Open ${t.description}`} className="flex items-center gap-3 rounded-control px-2 py-2 hover:bg-surface-2">
               <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-full', income ? 'bg-good/10 text-good-text' : 'bg-surface-2 text-muted')}>
                 {income ? <ArrowDownLeft className="size-4" /> : t.kind === 'TRANSFER' ? <ArrowLeftRight className="size-4" /> : <ArrowUpRight className="size-4" />}
               </span>
@@ -225,6 +239,7 @@ function RealRecentTransactions({ widget }: { widget: Widget }) {
               <span className={cn('tabular shrink-0 text-sm font-medium', income && 'text-good-text')}>
                 {money(t.kind === 'EXPENSE' ? -t.amount : t.amount, { sign: income })}
               </span>
+              </Link>
             </li>
           )
         })}
@@ -312,7 +327,8 @@ function RealUpcomingBills({ widget }: { widget: Widget }) {
           const days = daysUntil(d.dueDate)
           const [, m, day] = d.dueDate.split('-').map(Number)
           return (
-            <li key={`${d.commitmentId}/${d.dueDate}`} className="flex items-center gap-3">
+            <li key={`${d.commitmentId}/${d.dueDate}`}>
+              <Link to="/plan" search={{ open: d.commitmentId }} aria-label={`Open ${d.name}`} className="-mx-1 flex items-center gap-3 rounded-control px-1 py-0.5 hover:bg-surface-2">
               <span className="flex w-11 shrink-0 flex-col items-center rounded-control border border-border py-1 leading-none">
                 <span className="text-[0.625rem] text-subtle uppercase">{new Date(2000, m! - 1, 1).toLocaleDateString(profile.settings.locale, { month: 'short' })}</span>
                 <span className="text-[0.9375rem] font-semibold">{day}</span>
@@ -324,6 +340,7 @@ function RealUpcomingBills({ widget }: { widget: Widget }) {
                 </span>
               </span>
               <span className="tabular shrink-0 text-sm">{money(d.amount, { whole: true })}</span>
+              </Link>
             </li>
           )
         })}
@@ -361,8 +378,58 @@ function UpcomingBills({ widget }: WidgetProps) {
   )
 }
 
+/** Your groups and where you stand in each, from the ledger; each row opens the group. */
+function RealGroups() {
+  const { money } = useWidgetEnv()
+  const { data: groups, isPending, isError } = useGroups()
+  const open = (groups ?? []).filter((g) => !g.archived)
+  const balances = useQueries({
+    queries: open.map((g) => ({ queryKey: ['groups', g.id, 'balances'], queryFn: () => api<GroupBalances>(`/api/core/groups/${g.id}/balances`) })),
+  })
+  if (isError) return <Unavailable what="Groups" />
+  if (isPending) return <div className="h-28 animate-pulse rounded-control bg-surface-2" />
+  if (open.length === 0) {
+    return (
+      <div className="flex min-h-28 flex-col items-start justify-center gap-1.5 text-sm text-muted">
+        Split trips, flats and dinners with friends.
+        <Link to="/groups" className="text-fg underline underline-offset-4">Start a group</Link>
+      </div>
+    )
+  }
+  // A member's balance is positive when they owe the group.
+  const rows = open.map((g, i) => {
+    const b = balances[i]?.data
+    return { g, value: b?.known && b.balance ? b.balance[g.you] ?? 0 : null }
+  })
+  const owed = rows.reduce((s, r) => s + Math.max(0, -(r.value ?? 0)), 0)
+  const owe = rows.reduce((s, r) => s + Math.max(0, r.value ?? 0), 0)
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-control bg-surface-2 p-3"><div className="text-xs text-muted">You are owed</div><div className="mt-0.5 text-lg font-semibold text-good-text">{money(owed, { whole: true })}</div></div>
+        <div className="rounded-control bg-surface-2 p-3"><div className="text-xs text-muted">You owe</div><div className="mt-0.5 text-lg font-semibold">{money(owe, { whole: true })}</div></div>
+      </div>
+      <ul className="-mx-1 flex flex-col">
+        {rows.slice(0, 5).map(({ g, value }) => (
+          <li key={g.id}>
+            <Link to="/groups/$groupId" params={{ groupId: g.id }} className="flex items-center gap-3 rounded-control px-1 py-1.5 hover:bg-surface-2">
+              <span className="flex size-8 items-center justify-center rounded-control bg-surface-2 text-base" aria-hidden>{g.emoji ?? '👥'}</span>
+              <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{g.name}</span><span className="text-xs text-subtle">{g.members} people</span></span>
+              <span className={cn('text-sm font-medium tabular', value !== null && value < 0 && 'text-good-text', (value === 0 || value === null) && 'text-subtle')}>
+                {value === null ? '—' : value === 0 ? 'Settled' : value < 0 ? `+${money(-value, { whole: true })}` : `−${money(value, { whole: true })}`}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <Link to="/groups" className="self-start text-xs text-muted underline underline-offset-4 hover:text-fg">All groups</Link>
+    </div>
+  )
+}
+
 function Groups() {
-  const { sample: on, money } = useWidgetEnv()
+  const { sample: on, real, money } = useWidgetEnv()
+  if (real) return <RealGroups />
   if (!on) return <Empty phase="Phase 5">Trips, flats and friends: who owes whom, settled in fewest payments.</Empty>
   const owed = sample.groups.filter((g) => g.balance > 0).reduce((s, g) => s + g.balance, 0)
   const owe = -sample.groups.filter((g) => g.balance < 0).reduce((s, g) => s + g.balance, 0)
@@ -434,12 +501,12 @@ function Household() {
 
 function GettingStarted() {
   const { prefs, profile, real } = useWidgetEnv()
-  const steps: { done: boolean; label: string; tab: SettingsTab | null }[] = [
+  const steps: { done: boolean; label: string; tab: SettingsTab | null; to?: '/accounts' }[] = [
     { done: true, label: 'Create your account', tab: null },
     { done: prefs.theme.accent !== null || prefs.theme.mode !== 'system', label: 'Make it yours: pick a theme', tab: 'appearance' },
     { done: profile.settings.budgetStartDay !== 1, label: 'Set the day your month starts (payday)', tab: 'regional' },
-    { done: prefs.dashboards.length > 1 || prefs.dashboards.some((d) => d.widgets.some((w) => w.title || w.type === 'note')), label: 'Customize a dashboard', tab: null },
-    { done: real, label: 'Add your first account', tab: null },
+    { done: prefs.dashboards.length > 1 || prefs.dashboards.some((d) => d.widgets.some((w) => w.title || w.type === 'note')), label: 'Customize a dashboard', tab: 'dashboards' },
+    { done: real, label: 'Add your first account', tab: null, to: '/accounts' },
   ]
   const done = steps.filter((s) => s.done).length
   return (
@@ -453,6 +520,8 @@ function GettingStarted() {
           <li key={s.label}>
             {s.tab && !s.done ? (
               <Link to="/settings" search={{ tab: s.tab }} className="flex items-center gap-2.5 rounded-control px-1 py-1.5 text-sm hover:bg-surface-2"><StepDot done={s.done} />{s.label}</Link>
+            ) : s.to && !s.done ? (
+              <Link to={s.to} className="flex items-center gap-2.5 rounded-control px-1 py-1.5 text-sm hover:bg-surface-2"><StepDot done={s.done} />{s.label}</Link>
             ) : (
               <span className={cn('flex items-center gap-2.5 px-1 py-1.5 text-sm', s.done && 'text-muted line-through decoration-border-strong')}><StepDot done={s.done} />{s.label}</span>
             )}

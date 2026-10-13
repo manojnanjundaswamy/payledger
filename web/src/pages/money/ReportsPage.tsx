@@ -149,6 +149,7 @@ function SpendingByCategory({ totals, pending, categories, period, money }: {
 
 /** Income against spending per calendar month, when the period spans more than one. */
 function MonthlyTrend({ period, locale }: { period: Period; locale: string }) {
+  const navigate = useNavigate({ from: '/reports' })
   const months = monthsIn(period.from, period.to)
   const multi = months.length > 1
   const income = useCategoryTotals('INCOME', period.from, period.to, true, multi)
@@ -168,6 +169,11 @@ function MonthlyTrend({ period, locale }: { period: Period; locale: string }) {
             series={[{ name: 'Income', slot: 1 }, { name: 'Spending', slot: 2 }]}
             format={(v) => formatMoneyWhole(v, 'INR', locale)}
             formatAxis={(v) => formatMoneyShort(v, 'INR', locale)}
+            onSelect={(i) => {
+              const [y, mo] = months[i]!.split('-').map(Number)
+              const last = new Date(y!, mo!, 0).getDate()
+              void navigate({ search: { period: 'custom', from: `${months[i]!.slice(0, 7)}-01`, to: `${months[i]!.slice(0, 7)}-${String(last).padStart(2, '0')}` } })
+            }}
           />
         )}
       </Card>
@@ -202,7 +208,8 @@ function BudgetAgainstActual({ period, locale, money }: { period: Period; locale
           const status = r.spent > r.limit ? 'OVER' : r.spent * 5 >= r.limit * 4 ? 'CLOSE' : 'ON_TRACK'
           const look = BUDGET_STATUS[status]
           return (
-            <div key={r.month} className="flex items-center gap-3 px-pad py-2.5 text-sm" data-testid={`budget-row-${r.month}`}>
+            <Link key={r.month} to="/budgets" search={{ month: r.month }} aria-label={`Budgets for ${r.month}`}
+              className="flex items-center gap-3 px-pad py-2.5 text-sm hover:bg-surface-2 first:rounded-t-card last:rounded-b-card" data-testid={`budget-row-${r.month}`}>
               <span className="w-24 shrink-0 font-medium">{new Date(y!, m! - 1, 1).toLocaleDateString(locale, { month: 'short', year: 'numeric' })}</span>
               {r.pending ? <Skeleton className="h-5 flex-1" /> : (
                 <>
@@ -215,7 +222,7 @@ function BudgetAgainstActual({ period, locale, money }: { period: Period; locale
                   )}
                 </>
               )}
-            </div>
+            </Link>
           )
         })}
       </Card>

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Ban, KeyRound, LogOut, MailCheck, Search, ShieldCheck, Sparkles, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -28,7 +29,10 @@ const PAGE = 50
 export function AdminUsers() {
   const [q, setQ] = useState('')
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<Filter>('all')
+  const { show } = useSearch({ from: '/app/admin' })
+  const navigate = useNavigate({ from: '/admin' })
+  const filter: Filter = show ?? 'all'
+  const setFilter = (f: Filter) => void navigate({ search: (s) => ({ ...s, show: f === 'all' ? undefined : f }), replace: true })
   const [limit, setLimit] = useState(PAGE)
   const [open, setOpen] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)

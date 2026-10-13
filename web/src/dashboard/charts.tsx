@@ -9,35 +9,50 @@ export const seriesColor = (slot: number) => (slot > 0 ? `var(--series-${slot})`
  * Part-to-whole as a ranked list of horizontal bars: every bar is labelled with its name and value,
  * so colour is never the only cue (no legend needed). Hover shows the share of the total.
  */
-export function BarList({ items, format }: { items: { key: string; label: string; value: number; slot: number }[]; format: (v: number) => string }) {
+export function BarList({ items, format, onSelect }: {
+  items: { key: string; label: string; value: number; slot: number }[]
+  format: (v: number) => string
+  /** Makes each row clickable, e.g. to open that category's transactions. */
+  onSelect?: (key: string) => void
+}) {
   const total = items.reduce((s, i) => s + i.value, 0)
   const max = Math.max(...items.map((i) => i.value), 1)
   const [hover, setHover] = useState<string | null>(null)
   return (
     <ul className="flex flex-col gap-2.5" role="list">
-      {items.map((item, i) => (
-        <li key={item.key} onMouseEnter={() => setHover(item.key)} onMouseLeave={() => setHover(null)}
-          className="group relative" aria-label={`${item.label}: ${format(item.value)}, ${Math.round((item.value / total) * 100)}%`}>
-          <div className="mb-1 flex items-baseline justify-between gap-3 text-[0.8125rem]">
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: seriesColor(item.slot) }} />
-              <span className="truncate">{item.label}</span>
-            </span>
-            <span className="tabular shrink-0 text-muted">
-              {hover === item.key ? `${((item.value / total) * 100).toFixed(1)}%` : format(item.value)}
-            </span>
-          </div>
-          <div className="h-2 rounded-full bg-surface-2">
-            <motion.div
-              className="h-full rounded-full"
-              style={{ background: seriesColor(item.slot) }}
-              initial={{ width: 0 }}
-              animate={{ width: `${(item.value / max) * 100}%` }}
-              transition={{ duration: 0.6, delay: i * 0.04, ease: [0.2, 0.8, 0.2, 1] }}
-            />
-          </div>
-        </li>
-      ))}
+      {items.map((item, i) => {
+        const label = `${item.label}: ${format(item.value)}, ${Math.round((item.value / total) * 100)}%`
+        const body = (
+          <>
+            <div className="mb-1 flex items-baseline justify-between gap-3 text-[0.8125rem]">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: seriesColor(item.slot) }} />
+                <span className={cn('truncate', onSelect && 'group-hover:underline group-hover:underline-offset-4')}>{item.label}</span>
+              </span>
+              <span className="tabular shrink-0 text-muted">
+                {hover === item.key ? `${((item.value / total) * 100).toFixed(1)}%` : format(item.value)}
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-surface-2">
+              <motion.div
+                className="h-full rounded-full"
+                style={{ background: seriesColor(item.slot) }}
+                initial={{ width: 0 }}
+                animate={{ width: `${(item.value / max) * 100}%` }}
+                transition={{ duration: 0.6, delay: i * 0.04, ease: [0.2, 0.8, 0.2, 1] }}
+              />
+            </div>
+          </>
+        )
+        return (
+          <li key={item.key} onMouseEnter={() => setHover(item.key)} onMouseLeave={() => setHover(null)} className="group relative"
+            aria-label={onSelect ? undefined : label}>
+            {onSelect
+              ? <button type="button" onClick={() => onSelect(item.key)} aria-label={label} className="-m-1 block w-[calc(100%+0.5rem)] rounded-control p-1 text-left hover:bg-surface-2">{body}</button>
+              : body}
+          </li>
+        )
+      })}
     </ul>
   )
 }
@@ -46,11 +61,13 @@ export function BarList({ items, format }: { items: { key: string; label: string
  * Two series per period on ONE axis (income vs spending). Legend + tooltip per column; the whole
  * column is the hover target, not just the thin bar.
  */
-export function GroupedBars({ data, series, format, formatAxis }: {
+export function GroupedBars({ data, series, format, formatAxis, onSelect }: {
   data: { label: string; values: number[] }[]
   series: { name: string; slot: number }[]
   format: (v: number) => string
   formatAxis: (v: number) => string
+  /** Makes each column clickable (by index), e.g. to open that month's report. */
+  onSelect?: (index: number) => void
 }) {
   const [active, setActive] = useState<number | null>(null)
   const clip = useId()
@@ -83,7 +100,12 @@ export function GroupedBars({ data, series, format, formatAxis }: {
           const cx = pad.left + col * i + col / 2
           const groupW = series.length * barW + (series.length - 1) * gap
           return (
-            <g key={d.label} onMouseEnter={() => setActive(i)} onMouseLeave={() => setActive(null)}>
+            <g key={d.label} onMouseEnter={() => setActive(i)} onMouseLeave={() => setActive(null)}
+              {...(onSelect ? {
+                role: 'button', tabIndex: 0, 'aria-label': `${d.label}: ${series.map((s, k) => `${s.name} ${format(d.values[k] ?? 0)}`).join(', ')}`,
+                className: 'cursor-pointer focus:outline-none', onClick: () => onSelect(i), onFocus: () => setActive(i), onBlur: () => setActive(null),
+                onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(i) } },
+              } : {})}>
               <rect x={pad.left + col * i} y={pad.top} width={col} height={plotH} className={cn('fill-transparent', active === i && 'fill-[var(--surface-2)]')} />
               {d.values.map((v, s) => {
                 const h = Math.max(0, (v / top) * plotH)

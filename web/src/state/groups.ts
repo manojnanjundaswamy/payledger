@@ -3,7 +3,7 @@ import { api } from '@/lib/api'
 
 /** core-service's groups API (docs/adr/0007-groups-and-splitting.md). */
 
-export interface GroupSummary { id: string; name: string; emoji: string | null; currency: string; role: 'OWNER' | 'MEMBER'; members: number; archived: boolean }
+export interface GroupSummary { id: string; name: string; emoji: string | null; currency: string; role: 'OWNER' | 'MEMBER'; members: number; archived: boolean; you: string }
 
 /** A person in a group: joined (has an account) or a placeholder, maybe invited by email. */
 export interface GroupMember { id: string; name: string; email: string | null; role: 'OWNER' | 'MEMBER'; joined: boolean; you: boolean }

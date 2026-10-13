@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -6,7 +7,7 @@ import { Segmented } from '@/components/ui/controls'
 import { cn } from '@/lib/cn'
 import { categoryTree, useCategories, type Category } from '@/state/money'
 import { CategoryDialog } from './CategoryDialog'
-import { CategoryIcon } from './parts'
+import { CategoryIcon, EditButton } from './parts'
 
 type Kind = Category['kind']
 
@@ -68,13 +69,16 @@ export function CategoriesPage() {
 
 function Row({ category, onEdit, sub, parent }: { category: Category; onEdit: (c: Category) => void; sub?: boolean; parent?: Category }) {
   return (
-    <button type="button" onClick={() => onEdit(category)} aria-label={`Edit ${category.name}`}
-      className={cn('flex w-full items-center gap-3 px-pad py-2.5 text-left hover:bg-surface-2', sub && 'pl-[calc(var(--pad)+2.75rem)]')}>
+    <div className="flex items-center gap-1 pr-2 hover:bg-surface-2">
+    <Link to="/transactions" search={{ category: category.id }} aria-label={`${category.name} transactions`}
+      className={cn('flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-pad text-left', sub && 'pl-[calc(var(--pad)+2.75rem)]')}>
       <CategoryIcon category={category} className={cn(sub && 'size-7')} />
       <span className="min-w-0 flex-1">
         <span className={cn('block truncate', !sub && 'font-medium')}>{category.name}</span>
         {parent && <span className="block text-xs text-subtle">in {parent.name}</span>}
       </span>
-    </button>
+    </Link>
+    <EditButton label={`Edit ${category.name}`} onClick={() => onEdit(category)} />
+    </div>
   )
 }

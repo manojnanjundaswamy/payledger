@@ -1,16 +1,20 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '@/lib/api'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { ArrowLeftRight, FileUp, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, Skeleton } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
-import { useAccounts, useCategories, useTransactions, type Transaction, type TxnKind } from '@/state/money'
+import { useAccounts, useCategories, useSpaceId, useTransactions, type Transaction, type TxnKind } from '@/state/money'
 import { useProfile } from '@/state/profile'
 import { CategoryIcon, Select, TXN_KINDS, dayLabel, useMoneyFormat } from './parts'
 import { TransactionDialog } from './TransactionDialog'
 
 export interface TransactionsSearch {
   add?: TxnKind
+  /** A transaction to open for editing (a link from the dashboard or elsewhere). */
+  open?: string
   account?: string
   category?: string
   from?: string
@@ -27,6 +31,16 @@ export function TransactionsPage() {
   const { data: categories = [] } = useCategories()
   const { data, isPending, isError, hasNextPage, fetchNextPage, isFetchingNextPage } = useTransactions({ accountId: search.account, categoryId: search.category, from: search.from, to: search.to })
   const [editing, setEditing] = useState<Transaction>()
+  // ?open=<id>: open that transaction, even if it isn't on the first page of the list.
+  const spaceId = useSpaceId()
+  const opened = useQuery({
+    queryKey: ['money', spaceId, 'transaction', search.open],
+    queryFn: () => api<Transaction>(`/api/core/spaces/${spaceId}/transactions/${search.open}`),
+    enabled: !!spaceId && !!search.open,
+  })
+  useEffect(() => {
+    if (opened.data) setEditing(opened.data)
+  }, [opened.data])
 
   const items = useMemo(() => data?.pages.flatMap((p) => p.items) ?? [], [data])
   const days = useMemo(() => {
@@ -61,8 +75,11 @@ export function TransactionsPage() {
         </Select>
         {(search.category || search.from || search.to) && (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-2 py-1 pr-1 pl-3 text-xs" data-testid="filter-chip">
-            {[search.category && (categoryOf(search.category)?.name ?? 'Category'), search.from && search.to && `${dayLabel(search.from, locale)} – ${dayLabel(search.to, locale)}`]
-              .filter(Boolean).join(' · ')}
+            {search.category && (
+              <Link to="/categories" className="hover:underline hover:underline-offset-4" title="Categories">{categoryOf(search.category)?.name ?? 'Category'}</Link>
+            )}
+            {search.category && search.from && search.to && ' · '}
+            {search.from && search.to && `${dayLabel(search.from, locale)} – ${dayLabel(search.to, locale)}`}
             <button type="button" aria-label="Clear filter" className="rounded-full p-0.5 text-muted hover:bg-surface-3 hover:text-fg"
               onClick={() => void navigate({ search: (s: TransactionsSearch) => ({ ...s, category: undefined, from: undefined, to: undefined }) })}>
               <X className="size-3.5" />
@@ -129,6 +146,7 @@ export function TransactionsPage() {
           if (o) return
           setEditing(undefined)
           if (adding) setAdding(undefined)
+          if (search.open) void navigate({ search: (s: TransactionsSearch) => ({ ...s, open: undefined }), replace: true })
         }}
         transaction={editing}
         initialKind={adding ?? 'EXPENSE'}

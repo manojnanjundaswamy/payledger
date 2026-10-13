@@ -55,7 +55,9 @@ test('add a category with a subcategory, use it, hide it, show it and delete bot
   await page.goto('/categories')
   await page.getByRole('button', { name: `Edit ${pets}` }).click()
   await page.getByRole('dialog', { name: `Edit ${pets}` }).getByRole('button', { name: 'Show' }).click()
-  await expect(page.getByRole('region', { name: 'Hidden' })).toBeHidden()
+  // Other runs may have hidden categories of their own; this one's are back in the list.
+  await expect(page.getByRole('region', { name: 'Hidden' }).getByRole('button', { name: `Edit ${pets}` })).toBeHidden()
+  await expect(page.getByRole('region', { name: 'Spending categories' }).getByRole('button', { name: `Edit ${vet}` })).toBeVisible()
 
   // A parent can't go while it has subcategories; deleting asks twice.
   await page.getByRole('button', { name: `Edit ${pets}` }).click()

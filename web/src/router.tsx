@@ -133,6 +133,8 @@ const budgets = createRoute({
 const plan = createRoute({
   getParentRoute: () => app,
   path: '/plan',
+  // ?open=<commitment id> opens that bill or saving (from the dashboard or the calendar).
+  validateSearch: z.object({ open: z.string().uuid().optional().catch(undefined) }),
   component: lazyRouteComponent(() => import('@/pages/money/PlanPage'), 'PlanPage'),
 })
 
@@ -178,6 +180,7 @@ const transactions = createRoute({
   // subcategories) and ?from=&to= filter, which is how a report drills down to its transactions.
   validateSearch: z.object({
     add: z.enum(['EXPENSE', 'INCOME', 'TRANSFER']).optional().catch(undefined),
+    open: z.string().uuid().optional().catch(undefined),
     account: z.string().uuid().optional().catch(undefined),
     category: z.string().uuid().optional().catch(undefined),
     from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
@@ -191,6 +194,8 @@ const admin = createRoute({
   path: '/admin',
   validateSearch: z.object({
     tab: z.enum(ADMIN_TABS_KEYS).optional().catch(undefined),
+    // Users tab filter, so the dashboard's numbers open the people behind them.
+    show: z.enum(['all', 'PREMIUM', 'TRIAL', 'GRANTED', 'FREE', 'DISABLED']).optional().catch(undefined),
   }),
   component: lazyRouteComponent(() => import('@/pages/admin/AdminPage'), 'AdminPage'),
 })
