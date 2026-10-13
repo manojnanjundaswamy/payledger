@@ -23,6 +23,12 @@
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-gateway-server-webmvc</artifactId>
 		</dependency>
+		<!-- Calls to core-service go through Apache HttpClient 5 (Spring picks it up when present). The JDK client
+		     failed now and then in CI with an NPE in Http1Exchange while relaying a request body. -->
+		<dependency>
+			<groupId>org.apache.httpcomponents.client5</groupId>
+			<artifactId>httpclient5</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security-oauth2-client</artifactId>

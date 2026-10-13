@@ -46,8 +46,12 @@ class Routes {
      * Answer at once with a problem the web app can show, instead of a hung request or a bare 500.
      */
     static ServerResponse coreServiceUnavailable(Throwable error, ServerRequest request) {
-        // A connect timeout means it isn't there (stopped, restarting): unavailable, not slow.
-        boolean slow = error.getCause() instanceof HttpTimeoutException && !(error.getCause() instanceof HttpConnectTimeoutException);
+        // A read timeout means it is there but slow; a connect timeout or refusal means it isn't there (stopped,
+        // restarting): unavailable. Apache HttpClient reports a read timeout as SocketTimeoutException, the JDK client
+        // as HttpTimeoutException.
+        Throwable cause = error.getCause();
+        boolean slow = (cause instanceof java.net.SocketTimeoutException && !(cause instanceof java.net.ConnectException))
+                || (cause instanceof HttpTimeoutException && !(cause instanceof HttpConnectTimeoutException));
         HttpStatus status = slow ? HttpStatus.GATEWAY_TIMEOUT : HttpStatus.SERVICE_UNAVAILABLE;
         String code = slow ? "core-service-timeout" : "core-service-unavailable";
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "PayLedger didn't answer in time; try again in a moment.");
