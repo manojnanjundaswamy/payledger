@@ -7,6 +7,7 @@ import { DashboardPage } from '@/dashboard/DashboardPage'
 import { AppShell } from '@/layout/AppShell'
 import { ComingSoon, COMING } from '@/pages/ComingSoon'
 import { ADMIN_TABS_KEYS } from '@/pages/admin/tabs'
+import { TOOL_IDS } from '@/utilities/registry'
 import { SETTINGS_TAB_KEYS } from '@/pages/settings/tabs'
 import { PreferencesProvider } from '@/state/PreferencesProvider'
 import { profileQuery, useProfile } from '@/state/profile'
@@ -207,10 +208,17 @@ const welcome = createRoute({
   component: lazyRouteComponent(() => import('@/pages/money/SetupPage'), 'SetupPage'),
 })
 
+const utilities = createRoute({
+  getParentRoute: () => app,
+  path: '/utilities',
+  validateSearch: z.object({ tool: z.enum(TOOL_IDS as [string, ...string[]]).optional().catch(undefined) }),
+  component: lazyRouteComponent(() => import('@/pages/UtilitiesPage'), 'UtilitiesPage'),
+})
+
 const comingSoon = (Object.keys(COMING) as (keyof typeof COMING)[]).map((page) =>
   createRoute({ getParentRoute: () => app, path: `/${page}`, component: () => <ComingSoon page={page} /> }))
 
-const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, categories, budgets, plan, importPage, reports, groups, group, join, transactions, admin, welcome, ...comingSoon])])
+const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, categories, budgets, plan, importPage, reports, groups, group, join, transactions, admin, welcome, utilities, ...comingSoon])])
 
 export function createAppRouter(queryClient: QueryClient) {
   return createRouter({
