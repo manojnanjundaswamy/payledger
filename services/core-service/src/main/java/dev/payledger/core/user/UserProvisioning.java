@@ -54,30 +54,29 @@ public class UserProvisioning {
 
     private CurrentUser create(String subject, String email, String name) {
         UUID userId = Uuid7.next();
-        int inserted;
-        try {
-            inserted = jdbc.sql("""
-                            insert into users (id, subject, email, display_name)
-                            values (:id, :subject, :email, :name)
-                            on conflict (subject) do nothing
-                            """)
-                    .param("id", userId).param("subject", subject).param("email", email).param("name", name)
-                    .update();
-        } catch (DuplicateKeyException e) {
-            throw new EmailInUseException();
+        // No conflict target on purpose: "on conflict (subject)" let a racing first request of the same
+        // person trip over the email index instead, which surfaced as a false "email in use" (409).
+        int inserted = jdbc.sql("""
+                        insert into users (id, subject, email, display_name)
+                        values (:id, :subject, :email, :name)
+                        on conflict do nothing
+                        """)
+                .param("id", userId).param("subject", subject).param("email", email).param("name", name)
+                .update();
+        if (inserted == 0) {
+            // A concurrent first request of this person won (its row is committed by now), or the
+            // email belongs to someone else.
+            return find(subject).orElseThrow(EmailInUseException::new);
         }
-        if (inserted == 1) {
-            UUID spaceId = Uuid7.next();
-            jdbc.sql("""
-                            insert into spaces (id, kind, name, currency, created_by)
-                            values (:id, 'PERSONAL', 'Personal', 'INR', :userId)
-                            """)
-                    .param("id", spaceId).param("userId", userId).update();
-            jdbc.sql("insert into space_members (space_id, user_id, role) values (:spaceId, :userId, 'OWNER')")
-                    .param("spaceId", spaceId).param("userId", userId).update();
-            categories.seedDefaults(spaceId);
-        }
-        // Either we created it, or a concurrent first request did.
+        UUID spaceId = Uuid7.next();
+        jdbc.sql("""
+                        insert into spaces (id, kind, name, currency, created_by)
+                        values (:id, 'PERSONAL', 'Personal', 'INR', :userId)
+                        """)
+                .param("id", spaceId).param("userId", userId).update();
+        jdbc.sql("insert into space_members (space_id, user_id, role) values (:spaceId, :userId, 'OWNER')")
+                .param("spaceId", spaceId).param("userId", userId).update();
+        categories.seedDefaults(spaceId);
         return find(subject).orElseThrow();
     }
 

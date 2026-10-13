@@ -60,23 +60,35 @@ class ProfileIntegrationTest {
 
     @Test
     void concurrentFirstRequestsCreateExactlyOneUserAndOneSpace() throws Exception {
-        String subject = UUID.randomUUID().toString();
-        String email = subject + "@example.com";
+        // Many rounds: the race (two first requests of one new person) only shows up some of the time.
+        for (int round = 0; round < 25; round++) {
+            String subject = UUID.randomUUID().toString();
+            String email = subject + "@example.com";
 
-        try (ExecutorService pool = Executors.newFixedThreadPool(10)) {
-            List<Future<Integer>> results = new ArrayList<>();
-            for (int i = 0; i < 10; i++) {
-                results.add(pool.submit(() -> mvc.perform(get("/api/core/me").with(user(subject, email, "Race")))
-                        .andReturn().getResponse().getStatus()));
+            try (ExecutorService pool = Executors.newFixedThreadPool(10)) {
+                List<Future<Integer>> results = new ArrayList<>();
+                for (int i = 0; i < 10; i++) {
+                    results.add(pool.submit(() -> mvc.perform(get("/api/core/me").with(user(subject, email, "Race")))
+                            .andReturn().getResponse().getStatus()));
+                }
+                for (Future<Integer> result : results) {
+                    assertThat(result.get()).as("round %d", round).isEqualTo(200);
+                }
             }
-            for (Future<Integer> result : results) {
-                assertThat(result.get()).isEqualTo(200);
-            }
+
+            assertThat(jdbc.sql("select count(*) from users where subject = ?").param(subject).query(Long.class).single()).isEqualTo(1);
+            assertThat(jdbc.sql("select count(*) from spaces s join users u on u.id = s.created_by where u.subject = ?")
+                    .param(subject).query(Long.class).single()).isEqualTo(1);
         }
+    }
 
-        assertThat(jdbc.sql("select count(*) from users where subject = ?").param(subject).query(Long.class).single()).isEqualTo(1);
-        assertThat(jdbc.sql("select count(*) from spaces s join users u on u.id = s.created_by where u.subject = ?")
-                .param(subject).query(Long.class).single()).isEqualTo(1);
+    @Test
+    void anEmailThatBelongsToSomeoneElseIsStillRefused() throws Exception {
+        String email = UUID.randomUUID() + "@example.com";
+        mvc.perform(get("/api/core/me").with(user(UUID.randomUUID().toString(), email, "First"))).andExpect(status().isOk());
+        mvc.perform(get("/api/core/me").with(user(UUID.randomUUID().toString(), email, "Second")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("email-in-use"));
     }
 
     @Test
