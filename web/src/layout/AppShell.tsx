@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
-import { AnimatePresence, motion, MotionConfig } from 'motion/react'
+import { motion, MotionConfig } from 'motion/react'
 import { Check, CloudOff, Loader2, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Plus, Search } from 'lucide-react'
 import { Tooltip as TooltipPrimitive } from 'radix-ui'
 import { Button } from '@/components/ui/button'
@@ -35,6 +35,9 @@ export function AppShell() {
 
   const reduced = prefs.theme.motion === 'reduced' ? 'always' : prefs.theme.motion === 'full' ? 'never' : 'user'
   const current = NAV.find((n) => pathname.startsWith(n.to))
+  // The first page after loading the app appears at once; later ones fade in.
+  const firstPage = useRef(true)
+  useEffect(() => { firstPage.current = false }, [])
 
   return (
     <MotionConfig reducedMotion={reduced} transition={{ type: 'spring', stiffness: 420, damping: 38 }}>
@@ -44,17 +47,17 @@ export function AppShell() {
           <div className="flex min-w-0 flex-1 flex-col">
             <Topbar title={current?.label ?? ''} onSearch={() => setPaletteOpen(true)} />
             <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 pt-4 pb-28 sm:px-6 md:pb-10 lg:px-8">
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.div
-                  key={pathname}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4, transition: { duration: 0.1 } }}
-                  transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-                >
-                  <Outlet />
-                </motion.div>
-              </AnimatePresence>
+              {/* The new page fades in; there is no fade-out. An exiting copy would still render <Outlet />,
+                  which already shows the new route, so every page mounted twice and lost what was done in
+                  its first moment (a file picked, a field typed) when the second copy replaced it. */}
+              <motion.div
+                key={pathname}
+                initial={firstPage.current ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+              >
+                <Outlet />
+              </motion.div>
             </main>
           </div>
           <MobileTabBar pathname={pathname} />
