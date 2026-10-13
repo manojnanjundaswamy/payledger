@@ -1,6 +1,7 @@
 package dev.payledger.core.user;
 
 import dev.payledger.core.common.Uuid7;
+import dev.payledger.core.group.GroupService;
 import dev.payledger.core.money.CategoryService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -24,10 +25,12 @@ public class UserProvisioning {
 
     private final JdbcClient jdbc;
     private final CategoryService categories;
+    private final GroupService groups;
 
-    public UserProvisioning(JdbcClient jdbc, CategoryService categories) {
+    public UserProvisioning(JdbcClient jdbc, CategoryService categories, GroupService groups) {
         this.jdbc = jdbc;
         this.categories = categories;
+        this.groups = groups;
     }
 
     @Transactional
@@ -77,6 +80,8 @@ public class UserProvisioning {
         jdbc.sql("insert into space_members (space_id, user_id, role) values (:spaceId, :userId, 'OWNER')")
                 .param("spaceId", spaceId).param("userId", userId).update();
         categories.seedDefaults(spaceId);
+        // Groups that invited this (verified) email before the account existed.
+        groups.claimInvites(userId, email);
         return find(subject).orElseThrow();
     }
 

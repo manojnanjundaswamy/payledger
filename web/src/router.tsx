@@ -27,9 +27,15 @@ const landing = createRoute({
 const app = createRoute({
   getParentRoute: () => root,
   id: 'app',
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async ({ context, location }) => {
     const session = await context.queryClient.ensureQueryData(sessionQuery)
-    if (!session.authenticated) throw redirect({ to: '/' })
+    if (!session.authenticated) {
+      // An invite link opened while signed out: come back to it after signing in.
+      if (location.pathname.startsWith('/join/')) remember(location.pathname)
+      throw redirect({ to: '/' })
+    }
+    const after = recall()
+    if (after && after !== location.pathname) throw redirect({ href: after })
   },
   loader: ({ context }) => context.queryClient.ensureQueryData(profileQuery),
   pendingComponent: AppPending,
@@ -37,6 +43,23 @@ const app = createRoute({
   errorComponent: AppError,
   component: AppRoot,
 })
+
+const AFTER_SIGN_IN = 'after-sign-in'
+
+function remember(path: string) {
+  try { sessionStorage.setItem(AFTER_SIGN_IN, path) } catch { /* storage blocked: the link just needs opening again */ }
+}
+
+/** The page to return to after signing in, once. */
+function recall(): string | null {
+  try {
+    const path = sessionStorage.getItem(AFTER_SIGN_IN)
+    sessionStorage.removeItem(AFTER_SIGN_IN)
+    return path && path.startsWith('/join/') ? path : null
+  } catch {
+    return null
+  }
+}
 
 function AppRoot() {
   const { data: profile } = useProfile()
@@ -129,6 +152,24 @@ const reports = createRoute({
   component: lazyRouteComponent(() => import('@/pages/money/ReportsPage'), 'ReportsPage'),
 })
 
+const groups = createRoute({
+  getParentRoute: () => app,
+  path: '/groups',
+  component: lazyRouteComponent(() => import('@/pages/groups/GroupsPage'), 'GroupsPage'),
+})
+
+const group = createRoute({
+  getParentRoute: () => app,
+  path: '/groups/$groupId',
+  component: lazyRouteComponent(() => import('@/pages/groups/GroupPage'), 'GroupPage'),
+})
+
+const join = createRoute({
+  getParentRoute: () => app,
+  path: '/join/$token',
+  component: lazyRouteComponent(() => import('@/pages/groups/JoinPage'), 'JoinPage'),
+})
+
 const transactions = createRoute({
   getParentRoute: () => app,
   path: '/transactions',
@@ -147,7 +188,7 @@ const transactions = createRoute({
 const comingSoon = (Object.keys(COMING) as (keyof typeof COMING)[]).map((page) =>
   createRoute({ getParentRoute: () => app, path: `/${page}`, component: () => <ComingSoon page={page} /> }))
 
-const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, categories, budgets, plan, importPage, reports, transactions, ...comingSoon])])
+const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, categories, budgets, plan, importPage, reports, groups, group, join, transactions, ...comingSoon])])
 
 export function createAppRouter(queryClient: QueryClient) {
   return createRouter({

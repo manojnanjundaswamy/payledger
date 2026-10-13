@@ -1,8 +1,8 @@
 import { Link } from '@tanstack/react-router'
 import { motion } from 'motion/react'
 import {
-  Home, LayoutGrid, Link2, Lock,
-  Scale, ShieldCheck, Split, UserPlus, UserRoundPlus, Users, type LucideIcon,
+  Home, LayoutGrid, Lock,
+  Scale, ShieldCheck, UserPlus, UserRoundPlus, Users, type LucideIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/card'
@@ -18,15 +18,6 @@ export const COMING: Record<string, PageInfo> = {
       { icon: Users, title: 'Members & dependents', text: 'Children and elderly parents without a login, still part of the plan.' },
       { icon: Lock, title: 'Shared or private', text: 'Choose per account. Share a summary without the details.' },
       { icon: Scale, title: 'Fair contributions', text: '50/50, by income or fixed amounts, tracked automatically.' },
-    ],
-  },
-  groups: {
-    icon: Users, phase: 'Phase 5', title: 'Split with anyone',
-    lead: 'Trips, flatmates, office lunches. Invite by email or a link; friends join without creating an account.',
-    features: [
-      { icon: Link2, title: 'Join by link', text: 'Share on WhatsApp. Guests confirm their email and they are in.' },
-      { icon: Split, title: 'Every kind of split', text: 'Equal, exact, percentages or shares, with several payers.' },
-      { icon: Scale, title: 'Fewest payments', text: 'Simplify debts so everyone settles in as few transfers as possible.' },
     ],
   },
   people: {

@@ -48,7 +48,7 @@ export function AppShell() {
         <div className="flex min-h-dvh bg-bg">
           <Sidebar collapsed={collapsed} onToggle={() => dispatch({ type: 'sidebar', collapsed: !collapsed })} pathname={pathname} />
           <div className="flex min-w-0 flex-1 flex-col">
-            <Topbar title={current?.label ?? OTHER_TITLES[pathname] ?? ''} onSearch={() => setPaletteOpen(true)} />
+            <Topbar title={current?.label ?? OTHER_TITLES[pathname] ?? (pathname.startsWith('/join/') ? 'Join a group' : '')} onSearch={() => setPaletteOpen(true)} />
             <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 pt-4 pb-28 sm:px-6 md:pb-10 lg:px-8">
               {/* The new page fades in; there is no fade-out. An exiting copy would still render <Outlet />,
                   which already shows the new route, so every page mounted twice and lost what was done in

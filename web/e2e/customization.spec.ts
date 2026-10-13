@@ -88,7 +88,7 @@ test('the command palette navigates and changes the theme', async ({ page }) => 
   await page.getByPlaceholder('Type a command or search…').fill('groups')
   await page.getByRole('option', { name: 'Groups', exact: true }).click()
   await expect(page).toHaveURL(/\/groups$/)
-  await expect(page.getByRole('heading', { name: 'Split with anyone' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'New group' }).first()).toBeVisible()
 })
 
 test('works on a phone: bottom navigation and the More sheet @phone', async ({ page }) => {
