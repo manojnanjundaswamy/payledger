@@ -175,6 +175,9 @@ OpenAPI at http://localhost:8060/swagger-ui.html):
 | `GET /spaces/{id}/exports/transactions.csv` or `.xlsx` `?from=&to=` | transactions in the template's columns; each row's `external_id` is the transaction's reference, so importing an export back adds nothing |
 | `GET /spaces/{id}/imports/template.xlsx`, `…/template.csv` | the template: the Excel one has dropdowns of your accounts and categories and an instructions tab; both have your account names in their example rows |
 | `GET /spaces/{id}/net-worth?months=12` | net worth at the end of each month (this month: today) over open accounts in the space's currency: today's balances less what moved later; 503 if the ledger is down |
+| `GET/POST /groups`, `GET/PATCH /groups/{gid}` | your groups for splitting; a group and its members (404 unless you are one); rename, archive (owner) |
+| `POST /groups/{gid}/members`, `DELETE …/members/{mid}` | add someone by name and maybe email (an email with an account joins at once, otherwise a placeholder claimed at sign-up; 409 `member-exists`); leave, or remove (owner) |
+| `GET /groups/{gid}/link`, `POST …/link/reset`, `GET/POST /groups/join/{token}` | the join link (reset revokes the old one); preview and join by link (takes over a placeholder with your email; 404 `invalid-link`) |
 | `GET /plan`, `POST /plan/trial` | your plan (Free or Premium, from a trial, payment or complimentary), Free's limits with your usage; the 30-day trial once (409 `trial-used`). Past a Free limit, adding answers 403 `plan-limit` (docs/plan/market-and-pricing.md) |
 | `GET /spaces/{id}/planner` | the annual planner: bills every 6+ months or only once (`endsOn = firstDue`), each with its next date, months left and this month's set-aside (amount ÷ months left) |
 | `POST /spaces/{id}/categories/{cid}/merge` | `{into}`: moves every transaction (reversed and re-posted, so past reports move too) and bill to another category of the same kind, drops its budget and hides it |

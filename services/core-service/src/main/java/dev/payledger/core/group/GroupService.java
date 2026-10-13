@@ -1,0 +1,300 @@
+package dev.payledger.core.group;
+
+import dev.payledger.core.common.ApiException;
+import dev.payledger.core.common.InvalidRequestException;
+import dev.payledger.core.common.NotFoundException;
+import dev.payledger.core.common.Uuid7;
+import dev.payledger.core.user.CurrentUser;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+
+/**
+ * Groups and their members (docs/adr/0007-groups-and-splitting.md). Only members see a group; anyone else
+ * gets 404. A member is a registered user or a placeholder (a name, maybe an email) until they join.
+ */
+@Service
+public class GroupService {
+
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    private final JdbcClient jdbc;
+
+    public GroupService(JdbcClient jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    public record Summary(UUID id, String name, String emoji, String currency, String role, int members, boolean archived) {
+    }
+
+    /**
+     * @param email shown for placeholders invited by email (the inviter typed it); never for people who joined
+     * @param you   this member is the signed-in user
+     */
+    public record Member(UUID id, String name, String email, String role, boolean joined, boolean you) {
+    }
+
+    public record Group(UUID id, String name, String emoji, String currency, boolean archived, UUID you, List<Member> members) {
+    }
+
+    public record Invite(String groupName, String emoji, int members, boolean alreadyMember) {
+    }
+
+    @Transactional(readOnly = true)
+    public List<Summary> list(CurrentUser user) {
+        return jdbc.sql("""
+                        select g.id, g.name, g.emoji, g.currency, m.role,
+                               (select count(*) from group_members x where x.group_id = g.id and x.left_at is null)::int as members,
+                               g.archived_at is not null as archived
+                        from group_members m join groups g on g.id = m.group_id
+                        where m.user_id = :userId and m.left_at is null
+                        order by g.archived_at is not null, g.created_at desc
+                        """)
+                .param("userId", user.id())
+                .query(Summary.class)
+                .list();
+    }
+
+    @Transactional
+    public Group create(CurrentUser user, GroupRequests.Create request) {
+        UUID id = Uuid7.next();
+        jdbc.sql("insert into groups (id, name, emoji, currency, created_by) values (:id, :name, :emoji, :currency, :userId)")
+                .param("id", id).param("name", request.name().strip()).param("emoji", blankToNull(request.emoji()))
+                .param("currency", request.currency() != null ? request.currency() : "INR").param("userId", user.id())
+                .update();
+        jdbc.sql("""
+                        insert into group_members (id, group_id, user_id, display_name, role, added_by, joined_at)
+                        values (:id, :groupId, :userId, :name, 'OWNER', :userId, now())
+                        """)
+                .param("id", Uuid7.next()).param("groupId", id).param("userId", user.id()).param("name", truncate(user.displayName()))
+                .update();
+        return get(user, id);
+    }
+
+    @Transactional(readOnly = true)
+    public Group get(CurrentUser user, UUID groupId) {
+        Me me = member(user, groupId);
+        record Row(UUID id, String name, String emoji, String currency, boolean archived) {
+        }
+        Row g = jdbc.sql("select id, name, emoji, currency, archived_at is not null as archived from groups where id = :id")
+                .param("id", groupId).query(Row.class).single();
+        List<Member> members = jdbc.sql("""
+                        select id, display_name as name, case when user_id is null then email end as email, role,
+                               user_id is not null as joined, coalesce(user_id = :userId, false) as you
+                        from group_members where group_id = :groupId and left_at is null
+                        order by role = 'OWNER' desc, created_at
+                        """)
+                .param("groupId", groupId).param("userId", user.id())
+                .query(Member.class).list();
+        return new Group(g.id(), g.name(), g.emoji(), g.currency(), g.archived(), me.id(), members);
+    }
+
+    @Transactional
+    public Group update(CurrentUser user, UUID groupId, GroupRequests.Update request) {
+        Me me = member(user, groupId);
+        if (request.archived() != null && !me.role().equals("OWNER")) {
+            throw new InvalidRequestException("owner-only", "only the group's owner can archive it");
+        }
+        jdbc.sql("""
+                        update groups set name = coalesce(:name, name), emoji = coalesce(:emoji, emoji),
+                            archived_at = case when cast(:archived as boolean) is null then archived_at
+                                               when cast(:archived as boolean) then coalesce(archived_at, now()) else null end
+                        where id = :id
+                        """)
+                .param("id", groupId).param("name", request.name() == null ? null : request.name().strip())
+                .param("emoji", request.emoji()).param("archived", request.archived())
+                .update();
+        return get(user, groupId);
+    }
+
+    /**
+     * Adds a person by name, with an email if known. An email that already has an account adds that person
+     * at once; otherwise the member is a placeholder until someone signs up with it or joins by the link.
+     */
+    @Transactional
+    public Group addMember(CurrentUser user, UUID groupId, GroupRequests.AddMember request) {
+        member(user, groupId);
+        lockGroup(groupId);
+        String email = request.email() == null || request.email().isBlank() ? null : request.email().strip().toLowerCase(Locale.ROOT);
+        UUID existingUser = null;
+        if (email != null) {
+            boolean taken = jdbc.sql("""
+                            select exists (select 1 from group_members m left join users u on u.id = m.user_id
+                                           where m.group_id = :groupId and m.left_at is null and (m.email = :email or u.email = :email))
+                            """)
+                    .param("groupId", groupId).param("email", email).query(Boolean.class).single();
+            if (taken) {
+                throw new MemberExistsException();
+            }
+            existingUser = jdbc.sql("select id from users where email = :email").param("email", email).query(UUID.class).optional().orElse(null);
+        }
+        jdbc.sql("""
+                        insert into group_members (id, group_id, user_id, display_name, email, role, added_by, joined_at)
+                        values (:id, :groupId, :userId, :name, :email, 'MEMBER', :addedBy, case when cast(:userId as uuid) is null then null else now() end)
+                        """)
+                .param("id", Uuid7.next()).param("groupId", groupId).param("userId", existingUser)
+                .param("name", request.name().strip()).param("email", email).param("addedBy", user.id())
+                .update();
+        return get(user, groupId);
+    }
+
+    /** Owners can remove anyone but themselves; anyone can leave. The member's history stays. */
+    @Transactional
+    public void removeMember(CurrentUser user, UUID groupId, UUID memberId) {
+        Me me = member(user, groupId);
+        record Target(UUID id, String role) {
+        }
+        Target target = jdbc.sql("select id, role from group_members where id = :id and group_id = :groupId and left_at is null")
+                .param("id", memberId).param("groupId", groupId).query(Target.class).optional()
+                .orElseThrow(() -> new NotFoundException("member"));
+        if (target.role().equals("OWNER")) {
+            throw new InvalidRequestException("owner-cannot-leave", "the group's owner can't leave it; archive the group instead");
+        }
+        if (!me.role().equals("OWNER") && !me.id().equals(memberId)) {
+            throw new InvalidRequestException("owner-only", "only the group's owner can remove someone else");
+        }
+        jdbc.sql("update group_members set left_at = now() where id = :id").param("id", memberId).update();
+    }
+
+    /** The group's join link token; made on first ask. */
+    @Transactional
+    public String link(CurrentUser user, UUID groupId) {
+        member(user, groupId);
+        lockGroup(groupId);
+        return jdbc.sql("select token from group_links where group_id = :groupId and revoked_at is null")
+                .param("groupId", groupId).query(String.class).optional()
+                .orElseGet(() -> newLink(user, groupId));
+    }
+
+    /** A new link; the old one stops working. */
+    @Transactional
+    public String resetLink(CurrentUser user, UUID groupId) {
+        member(user, groupId);
+        lockGroup(groupId);
+        jdbc.sql("update group_links set revoked_at = now() where group_id = :groupId and revoked_at is null")
+                .param("groupId", groupId).update();
+        return newLink(user, groupId);
+    }
+
+    @Transactional(readOnly = true)
+    public Invite invite(CurrentUser user, String token) {
+        UUID groupId = groupOf(token);
+        record Row(String name, String emoji, int members) {
+        }
+        Row g = jdbc.sql("""
+                        select name, emoji, (select count(*) from group_members m where m.group_id = g.id and m.left_at is null)::int as members
+                        from groups g where id = :id
+                        """)
+                .param("id", groupId).query(Row.class).single();
+        return new Invite(g.name(), g.emoji(), g.members(), isMember(user, groupId));
+    }
+
+    /**
+     * Joins by link. A placeholder invited with this user's email becomes them; otherwise they are added by
+     * their name. Joining twice is harmless.
+     */
+    @Transactional
+    public Group join(CurrentUser user, String token) {
+        UUID groupId = groupOf(token);
+        lockGroup(groupId);
+        if (!isMember(user, groupId)) {
+            int claimed = jdbc.sql("""
+                            update group_members set user_id = :userId, joined_at = now()
+                            where group_id = :groupId and user_id is null and email = :email and left_at is null
+                            """)
+                    .param("userId", user.id()).param("groupId", groupId).param("email", user.email())
+                    .update();
+            if (claimed == 0) {
+                jdbc.sql("""
+                                insert into group_members (id, group_id, user_id, display_name, role, added_by, joined_at)
+                                values (:id, :groupId, :userId, :name, 'MEMBER', :userId, now())
+                                """)
+                        .param("id", Uuid7.next()).param("groupId", groupId).param("userId", user.id())
+                        .param("name", truncate(user.displayName()))
+                        .update();
+            }
+        }
+        return get(user, groupId);
+    }
+
+    /** A new account takes over the placeholders invited with its (verified) email. */
+    public void claimInvites(UUID userId, String email) {
+        jdbc.sql("""
+                        update group_members m set user_id = :userId, joined_at = now()
+                        where m.user_id is null and m.email = :email and m.left_at is null
+                          and not exists (select 1 from group_members x where x.group_id = m.group_id and x.user_id = :userId and x.left_at is null)
+                        """)
+                .param("userId", userId).param("email", email)
+                .update();
+    }
+
+    // ---------------------------------------------------------------- access
+
+    /** The signed-in user's membership. */
+    public record Me(UUID id, String role) {
+    }
+
+    /** 404 unless the user is a member: ids of other people's groups leak nothing. */
+    public Me member(CurrentUser user, UUID groupId) {
+        return jdbc.sql("select id, role from group_members where group_id = :groupId and user_id = :userId and left_at is null")
+                .param("groupId", groupId).param("userId", user.id())
+                .query(Me.class).optional()
+                .orElseThrow(() -> new NotFoundException("group"));
+    }
+
+    private boolean isMember(CurrentUser user, UUID groupId) {
+        return jdbc.sql("select exists (select 1 from group_members where group_id = :groupId and user_id = :userId and left_at is null)")
+                .param("groupId", groupId).param("userId", user.id()).query(Boolean.class).single();
+    }
+
+    private UUID groupOf(String token) {
+        return jdbc.sql("""
+                        select l.group_id from group_links l join groups g on g.id = l.group_id
+                        where l.token = :token and l.revoked_at is null and g.archived_at is null
+                        """)
+                .param("token", token).query(UUID.class).optional()
+                .orElseThrow(InvalidLinkException::new);
+    }
+
+    /** Serialises changes to a group's members and link. */
+    private void lockGroup(UUID groupId) {
+        jdbc.sql("select id from groups where id = :id for update").param("id", groupId).query(UUID.class).single();
+    }
+
+    private String newLink(CurrentUser user, UUID groupId) {
+        byte[] bytes = new byte[24];
+        RANDOM.nextBytes(bytes);
+        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        jdbc.sql("insert into group_links (token, group_id, created_by) values (:token, :groupId, :userId)")
+                .param("token", token).param("groupId", groupId).param("userId", user.id())
+                .update();
+        return token;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
+    }
+
+    private static String truncate(String name) {
+        return name.length() > 60 ? name.substring(0, 60) : name;
+    }
+
+    static class MemberExistsException extends ApiException {
+        MemberExistsException() {
+            super(HttpStatus.CONFLICT, "member-exists", "someone with that email is already in the group");
+        }
+    }
+
+    static class InvalidLinkException extends ApiException {
+        InvalidLinkException() {
+            super(HttpStatus.NOT_FOUND, "invalid-link", "this invite link doesn't work any more; ask for a new one");
+        }
+    }
+}

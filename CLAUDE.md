@@ -7,7 +7,7 @@ splitting groups by link without an account. Owner: Manoj. Read these before cha
 - Product plan (features, guests, households, roadmap): `docs/plan/product-plan.md`
 - Market scan (Goodbudget, Mint, Monarch, Spendee) and the Free / Premium plans: `docs/plan/market-and-pricing.md`
 - Name ideas (undecided, "PayLedger" is the code name): `docs/plan/naming.md`
-- Design decisions: `docs/adr/0001`–`0006` (ledger, locking, idempotency, outbox, ledger v2 books, identity/BFF)
+- Design decisions: `docs/adr/0001`–`0007` (ledger, locking, idempotency, outbox, ledger v2 books, identity/BFF, groups and splitting)
 - Event contract: `docs/events/ledger-entry-posted.md`
 - How to run everything: `README.md`
 
@@ -15,7 +15,7 @@ splitting groups by link without an account. Owner: Manoj. Read these before cha
 
 | Path | What | Stack | Ports (app / actuator) |
 |---|---|---|---|
-| `web/` | React app: dashboards, accounts, transactions, categories, budgets, plan, import (CSV/Excel) + reports (real data, `web/src/pages/money`), theme builder, settings | React 19, Vite, TS, Tailwind 4, TanStack Router+Query, dnd-kit, motion, Radix | 5173 |
+| `web/` | React app: dashboards, accounts, transactions, categories, budgets, plan, import (CSV/Excel), reports + groups (real data, `web/src/pages/money`), theme builder, settings | React 19, Vite, TS, Tailwind 4, TanStack Router+Query, dnd-kit, motion, Radix | 5173 |
 | `services/gateway` | Only thing the browser talks to: OAuth2 login (Keycloak, PKCE), Redis sessions, CSRF (SPA mode), token relay | Spring Boot **4.0.8** + Spring Cloud Gateway 2025.1 (held on 4.0 until Spring Cloud 2026.0 GA) | 8000/8001 |
 | `services/core-service` | Product API: users, spaces (`/api/core/me`), money accounts, categories, transactions, budgets, commitments, safe to spend, imports (`/api/core/spaces/{id}/…`); ledger commands via outbox -> Kafka `ledger.commands.v1` | Spring Boot 4.1, JDBC (JdbcClient), Flyway, resource server | 8060/8061 |
 | `services/ledger-service` | Internal double-entry engine: books (PERSONAL/HOUSEHOLD/GROUP), typed accounts by caller ref, reversals, period totals, transactional outbox -> Kafka `ledger.entries.v2` | Spring Boot 4.1, JPA + JdbcClient | 8080/8081 |
