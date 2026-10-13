@@ -28,7 +28,11 @@ export function SafeToSpendCard({ compact }: { compact?: boolean }) {
   }
 
   const short = s.safeToSpend < 0
-  const lines: [string, number][] = [['Income', s.income ?? 0], ['Spent', -(s.spent ?? 0)], ['Bills still due', -s.billsLeft], ['Savings', -s.savings]]
+  const lines: [string, number][] = [
+    ['Income', s.income ?? 0], ['Spent', -(s.spent ?? 0)], ['Bills still due', -s.billsLeft], ['Savings', -s.savings],
+  ]
+  // Only once there is something to set aside, so people without big costs see four simple lines.
+  if (s.setAside > 0) lines.push(['Set aside for big costs', -s.setAside])
   return (
     <div className="flex h-full flex-col justify-between gap-4">
       <div>
@@ -44,7 +48,7 @@ export function SafeToSpendCard({ compact }: { compact?: boolean }) {
             : <>about <span className="font-medium text-fg">{money(s.perDay ?? 0)}</span> a day for the next {s.daysLeft} day{s.daysLeft === 1 ? '' : 's'}</>}
         </p>
       </div>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
+      <dl className={cn('grid grid-cols-2 gap-x-4 gap-y-1 text-xs', lines.length > 4 ? 'sm:grid-cols-5' : 'sm:grid-cols-4')}>
         {lines.map(([label, value]) => (
           <div key={label} className="flex flex-col">
             <dt className="text-subtle">{label}</dt>

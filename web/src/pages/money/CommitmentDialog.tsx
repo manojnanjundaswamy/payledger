@@ -12,7 +12,10 @@ import {
 } from '@/state/money'
 import { Field, Select, today } from './parts'
 
+/** 0 is "only once": stored as a yearly bill whose last payment is its first. */
+const ONCE = 0
 const FREQUENCIES = [
+  { months: ONCE, label: 'Only once' },
   { months: 1, label: 'Every month' },
   { months: 3, label: 'Every 3 months' },
   { months: 6, label: 'Every 6 months' },
@@ -51,7 +54,8 @@ export function CommitmentDialog({ open, onOpenChange, commitment }: {
     setDraft(commitment ? {
       kind: commitment.kind, name: commitment.name, amount: minorToInput(commitment.amount, commitment.currency),
       accountId: commitment.accountId, categoryId: commitment.categoryId ?? '', toAccountId: commitment.toAccountId ?? '',
-      everyMonths: commitment.everyMonths, firstDue: commitment.firstDue, endsOn: commitment.endsOn ?? '',
+      everyMonths: commitment.endsOn === commitment.firstDue ? ONCE : commitment.everyMonths,
+      firstDue: commitment.firstDue, endsOn: commitment.endsOn === commitment.firstDue ? '' : commitment.endsOn ?? '',
     } : empty())
     setError(undefined)
   }, [open, commitment])
@@ -71,11 +75,12 @@ export function CommitmentDialog({ open, onOpenChange, commitment }: {
     if (!accountId) return setError('Add an account first: it is paid from one.')
     if (bill && !d.categoryId) return setError('Choose a category.')
     if (!bill && !d.toAccountId) return setError('Choose where the money goes.')
-    if (d.endsOn && d.endsOn < d.firstDue) return setError('The last payment can’t be before the first.')
+    const once = d.everyMonths === ONCE
+    if (!once && d.endsOn && d.endsOn < d.firstDue) return setError('The last payment can’t be before the first.')
     const fields = {
       kind: d.kind, name: d.name.trim(), amount, accountId,
       categoryId: bill ? d.categoryId : null, toAccountId: bill ? null : d.toAccountId,
-      everyMonths: d.everyMonths, firstDue: d.firstDue, endsOn: d.endsOn || null,
+      everyMonths: once ? 12 : d.everyMonths, firstDue: d.firstDue, endsOn: once ? d.firstDue : d.endsOn || null,
     }
     try {
       if (commitment) {
@@ -145,12 +150,14 @@ export function CommitmentDialog({ open, onOpenChange, commitment }: {
               {FREQUENCIES.map((f) => <option key={f.months} value={f.months}>{f.label}</option>)}
             </Select>
           </Field>
-          <Field label={commitment ? 'First due' : 'Next due'} htmlFor="commitment-first">
+          <Field label={d.everyMonths === ONCE ? 'Due on' : commitment ? 'First due' : 'Next due'} htmlFor="commitment-first">
             <Input id="commitment-first" type="date" value={d.firstDue} onChange={(e) => set('firstDue', e.target.value)} />
           </Field>
-          <Field label="Last payment" htmlFor="commitment-ends" hint="Optional, e.g. an EMI's end">
-            <Input id="commitment-ends" type="date" value={d.endsOn} onChange={(e) => set('endsOn', e.target.value)} />
-          </Field>
+          {d.everyMonths !== ONCE && (
+            <Field label="Last payment" htmlFor="commitment-ends" hint="Optional, e.g. an EMI's end">
+              <Input id="commitment-ends" type="date" value={d.endsOn} onChange={(e) => set('endsOn', e.target.value)} />
+            </Field>
+          )}
         </div>
         {error && <p className="rounded-control bg-critical/10 px-3 py-2 text-sm text-critical" role="alert">{error}</p>}
         <div className="flex items-center gap-2">

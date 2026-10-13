@@ -7,7 +7,7 @@ import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatMoneyWhole } from '@/lib/money'
 import {
-  daysUntil, everyLabel, isoDate, useCommitments, useDue, usePayCommitment, useSafeToSpend,
+  daysUntil, everyLabel, isoDate, useCommitments, useDue, usePayCommitment, usePlanner, useSafeToSpend,
   type Commitment, type Due,
 } from '@/state/money'
 import { useProfile } from '@/state/profile'
@@ -47,6 +47,8 @@ export function PlanPage() {
         <DueThisMonth start={safe.data.start} end={safe.data.end} money={money} locale={locale} />
       )}
 
+      {commitments && commitments.length > 0 && <BigCosts money={money} locale={locale} />}
+
       {commitments && commitments.length > 0 && (
         <section aria-label="Your plan" className="flex flex-col gap-2">
           <h2 className="text-sm font-medium text-muted">Your plan</h2>
@@ -58,8 +60,9 @@ export function PlanPage() {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{c.name}</span>
                   <span className="block text-xs text-subtle">
-                    {everyLabel(c.everyMonths)} on day {Number(c.firstDue.slice(8))}
-                    {c.endsOn && ` · until ${dateLabel(c.endsOn, locale)}`}
+                    {c.endsOn === c.firstDue
+                      ? `Once, on ${dateLabel(c.firstDue, locale)}`
+                      : <>{everyLabel(c.everyMonths)} on day {Number(c.firstDue.slice(8))}{c.endsOn && ` · until ${dateLabel(c.endsOn, locale)}`}</>}
                   </span>
                 </span>
                 <span className="tabular shrink-0 font-medium">{money(c.amount)}</span>
@@ -118,6 +121,55 @@ function DueThisMonth({ start, end, money, locale }: { start: string; end: strin
           })}
         </Card>
       )}
+    </section>
+  )
+}
+
+/**
+ * The annual planner: insurance, school fees, Diwali, a wedding. Each is spread over the months before
+ * it, so the month it lands in isn't a shock; safe to spend already keeps that money aside.
+ */
+function BigCosts({ money, locale }: { money: (m: number) => string; locale: string }) {
+  const { data: planner } = usePlanner()
+  if (!planner || planner.items.length === 0) {
+    return (
+      <section aria-label="Big costs ahead" className="flex flex-col gap-2">
+        <h2 className="text-sm font-medium text-muted">Big costs ahead</h2>
+        <Card className="p-pad text-sm text-muted">
+          Add yearly or one-off costs (insurance, school fees, Diwali, a wedding) with "Every year" or "Only once". You'll see
+          a small amount to set aside each month instead of a shock when they're due.
+        </Card>
+      </section>
+    )
+  }
+  return (
+    <section aria-label="Big costs ahead" className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-sm font-medium text-muted">Big costs ahead</h2>
+        <span className="text-sm text-muted" data-testid="set-aside-total">
+          Set aside <span className="font-medium text-fg tabular">{money(planner.monthlySetAside)}</span> this month
+        </span>
+      </div>
+      <Card className="divide-y divide-border p-0">
+        {planner.items.map((p) => (
+          <div key={p.commitmentId} className="flex items-center gap-3 px-pad py-3" data-testid={`planned-${p.name}`}>
+            <DateChip iso={p.nextDue} locale={locale} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{p.name}</span>
+              <span className="block text-xs text-subtle">
+                {money(p.amount)} {p.oneOff ? 'once' : everyLabel(p.everyMonths).toLowerCase()}
+                {' · '}
+                {p.monthsLeft === 0 ? (p.paid ? 'paid this month' : 'due this month') : `in ${p.monthsLeft} month${p.monthsLeft === 1 ? '' : 's'}`}
+              </span>
+            </span>
+            <span className="text-right">
+              {p.monthsLeft > 0
+                ? <><span className="block font-medium tabular">{money(p.monthlySetAside)}</span><span className="block text-xs text-subtle">a month</span></>
+                : p.covered ? <Badge tone="good"><Check className="size-3" />Set aside</Badge> : <Badge>Due now</Badge>}
+            </span>
+          </div>
+        ))}
+      </Card>
     </section>
   )
 }

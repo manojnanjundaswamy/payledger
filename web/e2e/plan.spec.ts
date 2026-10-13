@@ -60,3 +60,44 @@ test('a bill on the plan is due, can be marked paid once, and paying it records 
   await page.getByRole('dialog', { name: `Edit ${bank}` }).getByRole('button', { name: 'Archive' }).click()
   await expect(page.getByRole('button', { name: `Edit ${bank}` })).toBeHidden()
 })
+
+test('a yearly cost and a one-off cost are spread into a monthly set-aside', async ({ page }) => {
+  const run = Date.now()
+  const premium = `E2E insurance ${run}`
+  const wedding = `E2E wedding ${run}`
+  const inMonths = (n: number) => {
+    const d = new Date()
+    d.setMonth(d.getMonth() + n)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+
+  await page.goto('/plan')
+  for (const [name, amount, often, due] of [[premium, '18,000', 'Every year', inMonths(5)], [wedding, '50,000', 'Only once', inMonths(8)]]) {
+    await page.getByRole('button', { name: 'Add bill or saving' }).first().click()
+    const dialog = page.getByRole('dialog', { name: 'Add to your plan' })
+    await dialog.getByLabel('Name').fill(name!)
+    await dialog.getByLabel('Amount').fill(amount!)
+    await dialog.getByLabel('Category').selectOption({ label: 'Insurance' })
+    await dialog.getByLabel('How often').selectOption({ label: often! })
+    await dialog.getByLabel(often === 'Only once' ? 'Due on' : 'Next due').fill(due!)
+    if (often === 'Only once') await expect(dialog.getByLabel('Last payment')).toBeHidden()
+    await dialog.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(dialog).toBeHidden()
+  }
+
+  const big = page.getByRole('region', { name: 'Big costs ahead' })
+  await expect(big.getByTestId(`planned-${premium}`)).toContainText(/₹18,000 every year · in \d months?/)
+  await expect(big.getByTestId(`planned-${premium}`)).toContainText('a month')
+  await expect(big.getByTestId(`planned-${wedding}`)).toContainText(/₹50,000 once · in \d months?/)
+  await expect(page.getByRole('button', { name: `Edit ${wedding}` })).toContainText('Once, on')
+  await expect(page.getByTestId('set-aside-total')).toContainText('this month')
+  await expect(page.getByText('Set aside for big costs')).toBeVisible()
+
+  for (const name of [premium, wedding]) {
+    await page.getByRole('button', { name: `Edit ${name}` }).click()
+    const dialog = page.getByRole('dialog', { name: `Edit ${name}` })
+    if (name === wedding) await expect(dialog.getByLabel('How often')).toHaveValue('0')
+    await dialog.getByRole('button', { name: 'Remove' }).click()
+    await expect(page.getByRole('button', { name: `Edit ${name}` })).toBeHidden()
+  }
+})

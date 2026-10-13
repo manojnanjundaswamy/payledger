@@ -54,4 +54,12 @@ class BudgetMathTest {
         assertThat(BudgetService.projected(0, 30, 10)).isZero();
         assertThat(BudgetService.projected(1_000_000, 30, 30)).isNull();
     }
+
+    @Test
+    void aSetAsideIsSpreadOverTheMonthsLeftRoundedUp() {
+        assertThat(PlannerService.setAside(1_800_000, 12)).isEqualTo(150_000);
+        // 10,00,001 paise over 3 months: the last month must not come up short.
+        assertThat(PlannerService.setAside(1_000_001, 3)).isEqualTo(333_334);
+        assertThat(PlannerService.setAside(1_800_000, 0)).isZero();
+    }
 }
