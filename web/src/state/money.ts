@@ -112,13 +112,16 @@ export function useTransactions(filter: TransactionFilter) {
 }
 
 /**
- * After a write, lists refresh at once; balances come from the ledger, which applies the change
- * a moment later (core-service -> Kafka -> ledger), so they are fetched again shortly after.
+ * After a write, lists refresh at once; balances and category totals come from the ledger, which
+ * applies the change a moment later (core-service -> Kafka -> ledger), so they are fetched again shortly after.
  */
 function refreshAfterWrite(client: QueryClient, spaceId: string) {
   void client.invalidateQueries({ queryKey: ['money', spaceId] })
+  const fromLedger = new Set(['accounts', 'category-totals'])
   for (const delay of [800, 2500]) {
-    setTimeout(() => void client.invalidateQueries({ queryKey: ['money', spaceId, 'accounts'] }), delay)
+    setTimeout(() => void client.invalidateQueries({
+      predicate: (q) => q.queryKey[0] === 'money' && q.queryKey[1] === spaceId && fromLedger.has(q.queryKey[2] as string),
+    }), delay)
   }
 }
 
@@ -161,4 +164,27 @@ export function useUpdateTransaction() {
 export function useDeleteTransaction() {
   return useMoneyMutation((spaceId, { id, version }: { id: string; version: number }) =>
     api<void>(`${base(spaceId)}/transactions/${id}?version=${version}`, { method: 'DELETE' }))
+}
+
+/** Spending or income per category, positive amounts (core-service reads them from the ledger). */
+export interface CategoryTotal {
+  categoryId: string
+  currency: string
+  /** First day of the month when grouped by month, else null. */
+  month: string | null
+  amount: number
+}
+
+export function useCategoryTotals(kind: 'EXPENSE' | 'INCOME', from: string, to: string, byMonth = false, enabled = true) {
+  const spaceId = useSpaceId()
+  return useQuery({
+    queryKey: ['money', spaceId, 'category-totals', { kind, from, to, byMonth }],
+    queryFn: () => api<CategoryTotal[]>(`${base(spaceId!)}/category-totals?${new URLSearchParams({ kind, from, to, byMonth: String(byMonth) })}`),
+    enabled: !!spaceId && enabled,
+  })
+}
+
+/** yyyy-mm-dd in local time (the business date the API expects). */
+export function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }

@@ -86,6 +86,7 @@ export function Landing() {
 function PreviewBoard() {
   const env = useMemo<WidgetEnv>(() => ({
     sample: true,
+    real: false,
     prefs: parsePreferences({}),
     profile: {
       id: 'preview', email: 'you@example.com', displayName: 'You', preferences: {}, spaces: [],
