@@ -178,6 +178,9 @@ OpenAPI at http://localhost:8060/swagger-ui.html):
 | `GET/POST /groups`, `GET/PATCH /groups/{gid}` | your groups for splitting; a group and its members (404 unless you are one); rename, archive (owner) |
 | `POST /groups/{gid}/members`, `DELETE …/members/{mid}` | add someone by name and maybe email (an email with an account joins at once, otherwise a placeholder claimed at sign-up; 409 `member-exists`); leave, or remove (owner) |
 | `GET /groups/{gid}/link`, `POST …/link/reset`, `GET/POST /groups/join/{token}` | the join link (reset revokes the old one); preview and join by link (takes over a placeholder with your email; 404 `invalid-link`) |
+| `GET /groups/{gid}/activity`, `POST …/expenses`, `PUT/DELETE …/expenses/{eid}?version=` | shared expenses: who paid (adding up) and a split `EQUAL`, `EXACT` (paise), `PERCENT` (basis points) or `SHARES`, exact to the paisa; each posts to the group's ledger book (`group:<id>`), edits and deletes are reversals |
+| `POST/DELETE /groups/{gid}/settlements` | one member paid another |
+| `GET /groups/{gid}/balances` | each member's balance from the ledger (positive owes) and the fewest payments that settle everyone |
 | `GET /plan`, `POST /plan/trial` | your plan (Free or Premium, from a trial, payment or complimentary), Free's limits with your usage; the 30-day trial once (409 `trial-used`). Past a Free limit, adding answers 403 `plan-limit` (docs/plan/market-and-pricing.md) |
 | `GET /spaces/{id}/planner` | the annual planner: bills every 6+ months or only once (`endsOn = firstDue`), each with its next date, months left and this month's set-aside (amount ÷ months left) |
 | `POST /spaces/{id}/categories/{cid}/merge` | `{into}`: moves every transaction (reversed and re-posted, so past reports move too) and bill to another category of the same kind, drops its budget and hides it |

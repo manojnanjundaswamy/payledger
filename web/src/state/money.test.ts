@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { previewSplit } from './groups'
 import { categoryLabel, categoryTree, daysUntil, everyLabel, problemsCsv, shiftMonth, type Category, type ImportRow } from './money'
 
 const cat = (id: string, name: string, parentId: string | null = null): Category =>
@@ -67,5 +68,17 @@ describe('problemsCsv', () => {
       row(3, [{ line: 3, column: 'date', reason: 'not a date: use DD-MM-YYYY' }, { line: 3, column: 'amount', reason: 'missing' }]),
       row(5, [{ line: 5, column: 'account', reason: 'no account called "ICICI, card"' }]),
     ])).toBe('row,column,reason\r\n3,date,not a date: use DD-MM-YYYY\r\n3,amount,missing\r\n5,account,"no account called ""ICICI, card"""\r\n')
+  })
+})
+
+describe('previewSplit', () => {
+  it('matches the server: leftover paise go one each from the top', () => {
+    expect(previewSplit(10_000, 'EQUAL', [{ memberId: 'a', value: 0 }, { memberId: 'b', value: 0 }, { memberId: 'c', value: 0 }]))
+      .toEqual({ a: 3_334, b: 3_333, c: 3_333 })
+    expect(previewSplit(9_999, 'PERCENT', [{ memberId: 'a', value: 5_000 }, { memberId: 'b', value: 3_000 }, { memberId: 'c', value: 2_000 }]))
+      .toEqual({ a: 5_000, b: 3_000, c: 1_999 })
+    expect(previewSplit(1_000, 'SHARES', [{ memberId: 'a', value: 2 }, { memberId: 'b', value: 1 }, { memberId: 'c', value: 0 }]))
+      .toEqual({ a: 667, b: 333, c: 0 })
+    expect(previewSplit(1_000, 'PERCENT', [{ memberId: 'a', value: 5_000 }])).toBeNull()
   })
 })
