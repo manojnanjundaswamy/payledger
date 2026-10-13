@@ -47,7 +47,8 @@ Client ──HTTP──▶         │ LedgerController ─▶ LedgerService (bo
 ```
 
 In progress (Phase 4): core-service records accounts and transactions and queues the matching ledger commands in its
-own outbox ([docs/events/ledger-commands.md](docs/events/ledger-commands.md)); the ledger consumer and balances come next.
+own outbox; ledger-service consumes them ([docs/events/ledger-commands.md](docs/events/ledger-commands.md)).
+Balances in the app's API come next.
 notification-service is **parked**: it still reads the wallet-era `ledger.entries.v1` events, which nothing
 publishes any more, and is repurposed for emails and the activity feed in Phase 6.
 
@@ -60,7 +61,7 @@ and can be deployed, scaled or stopped on its own. They share only the documente
 | [web](web) | 5173 | the React app: dashboards, theme builder, settings | gateway |
 | [gateway](services/gateway) | 8000 / 8001 | login, sessions, CSRF, routing | Keycloak, Redis |
 | [core-service](services/core-service) | 8060 / 8061 | users, spaces, money accounts, categories, transactions, topic `ledger.commands.v1` | Postgres, Keycloak (keys); Kafka optional (`OUTBOX_RELAY_ENABLED=false`) |
-| [ledger-service](services/ledger-service) | 8080 / 8081 | books, accounts, journal, outbox, topic `ledger.entries.v2` | Postgres; Kafka optional (`OUTBOX_RELAY_ENABLED=false`) |
+| [ledger-service](services/ledger-service) | 8080 / 8081 | books, accounts, journal, outbox, topic `ledger.entries.v2`; consumes `ledger.commands.v1` | Postgres; Kafka optional (`OUTBOX_RELAY_ENABLED=false`) |
 | [notification-service](services/notification-service) (parked) | 8090 / 8091 | per-user notification feed, its dead-letter topic | Postgres, Kafka |
 
 ## Run it locally
@@ -196,6 +197,11 @@ All tests run against real PostgreSQL and Kafka in Docker (Testcontainers): `./m
 - An account keeps its type and a book its kind
 - The database itself refuses unbalanced entries, postings into another book, and edits to postings
 - Wallet data from before the pivot is preserved in the legacy book
+
+`LedgerCommandIntegrationTest` proves core-service's commands arriving over Kafka are posted once even when
+delivered twice, an edit (reverse + new version) nets out correctly, and commands that can never succeed (bad JSON,
+unbalanced, unknown type) go to the dead-letter topic without blocking the commands behind them. Transient failures are
+retried forever, in order: a dead-lettered command would be a user's money that never reached the ledger.
 
 `OutboxIntegrationTest` proves a committed entry reaches Kafka keyed by its book, a rejected one leaves no event,
 an idempotent replay emits nothing, and the outbox can't be written outside the business transaction.
