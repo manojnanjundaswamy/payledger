@@ -57,6 +57,12 @@ class CommitmentController {
         commitments.delete(user, spaceId, id);
     }
 
+    @GetMapping("/suggestions")
+    @Operation(summary = "Expenses that look like monthly bills (same description, account and category in 3+ of the last 6 months, steady amount and day), not yet on the plan")
+    List<CommitmentService.Suggestion> suggestions(CurrentUser user, @PathVariable UUID spaceId) {
+        return commitments.suggestions(user, spaceId);
+    }
+
     @GetMapping("/due")
     @Operation(summary = "Every due date between two dates (inclusive), paid or not, oldest first")
     List<CommitmentService.Due> due(CurrentUser user, @PathVariable UUID spaceId,

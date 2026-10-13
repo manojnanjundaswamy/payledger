@@ -165,6 +165,7 @@ OpenAPI at http://localhost:8060/swagger-ui.html):
 | `PUT /spaces/{id}/budgets/{cid}` | `{amount, rollover?, from?}`: the monthly limit from that month on; earlier months keep theirs. With `rollover`, what isn't spent carries into the next month and an overspend comes off it (each budget reports `carried` and `available`; the month reports `income`) |
 | `DELETE /spaces/{id}/budgets/{cid}?from=2026-10` | stop budgeting it from that month on |
 | `GET/POST /spaces/{id}/commitments`, `PUT …/{cid}?version=`, `DELETE …/{cid}` | bills (`BILL`: an expense in a category) and savings (`SAVING`: a transfer to your own account) due every 1, 2, 3, 4, 6 or 12 months from `firstDue`, optionally until `endsOn` |
+| `GET /spaces/{id}/commitments/suggestions` | expenses that look like monthly bills (same description, account and category in 3+ of the last 6 months, steady amount and day, still going), not yet on the plan |
 | `GET /spaces/{id}/commitments/due?from=&to=` | every due date in the range (at most two years), with `paid` and the paying `transactionId` |
 | `POST /spaces/{id}/commitments/{cid}/payments` | `{dueDate, amount?, occurredOn?}`: records the expense or transfer once (409 `already-paid`); deleting that transaction makes the date due again |
 | `GET /spaces/{id}/safe-to-spend` | this budget month: income − spent − bills still due − savings due − set aside for big costs, and per day for the days left (amounts null if the ledger is down) |

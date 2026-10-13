@@ -127,6 +127,35 @@ class CommitmentIntegrationTest {
     }
 
     @Test
+    void steadyMonthlyExpensesAreSuggestedAsBills() throws Exception {
+        java.time.LocalDate today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Kolkata"));
+        String subscriptions = JsonPath.<List<String>>read(mvc.perform(get(path("/categories")).with(me))
+                .andReturn().getResponse().getContentAsString(), "$[?(@.name == 'Subscriptions')].id").getFirst();
+        for (int back = 1; back <= 4; back++) {
+            java.time.LocalDate month = today.minusMonths(back);
+            expense("Netflix", 64_900, subscriptions, month.withDayOfMonth(Math.min(14 + back % 2, month.lengthOfMonth())));
+            // Groceries come every month, but never the same amount: not a bill.
+            expense("Big Bazaar", 10_000 * back * back, emi, month.withDayOfMonth(10));
+            // Already on the plan.
+            expense("Rent", 2_500_000, emi, month.withDayOfMonth(2));
+        }
+        // A gym membership that stopped four months ago.
+        for (int back = 4; back <= 6; back++) {
+            expense("Gym", 150_000, subscriptions, today.minusMonths(back).withDayOfMonth(5));
+        }
+        create(bill("Rent", 2_500_000, 1, today.withDayOfMonth(2).toString(), null)).andExpect(status().isCreated());
+
+        mvc.perform(get(path("/commitments/suggestions")).with(me))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].name").value("Netflix")).andExpect(jsonPath("$[0].amount").value(64_900))
+                .andExpect(jsonPath("$[0].months").value(4)).andExpect(jsonPath("$[0].accountId").value(bank))
+                .andExpect(jsonPath("$[0].categoryId").value(subscriptions))
+                .andExpect(jsonPath("$[0].dayOfMonth").value(org.hamcrest.Matchers.anyOf(org.hamcrest.Matchers.is(14), org.hamcrest.Matchers.is(15))))
+                .andExpect(jsonPath("$[0].nextDue").value(org.hamcrest.Matchers.greaterThan(today.toString())));
+    }
+
+    @Test
     void editingNeedsTheCurrentVersionAndDeletingKeepsThePayments() throws Exception {
         String id = id(create(bill("Netflix", 64_900, 1, "2026-10-15", null)));
         mvc.perform(put(path("/commitments/" + id)).with(me).param("version", "1").contentType(MediaType.APPLICATION_JSON)
@@ -208,6 +237,12 @@ class CommitmentIntegrationTest {
     private void expectPaid(String id, String date, boolean paid) throws Exception {
         mvc.perform(get(path("/commitments/due")).with(me).param("from", date).param("to", date))
                 .andExpect(jsonPath("$[?(@.commitmentId == '" + id + "')].paid").value(paid));
+    }
+
+    private void expense(String description, long amount, String category, java.time.LocalDate on) throws Exception {
+        mvc.perform(post(path("/transactions")).with(me).contentType(MediaType.APPLICATION_JSON).content("""
+                {"kind":"EXPENSE","amount":%d,"accountId":"%s","categoryId":"%s","occurredOn":"%s","description":"%s"}
+                """.formatted(amount, bank, category, on, description))).andExpect(status().isCreated());
     }
 
     private long commands() {
