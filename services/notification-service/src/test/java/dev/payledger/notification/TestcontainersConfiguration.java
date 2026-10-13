@@ -21,7 +21,7 @@ class TestcontainersConfiguration {
 	@Bean
 	@ServiceConnection
 	KafkaContainer kafkaContainer() {
-		return new KafkaContainer(DockerImageName.parse("apache/kafka:4.2.1"));
+		return new KafkaContainer(DockerImageName.parse("apache/kafka:4.3.1"));
 	}
 
 	/** In real environments the ledger creates its topic; here this service runs alone. */
