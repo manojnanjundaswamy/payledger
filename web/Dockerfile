@@ -11,7 +11,7 @@ RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 COPY . .
 RUN npm run build
 
-FROM nginx:1.29-alpine
+FROM nginx:1.31-alpine
 LABEL org.opencontainers.image.title="payledger-web" \
       org.opencontainers.image.description="PayLedger web app (React)" \
       org.opencontainers.image.licenses="MIT"
