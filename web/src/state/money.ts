@@ -117,7 +117,7 @@ export function useTransactions(filter: TransactionFilter) {
  */
 function refreshAfterWrite(client: QueryClient, spaceId: string) {
   void client.invalidateQueries({ queryKey: ['money', spaceId] })
-  const fromLedger = new Set(['accounts', 'category-totals', 'budgets', 'safe-to-spend'])
+  const fromLedger = new Set(['accounts', 'category-totals', 'budgets', 'safe-to-spend', 'planner'])
   for (const delay of [800, 2500]) {
     setTimeout(() => void client.invalidateQueries({
       predicate: (q) => q.queryKey[0] === 'money' && q.queryKey[1] === spaceId && fromLedger.has(q.queryKey[2] as string),
@@ -332,6 +332,8 @@ export interface SafeToSpend {
   spent: number | null
   billsLeft: number
   savings: number
+  /** This month's set-asides for big yearly and one-off costs. */
+  setAside: number
   safeToSpend: number | null
   perDay: number | null
 }
@@ -396,4 +398,33 @@ export function daysUntil(iso: string, today = new Date()): number {
   const [y, m, d] = iso.split('-').map(Number)
   const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
   return Math.round((new Date(y!, m! - 1, d!).getTime() - start.getTime()) / 86_400_000)
+}
+
+/** A big yearly or one-off bill and what to set aside for it this month. */
+export interface PlannedCost {
+  commitmentId: string
+  name: string
+  amount: number
+  currency: string
+  categoryId: string | null
+  everyMonths: number
+  oneOff: boolean
+  nextDue: string
+  /** Budget months before the one it is due in; 0 when due this month. */
+  monthsLeft: number
+  paid: boolean
+  monthlySetAside: number
+  /** Due this month and set aside for in the months before. */
+  covered: boolean
+}
+
+export interface Planner { month: string; monthlySetAside: number; items: PlannedCost[] }
+
+export function usePlanner() {
+  const spaceId = useSpaceId()
+  return useQuery({
+    queryKey: ['money', spaceId, 'planner'],
+    queryFn: () => api<Planner>(`${base(spaceId!)}/planner`),
+    enabled: !!spaceId,
+  })
 }
