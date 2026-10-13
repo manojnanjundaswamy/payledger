@@ -162,7 +162,7 @@ OpenAPI at http://localhost:8060/swagger-ui.html):
 | `POST /spaces/{id}/categories` | `{kind, name, icon, color, parentId?}`; subcategories go one level deep; 409 `category-name-in-use` (unique per kind, ignoring case) |
 | `PUT /spaces/{id}/categories/{cid}` | the whole category (`name, icon, color, parentId, hidden`); hiding a parent hides its subcategories |
 | `GET /spaces/{id}/budgets?month=2026-10` | one budget month (default: the current one; named by the month it starts in, on the user's start day): per category limit, spent (a parent includes its subcategories; null if the ledger is down), remaining, status `ON_TRACK`/`CLOSE` (80%)/`OVER`, and the projected spend from day 5 |
-| `PUT /spaces/{id}/budgets/{cid}` | `{amount, from?}`: the monthly limit from that month on; earlier months keep theirs |
+| `PUT /spaces/{id}/budgets/{cid}` | `{amount, rollover?, from?}`: the monthly limit from that month on; earlier months keep theirs. With `rollover`, what isn't spent carries into the next month and an overspend comes off it (each budget reports `carried` and `available`; the month reports `income`) |
 | `DELETE /spaces/{id}/budgets/{cid}?from=2026-10` | stop budgeting it from that month on |
 | `GET/POST /spaces/{id}/commitments`, `PUT …/{cid}?version=`, `DELETE …/{cid}` | bills (`BILL`: an expense in a category) and savings (`SAVING`: a transfer to your own account) due every 1, 2, 3, 4, 6 or 12 months from `firstDue`, optionally until `endsOn` |
 | `GET /spaces/{id}/commitments/due?from=&to=` | every due date in the range (at most two years), with `paid` and the paying `transactionId` |

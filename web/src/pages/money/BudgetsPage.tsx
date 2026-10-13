@@ -75,8 +75,10 @@ export function BudgetsPage() {
 }
 
 function Summary({ month, current, money }: { month: BudgetMonth; current: boolean; money: (m: number) => string }) {
-  const limit = month.budgets.reduce((sum, b) => sum + b.limit, 0)
+  const limit = month.budgets.reduce((sum, b) => sum + (b.available ?? b.limit), 0)
   const spent = month.budgets.reduce((sum, b) => sum + (b.spent ?? 0), 0)
+  // Envelope budgeting: income not yet given a job (limits, not what rolled over, use this month's income).
+  const unassigned = month.income !== null && month.income > 0 ? month.income - month.budgets.reduce((s, b) => s + b.limit, 0) : null
   const left = month.days - month.daysElapsed + 1
   return (
     <Card className="flex flex-col gap-3 p-pad">
@@ -88,6 +90,13 @@ function Summary({ month, current, money }: { month: BudgetMonth; current: boole
           <span className="text-sm text-muted"> of {money(limit)} budgeted</span>
         </div>
         {current && <span className="text-sm text-muted">{left === 1 ? 'Last day' : `${left} days left`}</span>}
+        {unassigned !== null && (
+          <p className="basis-full text-sm text-muted" data-testid="left-to-budget">
+            {unassigned >= 0
+              ? <>Income this month: {money(month.income!)}; <span className="font-medium text-fg">{money(unassigned)}</span> not yet given a budget.</>
+              : <>Budgets are <span className="font-medium text-critical">{money(-unassigned)}</span> more than this month's income of {money(month.income!)}.</>}
+          </p>
+        )}
       </div>
       {month.spentKnown && (
         <div className="relative">
@@ -106,7 +115,8 @@ function BudgetCard({ budget: b, month, money, onEdit }: { budget: Budget; month
   const category = categories.find((c) => c.id === b.categoryId)
   const name = category?.name ?? 'Category'
   const look = b.status ? BUDGET_STATUS[b.status] : null
-  const pace = b.projected !== null && b.projected > b.limit
+  const available = b.available ?? b.limit
+  const pace = b.projected !== null && b.projected > available
   return (
     <button type="button" onClick={onEdit} aria-label={`Edit ${name} budget`}
       className="flex w-full flex-col gap-2.5 rounded-card border border-border bg-surface p-pad text-left shadow-sm hover:bg-surface-2">
@@ -115,12 +125,15 @@ function BudgetCard({ budget: b, month, money, onEdit }: { budget: Budget; month
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{name}</span>
           <span className="block text-xs text-subtle tabular">
-            {b.spent === null ? `${money(b.limit)} a month` : `${money(b.spent)} of ${money(b.limit)}`}
+            {b.spent === null ? `${money(b.limit)} a month` : `${money(b.spent)} of ${money(available)}`}
+            {b.rollover && b.carried !== null && b.carried !== 0 && (
+              <span className={b.carried < 0 ? 'text-critical' : ''}> ({b.carried > 0 ? '+' : '−'}{money(Math.abs(b.carried))} rolled over)</span>
+            )}
           </span>
         </span>
         {look && <Badge tone={look.tone}><look.icon className="size-3" />{look.label}</Badge>}
       </div>
-      {b.spent !== null && look && <Progress value={b.spent / b.limit} color={look.color} label={`${name} budget used`} />}
+      {b.spent !== null && look && <Progress value={available > 0 ? b.spent / available : 1} color={look.color} label={`${name} budget used`} />}
       {b.remaining !== null && (
         <p className={cn('text-sm', b.remaining < 0 ? 'text-critical' : 'text-muted')}>
           {b.remaining < 0 ? `${money(-b.remaining)} over` : `${money(b.remaining)} left`}
@@ -130,7 +143,7 @@ function BudgetCard({ budget: b, month, money, onEdit }: { budget: Budget; month
         <p className={cn('flex items-center gap-1.5 text-sm', pace ? 'text-fg' : 'text-muted')}>
           <TrendingUp className={cn('size-4 shrink-0', pace && 'text-warning')} />
           {pace
-            ? `At this rate you'll spend ${money(b.projected)} by ${shortDate(month.end)}, ${money(b.projected - b.limit)} over.`
+            ? `At this rate you'll spend ${money(b.projected)} by ${shortDate(month.end)}, ${money(b.projected - available)} over.`
             : `At this rate, about ${money(b.projected)} by ${shortDate(month.end)}.`}
         </p>
       )}

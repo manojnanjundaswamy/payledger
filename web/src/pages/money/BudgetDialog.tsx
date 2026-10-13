@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/controls'
+import { Input, Switch } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/overlay'
 import { formatMoneyWhole, minorToInput, parseMoney } from '@/lib/money'
 import {
@@ -25,12 +25,14 @@ export function BudgetDialog({ open, onOpenChange, month, budget }: {
   const remove = useRemoveBudget()
   const [categoryId, setCategoryId] = useState('')
   const [amount, setAmount] = useState('')
+  const [rollover, setRollover] = useState(false)
   const [error, setError] = useState<string>()
 
   useEffect(() => {
     if (!open) return
     setCategoryId(budget?.categoryId ?? '')
     setAmount(budget ? minorToInput(budget.limit, budget.currency) : '')
+    setRollover(budget?.rollover ?? false)
     setError(undefined)
   }, [open, budget])
 
@@ -61,7 +63,7 @@ export function BudgetDialog({ open, onOpenChange, month, budget }: {
     const limit = parseMoney(amount)
     if (limit === null || limit <= 0) return setError('Enter a monthly limit, like 12,000.')
     try {
-      await set.mutateAsync({ categoryId: chosen, amount: limit, from: month.month })
+      await set.mutateAsync({ categoryId: chosen, amount: limit, rollover, from: month.month })
       toast.success(budget ? 'Budget changed' : `Budget set for ${name}`, { description: `From ${monthName} on.` })
       onOpenChange(false)
     } catch (err) {
@@ -102,6 +104,13 @@ export function BudgetDialog({ open, onOpenChange, month, budget }: {
             Use {formatMoneyWhole(roundUp(average), 'INR', locale)}
           </Button>
         )}
+        <div className="flex items-start gap-3 text-sm">
+          <Switch checked={rollover} onCheckedChange={setRollover} label="Roll over" id="budget-rollover" />
+          <div>
+            <span className="block font-medium">Roll over</span>
+            <span className="block text-xs text-subtle">What isn't spent carries into next month; an overspend comes off it. Good for things like clothes or gifts.</span>
+          </div>
+        </div>
         {error && <p className="rounded-control bg-critical/10 px-3 py-2 text-sm text-critical" role="alert">{error}</p>}
         <div className="flex items-center gap-2">
           {budget && (

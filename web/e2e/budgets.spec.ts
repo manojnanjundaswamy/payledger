@@ -31,6 +31,7 @@ test('a budget shows spending from the ledger, its status, and only from its mon
   dialog = page.getByRole('dialog', { name: 'Set a budget' })
   await dialog.getByLabel('Category').selectOption({ label: food })
   await dialog.getByLabel('Monthly limit').fill('1,000')
+  await dialog.getByRole('switch', { name: 'Roll over' }).click()
   await dialog.getByRole('button', { name: 'Set budget' }).click()
   await expect(dialog).toBeHidden()
   const card = page.getByRole('button', { name: `Edit ${food} budget` })
@@ -54,6 +55,10 @@ test('a budget shows spending from the ledger, its status, and only from its mon
   }).toPass({ timeout: 15_000 })
   await expect(card).toContainText('Close')
   await expect(card).toContainText('₹100 left')
+  // Rollover stays on for the next edit.
+  await card.click()
+  await expect(page.getByRole('dialog', { name: `${food} budget` }).getByRole('switch', { name: 'Roll over' })).toBeChecked()
+  await page.getByRole('dialog', { name: `${food} budget` }).getByRole('button', { name: 'Cancel' }).click()
 
   // The month before has no budget for it.
   await page.getByRole('button', { name: 'Previous month' }).click()

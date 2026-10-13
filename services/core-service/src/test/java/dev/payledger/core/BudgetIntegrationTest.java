@@ -87,6 +87,46 @@ class BudgetIntegrationTest {
     }
 
     @Test
+    void rolloverCarriesWhatWasntSpentAndTakesOffWhatWasOverspent() throws Exception {
+        String groceries = category("Groceries");
+        String rent = category("Rent");
+        mvc.perform(put(path("/budgets/" + groceries)).with(me).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"amount\":1000000,\"rollover\":true,\"from\":\"2026-08\"}")).andExpect(status().isOk());
+        set(rent, 2_500_000, "2026-08");
+        ledgerSpends("2026-08-01", "2026-08-31", groceries, 600_000, rent, 2_500_000);
+        ledgerSpends("2026-09-01", "2026-09-30", groceries, 1_300_000, rent, 2_500_000);
+        ledgerSpends("2026-10-01", "2026-10-31", groceries, 1_050_000);
+        FakeLedger.RESPONSES.put("/api/v2/books/space:%s/totals?type=INCOME&from=2026-10-01&to=2026-10-31&byMonth=false".formatted(space), """
+                [{"accountRef":"category:%s","accountType":"INCOME","currency":"INR","periodStart":null,"total":-10000000}]
+                """.formatted(category("Salary")));
+
+        // August left ₹4,000; September overspent by ₹3,000: October starts with ₹1,000 extra.
+        mvc.perform(get(path("/budgets")).with(me).param("month", "2026-10"))
+                .andExpect(jsonPath("$.income").value(10_000_000))
+                .andExpect(jsonPath("$.budgets[0].categoryId").value(groceries))
+                .andExpect(jsonPath("$.budgets[0].rollover").value(true))
+                .andExpect(jsonPath("$.budgets[0].carried").value(100_000))
+                .andExpect(jsonPath("$.budgets[0].available").value(1_100_000))
+                .andExpect(jsonPath("$.budgets[0].remaining").value(50_000))
+                .andExpect(jsonPath("$.budgets[0].status").value("CLOSE"))
+                .andExpect(jsonPath("$.budgets[1].rollover").value(false))
+                .andExpect(jsonPath("$.budgets[1].carried").doesNotExist())
+                .andExpect(jsonPath("$.budgets[1].available").value(2_500_000));
+        mvc.perform(get(path("/budgets")).with(me).param("month", "2026-09"))
+                .andExpect(jsonPath("$.budgets[0].carried").value(400_000)).andExpect(jsonPath("$.budgets[0].status").value("CLOSE"));
+        mvc.perform(get(path("/budgets")).with(me).param("month", "2026-08"))
+                .andExpect(jsonPath("$.budgets[0].carried").value(0));
+
+        // A new amount keeps rollover on; turning it off from October stops the carry there.
+        set(groceries, 1_200_000, "2026-10");
+        mvc.perform(get(path("/budgets")).with(me).param("month", "2026-10")).andExpect(jsonPath("$.budgets[0].rollover").value(true));
+        mvc.perform(put(path("/budgets/" + groceries)).with(me).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"amount\":1200000,\"rollover\":false,\"from\":\"2026-10\"}")).andExpect(status().isOk());
+        mvc.perform(get(path("/budgets")).with(me).param("month", "2026-10"))
+                .andExpect(jsonPath("$.budgets[0].carried").doesNotExist()).andExpect(jsonPath("$.budgets[0].available").value(1_200_000));
+    }
+
+    @Test
     void changingALimitAppliesFromThatMonthOnAndLeavesEarlierMonthsAlone() throws Exception {
         String groceries = category("Groceries");
         set(groceries, 1_000_000, "2026-08");
