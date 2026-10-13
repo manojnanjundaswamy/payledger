@@ -35,6 +35,7 @@ cd web && npm test && npx tsc -b                # unit tests + typecheck
 cd web && npm run e2e                           # Playwright against the running stack
 scripts/login-smoke-test.sh                     # sign-in + sign-up via Mailpit, token relay, CSRF, logout (bash / Git Bash / WSL)
 scripts/smoke-test.sh                           # ledger entries, reversal, totals, outbox -> Kafka
+scripts/money-smoke-test.sh                     # account + expense via gateway -> core -> Kafka -> ledger, edit, delete, balances
 ```
 
 Emails (verification, reset) appear in Mailpit http://localhost:8025. Keycloak admin http://localhost:8180 (admin/admin).
