@@ -1,5 +1,6 @@
 package dev.payledger.core.user;
 
+import dev.payledger.core.admin.StaffService;
 import dev.payledger.core.space.SpaceQueries;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -22,11 +23,13 @@ public class ProfileService {
     private final JdbcClient jdbc;
     private final JsonMapper json;
     private final SpaceQueries spaces;
+    private final StaffService staff;
 
-    public ProfileService(JdbcClient jdbc, JsonMapper json, SpaceQueries spaces) {
+    public ProfileService(JdbcClient jdbc, JsonMapper json, SpaceQueries spaces, StaffService staff) {
         this.jdbc = jdbc;
         this.json = json;
         this.spaces = spaces;
+        this.staff = staff;
     }
 
     @Transactional(readOnly = true)
@@ -41,7 +44,8 @@ public class ProfileService {
         return new Profile(user.id(), user.email(), row.displayName(),
                 new Profile.Settings(row.locale(), row.timeZone(), row.currency(), row.budgetStartDay()),
                 json.readValue(row.preferences(), JSON_OBJECT),
-                spaces.spacesOf(user.id()));
+                spaces.spacesOf(user.id()),
+                staff.roleOf(user).map(role -> new Profile.Staff(role, role.permissions())).orElse(null));
     }
 
     /** Null fields are left unchanged. {@code preferences} replaces the stored object as a whole. */

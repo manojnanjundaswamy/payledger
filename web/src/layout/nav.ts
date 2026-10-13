@@ -1,6 +1,7 @@
 import {
-  ArrowLeftRight, BarChart3, CalendarClock, Home, LayoutDashboard, PieChart, Settings, Tags, UserRoundPlus, Users, Wallet, type LucideIcon,
+  ArrowLeftRight, BarChart3, CalendarClock, Home, LayoutDashboard, PieChart, Settings, ShieldCheck, Tags, UserRoundPlus, Users, Wallet, type LucideIcon,
 } from 'lucide-react'
+import { useProfile } from '@/state/profile'
 
 export interface NavItem {
   to: string
@@ -9,6 +10,8 @@ export interface NavItem {
   section: 'money' | 'together' | 'app'
   /** shown in the phone tab bar */
   primary?: boolean
+  /** only for PayLedger staff (the admin console) */
+  staff?: boolean
 }
 
 export const NAV: NavItem[] = [
@@ -22,5 +25,12 @@ export const NAV: NavItem[] = [
   { to: '/household', label: 'Household', icon: Home, section: 'together' },
   { to: '/groups', label: 'Groups', icon: Users, section: 'together' },
   { to: '/people', label: 'People', icon: UserRoundPlus, section: 'together' },
+  { to: '/admin', label: 'Admin', icon: ShieldCheck, section: 'app', staff: true },
   { to: '/settings', label: 'Settings', icon: Settings, section: 'app' },
 ]
+
+/** The navigation this user sees: the admin console only for staff. */
+export function useNav(): NavItem[] {
+  const staff = !!useProfile().data?.staff
+  return staff ? NAV : NAV.filter((n) => !n.staff)
+}

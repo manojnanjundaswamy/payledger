@@ -69,6 +69,11 @@ public class PlanService {
                 .map(e -> e.strip().toLowerCase(Locale.ROOT)).filter(e -> !e.isEmpty()).collect(Collectors.toSet());
     }
 
+    /** The emails with complimentary Premium (lower case), for the admin console's plan counts. */
+    public Set<String> complimentaryEmails() {
+        return complimentary;
+    }
+
     private record Owner(UUID id, String email, Instant premiumUntil, String premiumSource, Instant trialStartedAt) {
     }
 

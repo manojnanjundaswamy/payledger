@@ -13,7 +13,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { AddMenu } from './AddMenu'
 import { CommandPalette, useCommandPaletteShortcut } from './CommandPalette'
 import { Logo } from './Logo'
-import { NAV, type NavItem } from './nav'
+import { useNav, type NavItem } from './nav'
 import { ThemeQuickToggle } from './ThemeQuickToggle'
 import { UserMenu } from './UserMenu'
 
@@ -37,7 +37,8 @@ export function AppShell() {
   }, [collapsed, dispatch])
 
   const reduced = prefs.theme.motion === 'reduced' ? 'always' : prefs.theme.motion === 'full' ? 'never' : 'user'
-  const current = NAV.find((n) => pathname.startsWith(n.to))
+  const nav = useNav()
+  const current = nav.find((n) => pathname.startsWith(n.to))
   // The first page after loading the app appears at once; later ones fade in.
   const firstPage = useRef(true)
   useEffect(() => { firstPage.current = false }, [])
@@ -82,6 +83,7 @@ function Sidebar({ collapsed, onToggle, pathname }: { collapsed: boolean; onTogg
   // Tablets always get the icon rail; desktops get what the user chose.
   const rail = collapsed || !wide
   const sections: [NavItem['section'], string | null][] = [['money', null], ['together', 'Together'], ['app', null]]
+  const nav = useNav()
   return (
     <motion.aside
       initial={false}
@@ -107,7 +109,7 @@ function Sidebar({ collapsed, onToggle, pathname }: { collapsed: boolean; onTogg
             {heading && (rail
               ? <div className="mx-3 mb-1 h-px bg-border" />
               : <div className="px-3 pb-1 text-[0.6875rem] font-medium tracking-wider text-subtle uppercase">{heading}</div>)}
-            {NAV.filter((n) => n.section === section).map((item) => (
+            {nav.filter((n) => n.section === section).map((item) => (
               <NavLink key={item.to} item={item} active={pathname.startsWith(item.to)} rail={rail} />
             ))}
           </div>
@@ -187,7 +189,8 @@ function SaveIndicator() {
 
 function MobileTabBar({ pathname }: { pathname: string }) {
   const [more, setMore] = useState(false)
-  const primary = NAV.filter((n) => n.primary)
+  const nav = useNav()
+  const primary = nav.filter((n) => n.primary)
   const tab = (item: NavItem) => {
     const active = pathname.startsWith(item.to)
     return (
@@ -217,7 +220,7 @@ function MobileTabBar({ pathname }: { pathname: string }) {
       </nav>
       <Dialog open={more} onOpenChange={setMore} title="More">
         <div className="grid grid-cols-3 gap-2 p-pad">
-          {NAV.filter((n) => !n.primary).map((item) => (
+          {nav.filter((n) => !n.primary).map((item) => (
             <Link key={item.to} to={item.to} onClick={() => setMore(false)}
               className="flex flex-col items-center gap-2 rounded-card border border-border p-4 text-sm font-medium hover:bg-surface-2">
               <item.icon className="size-5 text-muted" />
