@@ -49,8 +49,8 @@ Client ──HTTP──▶         │ LedgerController ─▶ LedgerService (bo
 In progress (Phase 4): core-service records accounts and transactions and queues the matching ledger commands in its
 own outbox; ledger-service consumes them ([docs/events/ledger-commands.md](docs/events/ledger-commands.md)), and
 core-service reads balances and per-category totals back from the ledger. The web app has Accounts, Transactions,
-Categories and Budgets screens on real data, and the dashboard widgets use it once you have an account; commitments and
-safe-to-spend come next.
+Categories, Budgets and Plan (commitments, safe to spend) screens on real data, and the dashboard widgets use it once you
+have an account; the annual planner, import and reports come next.
 notification-service is **parked**: it still reads the wallet-era `ledger.entries.v1` events, which nothing
 publishes any more, and is repurposed for emails and the activity feed in Phase 6.
 
@@ -164,6 +164,10 @@ OpenAPI at http://localhost:8060/swagger-ui.html):
 | `GET /spaces/{id}/budgets?month=2026-10` | one budget month (default: the current one; named by the month it starts in, on the user's start day): per category limit, spent (a parent includes its subcategories; null if the ledger is down), remaining, status `ON_TRACK`/`CLOSE` (80%)/`OVER`, and the projected spend from day 5 |
 | `PUT /spaces/{id}/budgets/{cid}` | `{amount, from?}`: the monthly limit from that month on; earlier months keep theirs |
 | `DELETE /spaces/{id}/budgets/{cid}?from=2026-10` | stop budgeting it from that month on |
+| `GET/POST /spaces/{id}/commitments`, `PUT …/{cid}?version=`, `DELETE …/{cid}` | bills (`BILL`: an expense in a category) and savings (`SAVING`: a transfer to your own account) due every 1, 2, 3, 4, 6 or 12 months from `firstDue`, optionally until `endsOn` |
+| `GET /spaces/{id}/commitments/due?from=&to=` | every due date in the range (at most two years), with `paid` and the paying `transactionId` |
+| `POST /spaces/{id}/commitments/{cid}/payments` | `{dueDate, amount?, occurredOn?}`: records the expense or transfer once (409 `already-paid`); deleting that transaction makes the date due again |
+| `GET /spaces/{id}/safe-to-spend` | this budget month: income − spent − bills still due − savings due, and per day for the days left (amounts null if the ledger is down) |
 | `DELETE /spaces/{id}/categories/{cid}` | only if no transaction ever used it: 409 `category-in-use` (hide it instead) or `category-has-subcategories` |
 | `GET/POST /spaces/{id}/transactions`, `GET/PUT/DELETE …/transactions/{txnId}` | expense, income, transfer; keyset pages; optional client `id` makes a create safe to retry; edits and deletes send the `version` they saw (409 if stale) |
 
@@ -246,7 +250,12 @@ be deleted.
 
 `BudgetIntegrationTest` (core-service, with a fake ledger) proves spending, remaining and status per budget, a parent
 counting its subcategories, a limit change applying from its month on while earlier months keep theirs, periods that
-follow the user's start day, limits still showing when the ledger is down, and bad budgets refused.
+follow the user's start day, limits still showing when the ledger is down, and bad budgets refused; and that safe to
+spend takes bills still due and savings off what is left of income.
+
+`CommitmentIntegrationTest` (core-service) proves due dates (the 31st, an EMI's last instalment, quarterly), that paying
+records an expense or transfer once (also under 8 concurrent taps), that deleting the payment makes the date due again,
+optimistic locking on edits, and that a category a bill uses can't be deleted.
 
 `NotificationIntegrationTest` proves a redelivered event creates no duplicate notification, system accounts are skipped,
 unknown fields are ignored, and poison messages go to the dead-letter topic without blocking the events behind them.

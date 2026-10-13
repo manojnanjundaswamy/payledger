@@ -1,8 +1,8 @@
 import { Link } from '@tanstack/react-router'
 import { motion } from 'motion/react'
 import {
-  CalendarClock, Home, LayoutGrid, Link2, Lock, Milk,
-  Repeat, Scale, ShieldCheck, Split, UserPlus, UserRoundPlus, Users, type LucideIcon,
+  Home, LayoutGrid, Link2, Lock,
+  Scale, ShieldCheck, Split, UserPlus, UserRoundPlus, Users, type LucideIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/card'
@@ -11,15 +11,6 @@ interface Feature { icon: LucideIcon; title: string; text: string }
 interface PageInfo { icon: LucideIcon; title: string; lead: string; phase: string; features: Feature[] }
 
 export const COMING: Record<string, PageInfo> = {
-  plan: {
-    icon: CalendarClock, phase: 'Phase 4', title: 'No more surprise bills',
-    lead: 'EMIs, card dues, SIPs, insurance and school fees on one calendar, counted before “safe to spend”.',
-    features: [
-      { icon: CalendarClock, title: 'Commitments calendar', text: 'Everything that is due, before it is due.' },
-      { icon: Repeat, title: 'Annual planner', text: 'Diwali, insurance, fees: set aside a little every month.' },
-      { icon: Milk, title: 'Daily services', text: 'Milk, newspaper, cook: mark missed days, the bill works itself out.' },
-    ],
-  },
   household: {
     icon: Home, phase: 'Phase 5', title: 'One budget for the whole family',
     lead: 'Add your spouse, children or parents. Plan together, see who paid what, keep private money private.',

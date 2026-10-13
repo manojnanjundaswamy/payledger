@@ -14,9 +14,9 @@ splitting groups by link without an account. Owner: Manoj. Read these before cha
 
 | Path | What | Stack | Ports (app / actuator) |
 |---|---|---|---|
-| `web/` | React app: dashboards, accounts, transactions, categories + budgets (real data, `web/src/pages/money`), theme builder, settings | React 19, Vite, TS, Tailwind 4, TanStack Router+Query, dnd-kit, motion, Radix | 5173 |
+| `web/` | React app: dashboards, accounts, transactions, categories, budgets + plan (real data, `web/src/pages/money`), theme builder, settings | React 19, Vite, TS, Tailwind 4, TanStack Router+Query, dnd-kit, motion, Radix | 5173 |
 | `services/gateway` | Only thing the browser talks to: OAuth2 login (Keycloak, PKCE), Redis sessions, CSRF (SPA mode), token relay | Spring Boot **4.0.8** + Spring Cloud Gateway 2025.1 (held on 4.0 until Spring Cloud 2026.0 GA) | 8000/8001 |
-| `services/core-service` | Product API: users, spaces (`/api/core/me`), money accounts, categories, transactions, budgets (`/api/core/spaces/{id}/…`); ledger commands via outbox -> Kafka `ledger.commands.v1` | Spring Boot 4.1, JDBC (JdbcClient), Flyway, resource server | 8060/8061 |
+| `services/core-service` | Product API: users, spaces (`/api/core/me`), money accounts, categories, transactions, budgets, commitments, safe to spend (`/api/core/spaces/{id}/…`); ledger commands via outbox -> Kafka `ledger.commands.v1` | Spring Boot 4.1, JDBC (JdbcClient), Flyway, resource server | 8060/8061 |
 | `services/ledger-service` | Internal double-entry engine: books (PERSONAL/HOUSEHOLD/GROUP), typed accounts by caller ref, reversals, period totals, transactional outbox -> Kafka `ledger.entries.v2` | Spring Boot 4.1, JPA + JdbcClient | 8080/8081 |
 | `services/notification-service` | **Parked** (reads wallet-era v1 events); becomes emails/activity feed in Phase 6 | | 8090/8091 |
 | Keycloak 26 (realm in `deploy/local/keycloak`), Mailpit, Redis, Kafka (KRaft), Postgres x4 | `docker-compose.yml` | | 8180, 8025, 6379, 9092 |

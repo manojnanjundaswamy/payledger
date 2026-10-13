@@ -13,7 +13,10 @@ import { usePreferences } from '@/state/PreferencesProvider'
 import { BarList, BUDGET_STATUS, budgetStatus, GroupedBars, Progress } from './charts'
 import { useWidgetEnv } from './context'
 import { budgetPeriod, safeToSpend, sample } from './sample'
-import { isoDate, useAccounts, useBudgets, useCategories, useCategoryTotals, useTransactions, type Budget, type Category } from '@/state/money'
+import {
+  daysUntil, isoDate, useAccounts, useBudgets, useCategories, useCategoryTotals, useDue, useTransactions, type Budget, type Category,
+} from '@/state/money'
+import { SafeToSpendCard } from '@/pages/money/SafeToSpendCard'
 
 export interface WidgetProps { widget: Widget; dashboardId: string; editing: boolean }
 
@@ -28,7 +31,8 @@ function Empty({ children, phase = 'Phase 4' }: { children: React.ReactNode; pha
 }
 
 function SafeToSpend() {
-  const { sample: on, money, profile } = useWidgetEnv()
+  const { sample: on, real, money, profile } = useWidgetEnv()
+  if (real) return <SafeToSpendCard compact />
   const period = budgetPeriod(profile.settings.budgetStartDay)
   if (!on) return <Empty>How much you can spend today, after bills, EMIs and savings.</Empty>
   const safe = safeToSpend()
@@ -280,8 +284,58 @@ function RecentTransactions({ widget }: WidgetProps) {
   )
 }
 
+/** Unpaid bills and savings due in the next 30 days (and any overdue from the last 30). */
+function RealUpcomingBills({ widget }: { widget: Widget }) {
+  const { money, profile } = useWidgetEnv()
+  const now = new Date()
+  const { data: due, isPending, isError } = useDue(
+    isoDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30)),
+    isoDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 30)))
+  if (isError) return <Unavailable what="Upcoming bills" />
+  if (isPending) return <div className="h-28 animate-pulse rounded-control bg-surface-2" />
+  const unpaid = due.filter((d) => !d.paid)
+  if (unpaid.length === 0) {
+    return (
+      <div className="flex min-h-28 flex-col items-start justify-center gap-1.5 text-sm text-muted">
+        Nothing due in the next 30 days.
+        <Link to="/plan" className="text-fg underline underline-offset-4">Add a bill or SIP</Link>
+      </div>
+    )
+  }
+  const rows = unpaid.slice(0, widget.size === 's' ? 3 : 5)
+  const soon = unpaid.filter((d) => daysUntil(d.dueDate) <= 10).reduce((sum, d) => sum + d.amount, 0)
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="text-sm text-muted"><span className="font-medium text-fg">{money(soon, { whole: true })}</span> due in the next 10 days</div>
+      <ul className="flex flex-col gap-2">
+        {rows.map((d) => {
+          const days = daysUntil(d.dueDate)
+          const [, m, day] = d.dueDate.split('-').map(Number)
+          return (
+            <li key={`${d.commitmentId}/${d.dueDate}`} className="flex items-center gap-3">
+              <span className="flex w-11 shrink-0 flex-col items-center rounded-control border border-border py-1 leading-none">
+                <span className="text-[0.625rem] text-subtle uppercase">{new Date(2000, m! - 1, 1).toLocaleDateString(profile.settings.locale, { month: 'short' })}</span>
+                <span className="text-[0.9375rem] font-semibold">{day}</span>
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">{d.name}</span>
+                <span className={cn('text-xs', days < 0 ? 'text-critical' : 'text-subtle')}>
+                  {d.kind === 'BILL' ? 'Bill' : 'Saving'} · {days === 0 ? 'today' : days > 0 ? `in ${days} day${days === 1 ? '' : 's'}` : `overdue by ${-days} day${days === -1 ? '' : 's'}`}
+                </span>
+              </span>
+              <span className="tabular shrink-0 text-sm">{money(d.amount, { whole: true })}</span>
+            </li>
+          )
+        })}
+      </ul>
+      <Link to="/plan" className="self-start text-xs text-muted underline underline-offset-4 hover:text-fg">Your plan</Link>
+    </div>
+  )
+}
+
 function UpcomingBills({ widget }: WidgetProps) {
-  const { sample: on, money } = useWidgetEnv()
+  const { sample: on, real, money } = useWidgetEnv()
+  if (real) return <RealUpcomingBills widget={widget} />
   if (!on) return <Empty>EMIs, card dues, SIPs and subscriptions, before they hit.</Empty>
   const rows = widget.size === 's' ? sample.bills.slice(0, 3) : sample.bills
   const total = sample.bills.filter((b) => b.inDays <= 10).reduce((s, b) => s + b.amount, 0)

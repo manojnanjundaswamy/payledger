@@ -1,6 +1,7 @@
 package dev.payledger.core;
 
 import com.jayway.jsonpath.JsonPath;
+import dev.payledger.core.budget.BudgetPeriod;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +15,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
@@ -169,7 +172,63 @@ class BudgetIntegrationTest {
         mvc.perform(get(path("/budgets")).with(me).param("month", "2026-08")).andExpect(jsonPath("$.budgets.length()").value(0));
     }
 
+    @Test
+    void safeToSpendIsIncomeLessSpendingBillsStillDueAndSavings() throws Exception {
+        // The current month (start day 1, the default) in the user's time zone.
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Kolkata"));
+        BudgetPeriod period = BudgetPeriod.containing(today, 1);
+        String bank = createAccount("HDFC");
+        String zerodha = createAccount("Zerodha");
+        String emi = category("EMIs & loans");
+        String rent = commitment("""
+                {"kind":"BILL","name":"Rent","amount":2500000,"accountId":"%s","categoryId":"%s","everyMonths":1,"firstDue":"%s"}
+                """.formatted(bank, emi, period.start()));
+        commitment("""
+                {"kind":"BILL","name":"Car EMI","amount":1000000,"accountId":"%s","categoryId":"%s","everyMonths":1,"firstDue":"%s"}
+                """.formatted(bank, emi, period.end()));
+        commitment("""
+                {"kind":"SAVING","name":"SIP","amount":500000,"accountId":"%s","toAccountId":"%s","everyMonths":1,"firstDue":"%s"}
+                """.formatted(bank, zerodha, period.start()));
+        // Rent is paid: it is in "spent" now (the fake ledger's spending below includes it), not in bills left.
+        mvc.perform(post(path("/commitments/" + rent + "/payments")).with(me).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"dueDate\":\"" + period.start() + "\"}")).andExpect(status().isCreated());
+        String totals = "/api/v2/books/space:%s/totals?type=%s&from=%s&to=%s&byMonth=false";
+        FakeLedger.RESPONSES.put(totals.formatted(space, "INCOME", period.start(), period.end()), """
+                [{"accountRef":"category:%s","accountType":"INCOME","currency":"INR","periodStart":null,"total":-10000000}]
+                """.formatted(category("Salary")));
+        ledgerSpends(period.start().toString(), period.end().toString(), emi, 3_000_000);
+
+        int daysLeft = period.days() - period.daysElapsed(today) + 1;
+        // ₹1,00,000 - ₹30,000 - ₹10,000 EMI still due - ₹5,000 SIP = ₹55,000.
+        mvc.perform(get(path("/safe-to-spend")).with(me))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.start").value(period.start().toString()))
+                .andExpect(jsonPath("$.known").value(true))
+                .andExpect(jsonPath("$.income").value(10_000_000)).andExpect(jsonPath("$.spent").value(3_000_000))
+                .andExpect(jsonPath("$.billsLeft").value(1_000_000)).andExpect(jsonPath("$.savings").value(500_000))
+                .andExpect(jsonPath("$.safeToSpend").value(5_500_000))
+                .andExpect(jsonPath("$.daysLeft").value(daysLeft))
+                .andExpect(jsonPath("$.perDay").value(5_500_000 / daysLeft));
+
+        FakeLedger.DOWN.set(true);
+        mvc.perform(get(path("/safe-to-spend")).with(me))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.known").value(false))
+                .andExpect(jsonPath("$.safeToSpend").doesNotExist())
+                .andExpect(jsonPath("$.billsLeft").value(1_000_000));
+    }
+
     // ---------------------------------------------------------------- helpers
+
+    private String createAccount(String name) throws Exception {
+        return JsonPath.read(mvc.perform(post(path("/accounts")).with(me).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"kind\":\"BANK\",\"name\":\"" + name + "\"}")).andReturn().getResponse().getContentAsString(), "$.id");
+    }
+
+    private String commitment(String body) throws Exception {
+        return JsonPath.read(mvc.perform(post(path("/commitments")).with(me).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.id");
+    }
 
     private String path(String rest) {
         return "/api/core/spaces/" + space + rest;
