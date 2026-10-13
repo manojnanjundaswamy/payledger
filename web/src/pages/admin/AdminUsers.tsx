@@ -12,6 +12,9 @@ import {
   ACTION_LABEL, PLAN_LABEL, adminApi, useAdminUser, useAdminUserAction, useAdminUsers, useCan, type PlanKind,
 } from '@/state/admin'
 import { useProfile } from '@/state/profile'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '@/lib/api'
+import { ActivityList, type ActivityRow } from './AdminActivity'
 
 const FILTERS = [
   { value: 'all', label: 'All' },
@@ -197,6 +200,8 @@ function UserSheet({ id, onClose }: { id: string | null; onClose: () => void }) 
             </section>
           )}
 
+          <UserActivity id={u.id} />
+
           <section className="flex flex-col gap-2">
             <h3 className="font-medium">What staff did</h3>
             {data.history.length === 0 ? <p className="text-muted">Nothing yet.</p> : (
@@ -214,6 +219,17 @@ function UserSheet({ id, onClose }: { id: string | null; onClose: () => void }) 
         </div>
       )}
     </Dialog>
+  )
+}
+
+/** Their sign-ins and changes, latest first. */
+function UserActivity({ id }: { id: string }) {
+  const { data } = useQuery({ queryKey: ['admin', 'user', id, 'activity'], queryFn: () => api<ActivityRow[]>(`/api/core/admin/users/${id}/activity?limit=20`) })
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="font-medium">Recent activity</h3>
+      {data ? <ActivityList rows={data} /> : <p className="text-muted">Loading…</p>}
+    </section>
   )
 }
 

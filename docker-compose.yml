@@ -238,6 +238,15 @@ services:
       # The admin console creates users and sends their emails through Keycloak (realm client payledger-core-admin).
       KEYCLOAK_INTERNAL_URL: http://keycloak:8080
       IDENTITY_ADMIN_CLIENT_SECRET: ${IDENTITY_ADMIN_CLIENT_SECRET:-local-dev-core-admin-secret}
+      # Email (docs/notifications.md): Mailpit unless SMTP_* are set (in .env), e.g. to Gmail or Brevo for real delivery.
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_AUTH: ${SMTP_AUTH:-false}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@payledger.local}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
     ports:
       - "${CORE_PORT:-8060}:8060"
       - "${CORE_MANAGEMENT_PORT:-8061}:8061"

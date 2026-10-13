@@ -1,9 +1,11 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { BarChart3, ScrollText, Settings2, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
+import { Activity, BarChart3, Mail, ScrollText, Settings2, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
 import { Badge, Card } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
 import { useProfile, type StaffPermission } from '@/state/profile'
+import { AdminActivity } from './AdminActivity'
 import { AdminAudit } from './AdminAudit'
+import { AdminEmails } from './AdminEmails'
 import { AdminOverview } from './AdminOverview'
 import { AdminSettings } from './AdminSettings'
 import { AdminStaff } from './AdminStaff'
@@ -15,6 +17,8 @@ const TABS: Record<AdminTab, { label: string; icon: typeof BarChart3; needs: Sta
   users: { label: 'Users', icon: Users, needs: 'USERS_VIEW', component: AdminUsers },
   staff: { label: 'Staff', icon: ShieldCheck, needs: 'STAFF_MANAGE', component: AdminStaff },
   settings: { label: 'Settings', icon: Settings2, needs: 'SETTINGS_MANAGE', component: AdminSettings },
+  emails: { label: 'Emails', icon: Mail, needs: 'USERS_SUPPORT', component: AdminEmails },
+  activity: { label: 'User activity', icon: Activity, needs: 'USERS_VIEW', component: AdminActivity },
   audit: { label: 'Audit log', icon: ScrollText, needs: 'AUDIT_VIEW', component: AdminAudit },
 }
 

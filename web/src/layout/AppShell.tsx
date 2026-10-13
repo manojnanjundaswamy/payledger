@@ -12,6 +12,7 @@ import { usePreferences } from '@/state/PreferencesProvider'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { AddMenu } from './AddMenu'
 import { AnnouncementBanner } from './AnnouncementBanner'
+import { NotificationBell } from './NotificationBell'
 import { CommandPalette, useCommandPaletteShortcut } from './CommandPalette'
 import { Logo } from './Logo'
 import { useNav, type NavItem } from './nav'
@@ -168,6 +169,7 @@ function Topbar({ title, onSearch }: { title: string; onSearch: () => void }) {
         </button>
         <Button variant="ghost" size="icon" className="sm:hidden" onClick={onSearch} aria-label="Search"><Search /></Button>
         <SaveIndicator />
+        <NotificationBell />
         <ThemeQuickToggle />
         <UserMenu />
       </div>

@@ -6,6 +6,9 @@
 #   docker compose up -d keycloak && scripts/keycloak-sync.sh
 set -euo pipefail
 
+# SMTP_* and others from .env, the same file docker compose reads.
+if [ -f .env ]; then set -a; . ./.env; set +a; fi
+
 SECRET=${IDENTITY_ADMIN_CLIENT_SECRET:-local-dev-core-admin-secret}
 kc() { docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh "$@"; }
 
@@ -25,3 +28,14 @@ fi
 kc add-roles -r payledger --uusername service-account-payledger-core-admin \
   --cclientid realm-management --rolename manage-users --rolename view-users
 echo "payledger-core-admin: may manage and view users"
+
+# Sign-up verification and password emails are sent by Keycloak. With SMTP_HOST set (in .env), they go through that
+# provider to real inboxes; without it, to Mailpit (http://localhost:8025), which catches everything locally.
+host=${SMTP_HOST:-mailpit}
+if [ "$host" = "mailpit" ]; then
+  kc update realms/payledger -s smtpServer.host=mailpit -s smtpServer.port=1025 -s smtpServer.auth=false     -s smtpServer.starttls=false -s smtpServer.ssl=false -s "smtpServer.from=${MAIL_FROM:-no-reply@payledger.local}"     -s smtpServer.fromDisplayName=PayLedger
+  echo "Keycloak email: Mailpit (local only; see http://localhost:8025)"
+else
+  kc update realms/payledger -s "smtpServer.host=$host" -s "smtpServer.port=${SMTP_PORT:-587}"     -s "smtpServer.auth=${SMTP_AUTH:-true}" -s "smtpServer.user=${SMTP_USERNAME:-}" -s "smtpServer.password=${SMTP_PASSWORD:-}"     -s "smtpServer.starttls=${SMTP_STARTTLS:-true}" -s "smtpServer.ssl=${SMTP_SSL:-false}"     -s "smtpServer.from=${MAIL_FROM:?set MAIL_FROM to the address emails come from}" -s smtpServer.fromDisplayName=PayLedger
+  echo "Keycloak email: $host (real delivery)"
+fi

@@ -27,12 +27,15 @@ public class UserProvisioning {
     private final CategoryService categories;
     private final GroupService groups;
     private final ActivityTracker activity;
+    private final dev.payledger.core.notify.Notifications notifications;
 
-    public UserProvisioning(JdbcClient jdbc, CategoryService categories, GroupService groups, ActivityTracker activity) {
+    public UserProvisioning(JdbcClient jdbc, CategoryService categories, GroupService groups, ActivityTracker activity,
+                            dev.payledger.core.notify.Notifications notifications) {
         this.jdbc = jdbc;
         this.categories = categories;
         this.groups = groups;
         this.activity = activity;
+        this.notifications = notifications;
     }
 
     @Transactional
@@ -102,6 +105,13 @@ public class UserProvisioning {
         categories.seedDefaults(spaceId);
         // Groups that invited this (verified) email before the account existed.
         groups.claimInvites(userId, email);
+        notifications.toUser(userId, null, "welcome:" + userId, dev.payledger.core.notify.Email.titled("Welcome to PayLedger")
+                .heading("Welcome, " + name)
+                .para("Your budget can be ready in two minutes: tell us your payday, your accounts and what goes out every month, "
+                        + "and PayLedger works out what's safe to spend.")
+                .button("Set up in two minutes", notifications.url("/welcome"))
+                .para("You'll get a reminder before bills are due and a heads-up when a budget gets close. You can change that any time.")
+                .footer("You got this because you created a PayLedger account.", notifications.settingsUrl()));
         return find(subject).orElseThrow();
     }
 
