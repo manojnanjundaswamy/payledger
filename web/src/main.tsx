@@ -7,6 +7,17 @@ import { ApiError, UnauthorizedError } from '@/lib/api'
 import { createAppRouter } from './router'
 import './styles.css'
 
+// After a new version is deployed, an open tab may ask for a page file that no longer exists. Reload once to get the
+// new version instead of showing an error (sessionStorage stops a reload loop if the file is really missing).
+window.addEventListener('vite:preloadError', (event) => {
+  try {
+    if (sessionStorage.getItem('reloaded-for-update') === location.pathname) return
+    sessionStorage.setItem('reloaded-for-update', location.pathname)
+  } catch { /* storage blocked: reload anyway */ }
+  event.preventDefault()
+  location.reload()
+})
+
 function onError(error: Error) {
   // A Free limit, wherever it is hit: say which one, and where Premium and the trial are.
   if (error instanceof ApiError && error.code === 'plan-limit') {

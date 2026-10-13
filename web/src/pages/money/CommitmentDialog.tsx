@@ -35,10 +35,12 @@ interface Draft {
 }
 
 /** Add or change a bill (EMI, rent, insurance, subscription) or a saving (SIP, RD) that repeats. */
-export function CommitmentDialog({ open, onOpenChange, commitment }: {
+export function CommitmentDialog({ open, onOpenChange, commitment, initialDue }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   commitment?: Commitment
+  /** A new one's first due date (a day clicked on the calendar). */
+  initialDue?: string
 }) {
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
@@ -56,9 +58,9 @@ export function CommitmentDialog({ open, onOpenChange, commitment }: {
       accountId: commitment.accountId, categoryId: commitment.categoryId ?? '', toAccountId: commitment.toAccountId ?? '',
       everyMonths: commitment.endsOn === commitment.firstDue ? ONCE : commitment.everyMonths,
       firstDue: commitment.firstDue, endsOn: commitment.endsOn === commitment.firstDue ? '' : commitment.endsOn ?? '',
-    } : empty())
+    } : { ...empty(), ...(initialDue ? { firstDue: initialDue } : {}) })
     setError(undefined)
-  }, [open, commitment])
+  }, [open, commitment, initialDue])
 
   // No account chosen yet: the first one (accounts may still have been loading when the dialog opened).
   const accountId = d.accountId || accounts[0]?.id || ''

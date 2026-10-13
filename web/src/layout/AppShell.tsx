@@ -105,7 +105,8 @@ function Sidebar({ collapsed, onToggle, pathname }: { collapsed: boolean; onTogg
       <div className={cn('px-3 pb-3', rail && 'flex justify-center')}>
         <AddMenu compact={rail} />
       </div>
-      <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-2" aria-label="Main">
+      {/* Short windows (zoomed in, small laptops) get tighter rows, and the scrollbar only shows while pointing at the menu. */}
+      <nav className="scroll-quiet flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-2 [@media(max-height:800px)]:gap-2 [@media(max-height:800px)]:py-1" aria-label="Main">
         {sections.map(([section, heading]) => (
           <div key={section} className={cn('flex flex-col gap-0.5', section === 'app' && 'mt-auto')}>
             {heading && (rail
@@ -134,7 +135,7 @@ function NavLink({ item, active, rail }: { item: NavItem; active: boolean; rail:
       to={item.to}
       aria-label={rail ? item.label : undefined}
       className={cn(
-        'group relative flex h-10 items-center gap-3 rounded-control px-3 text-sm font-medium transition-colors',
+        'group relative flex h-10 items-center gap-3 rounded-control px-3 text-sm font-medium transition-colors [@media(max-height:800px)]:h-8',
         active ? 'text-fg' : 'text-muted hover:bg-surface-2 hover:text-fg',
         rail && 'justify-center px-0',
       )}
