@@ -1,6 +1,7 @@
 package dev.payledger.core.user;
 
 import dev.payledger.core.common.Uuid7;
+import dev.payledger.core.money.CategoryService;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -13,8 +14,8 @@ import java.util.UUID;
 /**
  * Maps a Keycloak identity to a PayLedger user.
  * <p>
- * The first request of a new person creates their user row, their personal space and their
- * OWNER membership in one transaction. Later requests only read (and follow an email change made
+ * The first request of a new person creates their user row, their personal space (with the default
+ * categories) and their OWNER membership in one transaction. Later requests only read (and follow an email change made
  * in Keycloak). Two first requests racing each other are safe: the insert uses
  * {@code ON CONFLICT (subject) DO NOTHING}, and only the winner creates the personal space.
  */
@@ -22,9 +23,11 @@ import java.util.UUID;
 public class UserProvisioning {
 
     private final JdbcClient jdbc;
+    private final CategoryService categories;
 
-    public UserProvisioning(JdbcClient jdbc) {
+    public UserProvisioning(JdbcClient jdbc, CategoryService categories) {
         this.jdbc = jdbc;
+        this.categories = categories;
     }
 
     @Transactional
@@ -72,6 +75,7 @@ public class UserProvisioning {
                     .param("id", spaceId).param("userId", userId).update();
             jdbc.sql("insert into space_members (space_id, user_id, role) values (:spaceId, :userId, 'OWNER')")
                     .param("spaceId", spaceId).param("userId", userId).update();
+            categories.seedDefaults(spaceId);
         }
         // Either we created it, or a concurrent first request did.
         return find(subject).orElseThrow();

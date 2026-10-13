@@ -156,8 +156,8 @@ services:
       start_period: 15s
       retries: 20
 
-  # Creates topics up front so consumers can subscribe before the ledger has ever started.
-  # ledger.entries.v1 (the pre-pivot wallet event format) only exists for the parked notification-service.
+  # Creates topics up front so consumers can subscribe before the producing service has ever started.
+  # ledger.commands.v1: core-service -> ledger-service. ledger.entries.v1 (the pre-pivot wallet event format) only exists for the parked notification-service.
   kafka-init:
     image: apache/kafka:4.2.1
     depends_on:
@@ -170,6 +170,8 @@ services:
         --topic ${LEDGER_EVENTS_TOPIC:-ledger.entries.v2} --partitions ${LEDGER_EVENTS_PARTITIONS:-3} --replication-factor 1
         && /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists
         --topic ledger.entries.v1 --partitions 3 --replication-factor 1
+        && /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists
+        --topic ${LEDGER_COMMANDS_TOPIC:-ledger.commands.v1} --partitions ${LEDGER_COMMANDS_PARTITIONS:-3} --replication-factor 1
         && /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --describe
 
   kafka-ui:
@@ -217,8 +219,11 @@ services:
     depends_on:
       core-db: { condition: service_healthy }
       keycloak: { condition: service_healthy }
+      kafka-init: { condition: service_completed_successfully }
     environment:
       DB_URL: jdbc:postgresql://core-db:5432/core
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      LEDGER_COMMANDS_TOPIC: ${LEDGER_COMMANDS_TOPIC:-ledger.commands.v1}
       KEYCLOAK_ISSUER: http://localhost:${KEYCLOAK_PORT:-8180}/realms/payledger
       KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/payledger/protocol/openid-connect/certs
     ports:

@@ -22,11 +22,11 @@ A **personal budgeting app with household budgets and group splitting** (India f
 
 ```
 Browser ──cookie──▶ gateway :8000 ──token──▶ core-service :8060 ──▶ PostgreSQL "core"
-   │                 │ login (PKCE), sessions in Redis, CSRF              (users, spaces; budgets next)
-   │                 ▼
+   │                 │ login (PKCE), sessions in Redis, CSRF              (users, spaces, accounts, categories,
+   │                 ▼                                                     transactions, outbox)
    └──── login ──▶ Keycloak :8180 (sign-up, email verification ▶ Mailpit :8025)
 
-core-service (Phase 3, next) ──▶ ledger-service :8080 (internal, no browser route)
+core-service ──outbox──▶ Kafka ledger.commands.v1 (key = space) ──▶ ledger-service :8080 (internal, no browser route)
 ```
 
 The browser never holds a token: the gateway keeps them in a Redis session and relays the user's access token to
@@ -46,8 +46,9 @@ Client ──HTTP──▶         │ LedgerController ─▶ LedgerService (bo
                                   consumers: core-service (Phase 3), notifications (Phase 6)
 ```
 
-Coming next in Phase 3: core-service's money features (accounts, transactions, budgets) posting to the ledger, and the
-React app. notification-service is **parked**: it still reads the wallet-era `ledger.entries.v1` events, which nothing
+In progress (Phase 4): core-service records accounts and transactions and queues the matching ledger commands in its
+own outbox ([docs/events/ledger-commands.md](docs/events/ledger-commands.md)); the ledger consumer and balances come next.
+notification-service is **parked**: it still reads the wallet-era `ledger.entries.v1` events, which nothing
 publishes any more, and is repurposed for emails and the activity feed in Phase 6.
 
 Each service has its own database, Dockerfile, CI job and configuration (environment variables with local defaults),
@@ -58,7 +59,7 @@ and can be deployed, scaled or stopped on its own. They share only the documente
 |---|---|---|---|
 | [web](web) | 5173 | the React app: dashboards, theme builder, settings | gateway |
 | [gateway](services/gateway) | 8000 / 8001 | login, sessions, CSRF, routing | Keycloak, Redis |
-| [core-service](services/core-service) | 8060 / 8061 | users, spaces (and soon accounts, transactions, budgets) | Postgres, Keycloak (keys) |
+| [core-service](services/core-service) | 8060 / 8061 | users, spaces, money accounts, categories, transactions, topic `ledger.commands.v1` | Postgres, Keycloak (keys); Kafka optional (`OUTBOX_RELAY_ENABLED=false`) |
 | [ledger-service](services/ledger-service) | 8080 / 8081 | books, accounts, journal, outbox, topic `ledger.entries.v2` | Postgres; Kafka optional (`OUTBOX_RELAY_ENABLED=false`) |
 | [notification-service](services/notification-service) (parked) | 8090 / 8091 | per-user notification feed, its dead-letter topic | Postgres, Kafka |
 
@@ -145,6 +146,16 @@ Stop with `docker compose --profile app --profile tools down` (add `-v` to delet
 
 ## API
 
+The app's API is core-service's, under `/api/core` (through the gateway, with the session cookie and CSRF header;
+OpenAPI at http://localhost:8060/swagger-ui.html):
+
+| | |
+|---|---|
+| `GET/PATCH /me` | profile, settings, UI preferences, your spaces |
+| `GET/POST /spaces/{id}/accounts`, `GET/PATCH …/accounts/{accountId}` | bank, cash, card, wallet; opening balance; archive |
+| `GET /spaces/{id}/categories` | the default set every space starts with |
+| `GET/POST /spaces/{id}/transactions`, `GET/PUT/DELETE …/transactions/{txnId}` | expense, income, transfer; keyset pages; optional client `id` makes a create safe to retry; edits and deletes send the `version` they saw (409 if stale) |
+
 The ledger API (`/api/v2`) is internal: core-service calls it, browsers won't. Amounts are signed minor units
 (paise), **positive = debit**. Books and accounts are created by the first entry that uses them.
 
@@ -195,6 +206,12 @@ and without browser cookies, and logout requires the CSRF token and ends the Key
 
 `ProfileIntegrationTest` (core-service) proves a first request creates the user with Indian defaults and one personal
 space (also under 10 concurrent first requests), settings and UI preferences are validated, and unverified emails are refused.
+
+`MoneyIntegrationTest` (core-service) proves new spaces get the default categories; opening balances, expenses, income
+and transfers queue balanced ledger commands with the right signs (a card is a liability); a money edit reverses the
+live version and posts the next while a note edit leaves the ledger alone; 8 concurrent retries of one create add it
+once; 8 concurrent edits of one version let exactly one win; pages have no gaps or duplicates; other people's spaces
+answer 404; and the commands reach Kafka keyed by space.
 
 `NotificationIntegrationTest` proves a redelivered event creates no duplicate notification, system accounts are skipped,
 unknown fields are ignored, and poison messages go to the dead-letter topic without blocking the events behind them.
