@@ -14,16 +14,26 @@ USERNAME=${LOGIN_USERNAME:-demo@payledger.local}
 PASSWORD=${LOGIN_PASSWORD:-demo-password}
 
 jar=$(mktemp)
-trap 'rm -f "$jar"' EXIT
+page=$(mktemp)
+trap 'rm -f "$jar" "$page"' EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
 xsrf() { awk '$6 == "XSRF-TOKEN" { print $7 }' "$jar" | tail -1; }
+NEW_PASSWORD=correct-horse-9
 # Follow redirects like a browser until we are back at the web app; prints the final URL.
+# Keycloak 26.7+ asks for the password after the email is verified (its registration form has no
+# password fields any more); when the chain stops at that form, fill it in and carry on.
 follow() {
-  local url=$1
+  local url=$1 next action
   for _ in $(seq 1 10); do
     case "$url" in http://localhost:5173*) echo "$url"; return ;; esac
-    url=$(curl -fsS -o /dev/null -w '%{redirect_url}' -c "$jar" -b "$jar" "$url")
-    [ -n "$url" ] || fail "redirect chain ended before reaching the web app"
+    next=$(curl -fsS -o "$page" -w '%{redirect_url}' -c "$jar" -b "$jar" "$url")
+    if [ -z "$next" ]; then
+      action=$(grep -o 'id="kc-passwd-update-form"[^>]*action="[^"]*"' "$page" | sed 's/.*action="\([^"]*\)".*/\1/; s/&amp;/\&/g')
+      [ -n "$action" ] || fail "redirect chain ended before reaching the web app"
+      echo "Keycloak asked for the password after email verification; set it" >&2
+      next=$(curl -fsS -o /dev/null -w '%{redirect_url}' -c "$jar" -b "$jar"         --data-urlencode "password-new=$NEW_PASSWORD" --data-urlencode "password-confirm=$NEW_PASSWORD" "$action")
+    fi
+    url=$next
   done
   fail "too many redirects"
 }
@@ -97,7 +107,7 @@ action=$(grep -o 'id="kc-register-form"[^>]*action="[^"]*"' <<<"$form" | sed 's/
 [ -n "$action" ] || fail "the signup link did not open Keycloak's registration form"
 verify_page=$(curl -fsS -o /dev/null -w '%{redirect_url}' -c "$jar" -b "$jar" --data-urlencode "email=$email" \
   --data-urlencode "firstName=Neha" --data-urlencode "lastName=Rao" \
-  --data-urlencode "password=correct-horse-9" --data-urlencode "password-confirm=correct-horse-9" "$action")
+  --data-urlencode "password=$NEW_PASSWORD" --data-urlencode "password-confirm=$NEW_PASSWORD" "$action")
 grep -q 'VERIFY_EMAIL' <<<"$verify_page" || fail "registration did not ask for email verification: $verify_page"
 curl -fsS -o /dev/null -c "$jar" -b "$jar" "$verify_page" # renders "check your inbox" and sends the email
 
@@ -120,4 +130,13 @@ follow "$link" >/dev/null
 me=$(curl -fsS -c "$jar" -b "$jar" "$GATEWAY/api/core/me")
 grep -q "\"email\":\"$email\"" <<<"$me" && grep -q '"displayName":"Neha Rao"' <<<"$me" || fail "new user's profile: $me"
 echo "clicking the link verified the email and signed the new user in: $me"
+
+# The new user can sign in with the password they chose (wherever Keycloak asked for it).
+rm -f "$jar"
+authorize=$(curl -fsS -o /dev/null -w '%{redirect_url}' -c "$jar" -b "$jar" "$GATEWAY/oauth2/authorization/keycloak")
+form=$(curl -fsS -c "$jar" -b "$jar" "$authorize")
+action=$(grep -o 'id="kc-form-login"[^>]*action="[^"]*"' <<<"$form" | sed 's/.*action="\([^"]*\)".*/\1/; s/&amp;/\&/g')
+callback=$(curl -fsS -o /dev/null -w '%{redirect_url}' -c "$jar" -b "$jar"   --data-urlencode "username=$email" --data-urlencode "password=$NEW_PASSWORD" "$action")
+grep -q '/login/oauth2/code/keycloak?' <<<"$callback" || fail "the new user could not sign in with their password: $callback"
+echo "the new user signs in with the password they chose"
 echo "PASS: sign-in, sign-up with email verification, token relay, CSRF and logout work end to end"
