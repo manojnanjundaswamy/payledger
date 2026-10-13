@@ -16,6 +16,7 @@ import { formatMoney, formatMoneyShort, formatMoneyWhole } from '@/lib/money'
 import { isTyping } from '@/layout/AppShell'
 import { DASHBOARD_TEMPLATES, type Dashboard, type TemplateKey, type Widget, type WidgetType } from '@/state/preferences'
 import { usePreferences, useUndoable } from '@/state/PreferencesProvider'
+import { useAccounts } from '@/state/money'
 import { useProfile } from '@/state/profile'
 import { WidgetEnvContext, type WidgetEnv } from './context'
 import { dashboardEvents } from './events'
@@ -25,6 +26,8 @@ import { WIDGETS } from './widgets'
 export function DashboardPage() {
   const { prefs, dispatch } = usePreferences()
   const { data: profile } = useProfile()
+  // Once the user has an account, their own numbers replace the sample data (as the banner promises).
+  const real = (useAccounts().data?.length ?? 0) > 0
   const [editing, setEditing] = useState(false)
   const [library, setLibrary] = useState(false)
   const [newDashboard, setNewDashboard] = useState(false)
@@ -58,14 +61,15 @@ export function DashboardPage() {
     if (!profile) return null
     const { currency, locale } = profile.settings
     return {
-      sample: prefs.sampleData,
+      sample: prefs.sampleData && !real,
+      real,
       profile,
       prefs,
       money: (minor, opts = {}) =>
         opts.compact ? formatMoneyShort(minor, currency, locale)
           : opts.whole ? formatMoneyWhole(minor, currency, locale) : formatMoney(minor, currency, locale, opts),
     }
-  }, [profile, prefs])
+  }, [profile, prefs, real])
   if (!env || !profile) return null
 
   return (
@@ -100,7 +104,7 @@ export function DashboardPage() {
           )}
         </AnimatePresence>
 
-        {prefs.sampleData && !editing && (
+        {prefs.sampleData && !real && !editing && (
           <div className="flex items-center gap-3 rounded-card bg-accent-soft px-4 py-3 text-sm">
             <Eye className="size-4 shrink-0" />
             <span className="flex-1">
@@ -210,6 +214,7 @@ function SortableWidget({ widget, dashboardId, editing }: { widget: Widget; dash
 
 function DashboardTabs({ dashboard, onNew }: { dashboard: Dashboard; onNew: () => void }) {
   const { prefs, dispatch } = usePreferences()
+  const real = (useAccounts().data?.length ?? 0) > 0
   const undoable = useUndoable()
   const [renaming, setRenaming] = useState<string | null>(null)
   return (
@@ -256,7 +261,7 @@ function DashboardTabs({ dashboard, onNew }: { dashboard: Dashboard; onNew: () =
         <MenuContent>
           <MenuItem icon={<PencilLine />} onSelect={() => setRenaming(dashboard.id)}>Rename “{dashboard.name}”</MenuItem>
           <MenuItem icon={<RotateCcw />} onSelect={() => undoable({ type: 'resetDashboard', id: dashboard.id }, `Reset “${dashboard.name}” to the default layout`)}>Reset layout</MenuItem>
-          <MenuItem icon={<Eye />} onSelect={() => dispatch({ type: 'sampleData', value: !prefs.sampleData })}>{prefs.sampleData ? 'Hide' : 'Show'} sample data</MenuItem>
+          {!real && <MenuItem icon={<Eye />} onSelect={() => dispatch({ type: 'sampleData', value: !prefs.sampleData })}>{prefs.sampleData ? 'Hide' : 'Show'} sample data</MenuItem>}
           {prefs.dashboards.length > 1 && (
             <>
               <MenuSeparator />

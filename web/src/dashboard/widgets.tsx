@@ -13,6 +13,7 @@ import { usePreferences } from '@/state/PreferencesProvider'
 import { BarList, budgetStatus, GroupedBars, Progress } from './charts'
 import { useWidgetEnv } from './context'
 import { budgetPeriod, safeToSpend, sample } from './sample'
+import { isoDate, useAccounts, useCategories, useCategoryTotals, useTransactions, type Category } from '@/state/money'
 
 export interface WidgetProps { widget: Widget; dashboardId: string; editing: boolean }
 
@@ -79,8 +80,14 @@ function Budgets({ widget }: WidgetProps) {
   )
 }
 
+/** "series-3" -> 3: categories carry the chart slot of their colour, so a colour always means the same category. */
+function slotOf(category: Category | undefined): number {
+  return Number(category?.color.replace('series-', '')) || 8
+}
+
 function SpendingByCategory({ widget }: WidgetProps) {
-  const { sample: on, money } = useWidgetEnv()
+  const { sample: on, real, money, profile } = useWidgetEnv()
+  if (real) return <RealSpendingByCategory widget={widget} budgetStartDay={profile.settings.budgetStartDay} />
   if (!on) return <Empty>Where your money went this month, by category.</Empty>
   const items = sample.categories.map((c) => ({ key: c.key, label: c.name, value: c.spent, slot: c.slot }))
   const total = items.reduce((s, i) => s + i.value, 0)
@@ -92,8 +99,110 @@ function SpendingByCategory({ widget }: WidgetProps) {
   )
 }
 
+/** This budget month (it may start on payday), from the ledger. */
+function RealSpendingByCategory({ widget, budgetStartDay }: { widget: Widget; budgetStartDay: number }) {
+  const { money } = useWidgetEnv()
+  const period = budgetPeriod(budgetStartDay)
+  const { data: totals, isPending, isError } = useCategoryTotals('EXPENSE', isoDate(period.start), isoDate(period.end))
+  const { data: categories = [] } = useCategories()
+  if (isError) return <Unavailable what="Spending" />
+  if (isPending) return <div className="h-28 animate-pulse rounded-control bg-surface-2" />
+  const items = (totals ?? [])
+    .map((t) => {
+      const c = categories.find((x) => x.id === t.categoryId)
+      return { key: t.categoryId, label: c?.name ?? 'Category', value: t.amount, slot: slotOf(c) }
+    })
+    .sort((a, b) => b.value - a.value)
+  if (items.length === 0) return <NothingYet>No spending yet this month.</NothingYet>
+  const total = items.reduce((sum, i) => sum + i.value, 0)
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-baseline gap-2"><span className="text-2xl font-semibold tracking-tight">{money(total, { whole: true })}</span><span className="text-sm text-muted">spent this month</span></div>
+      <BarList items={widget.size === 's' ? items.slice(0, 4) : items} format={(v) => money(v, { whole: true })} />
+    </div>
+  )
+}
+
+/** Last six calendar months, this one included. */
+function RealCashFlow() {
+  const { money, profile } = useWidgetEnv()
+  const now = new Date()
+  const from = isoDate(new Date(now.getFullYear(), now.getMonth() - 5, 1))
+  const to = isoDate(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+  const income = useCategoryTotals('INCOME', from, to, true)
+  const spending = useCategoryTotals('EXPENSE', from, to, true)
+  if (income.isError || spending.isError) return <Unavailable what="Cash flow" />
+  if (income.isPending || spending.isPending) return <div className="h-40 animate-pulse rounded-control bg-surface-2" />
+  const sum = (rows: { month: string | null; amount: number }[], month: string) =>
+    rows.filter((r) => r.month === month).reduce((total, r) => total + r.amount, 0)
+  const months = Array.from({ length: 6 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - 5 + i, 1))
+  return (
+    <GroupedBars
+      data={months.map((m) => ({
+        label: m.toLocaleDateString(profile.settings.locale, { month: 'short' }),
+        values: [sum(income.data, isoDate(m)), sum(spending.data, isoDate(m))],
+      }))}
+      series={[{ name: 'Income', slot: 1 }, { name: 'Spending', slot: 2 }]}
+      format={(v) => money(v, { whole: true })}
+      formatAxis={(v) => money(v, { compact: true })}
+    />
+  )
+}
+
+function RealRecentTransactions({ widget }: { widget: Widget }) {
+  const { money } = useWidgetEnv()
+  const { data, isPending } = useTransactions({})
+  const { data: categories = [] } = useCategories()
+  const { data: accounts = [] } = useAccounts()
+  if (isPending) return <div className="h-28 animate-pulse rounded-control bg-surface-2" />
+  const rows = (data?.pages[0]?.items ?? []).slice(0, widget.size === 's' ? 4 : 6)
+  if (rows.length === 0) return <NothingYet>Nothing recorded yet.</NothingYet>
+  const accountName = (id: string | null) => accounts.find((a) => a.id === id)?.name ?? ''
+  return (
+    <div className="flex flex-col gap-1">
+      <ul className="-mx-2 flex flex-col">
+        {rows.map((t) => {
+          const income = t.kind === 'INCOME'
+          const via = t.kind === 'TRANSFER'
+            ? `${accountName(t.accountId)} → ${accountName(t.toAccountId)}`
+            : `${categories.find((c) => c.id === t.categoryId)?.name ?? ''} · ${accountName(t.accountId)}`
+          return (
+            <li key={t.id} className="flex items-center gap-3 rounded-control px-2 py-2 hover:bg-surface-2">
+              <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-full', income ? 'bg-good/10 text-good-text' : 'bg-surface-2 text-muted')}>
+                {income ? <ArrowDownLeft className="size-4" /> : t.kind === 'TRANSFER' ? <ArrowLeftRight className="size-4" /> : <ArrowUpRight className="size-4" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">{t.description}</span>
+                <span className="block truncate text-xs text-subtle">{via}</span>
+              </span>
+              <span className={cn('tabular shrink-0 text-sm font-medium', income && 'text-good-text')}>
+                {money(t.kind === 'EXPENSE' ? -t.amount : t.amount, { sign: income })}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+      <Link to="/transactions" className="self-start text-xs text-muted underline underline-offset-4 hover:text-fg">See all</Link>
+    </div>
+  )
+}
+
+function Unavailable({ what }: { what: string }) {
+  return <div className="flex min-h-28 items-center text-sm text-muted">{what} is unavailable right now; it will be back shortly.</div>
+}
+
+function NothingYet({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-28 flex-col items-start justify-center gap-1.5 text-sm text-muted">
+      {children}
+      <Link to="/transactions" search={{ add: 'EXPENSE' }} className="text-fg underline underline-offset-4">Add an expense</Link>
+    </div>
+  )
+}
+
 function CashFlow() {
-  const { sample: on, money } = useWidgetEnv()
+  const { sample: on, real, money } = useWidgetEnv()
+  if (real) return <RealCashFlow />
   if (!on) return <Empty>Income against spending over the last six months.</Empty>
   return (
     <GroupedBars
@@ -106,7 +215,8 @@ function CashFlow() {
 }
 
 function RecentTransactions({ widget }: WidgetProps) {
-  const { sample: on, money } = useWidgetEnv()
+  const { sample: on, real, money } = useWidgetEnv()
+  if (real) return <RealRecentTransactions widget={widget} />
   if (!on) return <Empty>Your latest expenses and income, from every account.</Empty>
   const rows = widget.size === 's' ? sample.transactions.slice(0, 4) : sample.transactions
   return (
@@ -226,14 +336,13 @@ function Household() {
 }
 
 function GettingStarted() {
-  const { prefs } = useWidgetEnv()
-  const { profile } = useWidgetEnv()
+  const { prefs, profile, real } = useWidgetEnv()
   const steps: { done: boolean; label: string; tab: SettingsTab | null }[] = [
     { done: true, label: 'Create your account', tab: null },
     { done: prefs.theme.accent !== null || prefs.theme.mode !== 'system', label: 'Make it yours: pick a theme', tab: 'appearance' },
     { done: profile.settings.budgetStartDay !== 1, label: 'Set the day your month starts (payday)', tab: 'regional' },
     { done: prefs.dashboards.length > 1 || prefs.dashboards.some((d) => d.widgets.some((w) => w.title || w.type === 'note')), label: 'Customize a dashboard', tab: null },
-    { done: false, label: 'Add your first account (Phase 4)', tab: null },
+    { done: real, label: 'Add your first account', tab: null },
   ]
   const done = steps.filter((s) => s.done).length
   return (
