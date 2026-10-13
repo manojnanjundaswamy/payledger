@@ -160,7 +160,25 @@ public class GroupService {
         if (!me.role().equals("OWNER") && !me.id().equals(memberId)) {
             throw new InvalidRequestException("owner-only", "only the group's owner can remove someone else");
         }
+        if (owes(memberId) != 0) {
+            throw new MemberHasBalanceException();
+        }
         jdbc.sql("update group_members set left_at = now() where id = :id").param("id", memberId).update();
+    }
+
+    /**
+     * What a member owes (positive) or is owed, from what was entered: exact at once (the ledger's balance
+     * follows a moment later), so nobody leaves a group with money still owed either way.
+     */
+    long owes(UUID memberId) {
+        return jdbc.sql("""
+                        select coalesce((select sum(p.share - p.paid) from group_expense_parts p
+                                         join group_expenses e on e.id = p.expense_id
+                                         where p.member_id = :id and e.deleted_at is null), 0)
+                             - coalesce((select sum(amount) from group_settlements where from_member = :id and deleted_at is null), 0)
+                             + coalesce((select sum(amount) from group_settlements where to_member = :id and deleted_at is null), 0)
+                        """)
+                .param("id", memberId).query(Long.class).single();
     }
 
     /** The group's join link token; made on first ask. */
@@ -289,6 +307,12 @@ public class GroupService {
     static class MemberExistsException extends ApiException {
         MemberExistsException() {
             super(HttpStatus.CONFLICT, "member-exists", "someone with that email is already in the group");
+        }
+    }
+
+    static class MemberHasBalanceException extends ApiException {
+        MemberHasBalanceException() {
+            super(HttpStatus.CONFLICT, "member-has-balance", "settle up first: they still owe or are owed money in this group");
         }
     }
 

@@ -48,3 +48,38 @@ test('a group gets people by name, email and an invite link that works after sig
   await page.getByRole('button', { name: 'Archive group' }).click()
   await expect(page.getByText('archived', { exact: false }).first()).toBeVisible()
 })
+
+test('a shared expense shows who lent what, and settling up evens it out', async ({ page }) => {
+  await signIn(page)
+  const run = Date.now()
+  await page.goto('/groups')
+  await page.getByRole('button', { name: 'New group' }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'New group' })
+  await dialog.getByLabel('Name').fill(`E2E split ${run}`)
+  await dialog.getByRole('button', { name: 'Create group' }).click()
+  const addSomeone = page.getByRole('region', { name: 'Add someone' })
+  await addSomeone.getByLabel('Name').fill('Amit')
+  await addSomeone.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByTestId('member-Amit')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Add expense' }).click()
+  const add = page.getByRole('dialog', { name: 'Add a shared expense' })
+  await add.getByLabel('What for').fill('Dinner')
+  await add.getByLabel('Amount').fill('900')
+  // Equal split between you and Amit, previewed before saving.
+  await expect(add.getByTestId('share-Amit')).toHaveText('₹450.00')
+  await add.getByRole('button', { name: 'Add expense' }).click()
+  await expect(add).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Edit Dinner' })).toContainText('you lent ₹450.00')
+
+  // Balances come from the ledger a moment later.
+  await expect(page.getByTestId('my-balance')).toHaveText("You're owed ₹450.00", { timeout: 15_000 })
+  const payment = page.getByTestId('payment-Amit-You')
+  await expect(payment).toContainText('₹450.00')
+  await payment.getByRole('button', { name: 'Record payment' }).click()
+  await page.getByRole('dialog', { name: 'Record a payment' }).getByRole('button', { name: 'Record payment' }).click()
+  await expect(page.getByTestId('my-balance')).toHaveText('All settled', { timeout: 15_000 })
+  await expect(page.getByText('Amit paid You')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Archive group' }).click()
+})

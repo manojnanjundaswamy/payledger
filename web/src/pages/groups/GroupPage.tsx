@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/controls'
 import { ApiError } from '@/lib/api'
 import { Field } from '@/pages/money/parts'
 import { joinUrl, useAddMember, useGroup, useGroupLink, useRemoveMember, useResetLink, useUpdateGroup } from '@/state/groups'
+import { GroupMoney } from './GroupMoney'
 
 /** One group: who's in it, adding people, and the link that lets friends join. */
 export function GroupPage() {
@@ -23,9 +24,19 @@ export function GroupPage() {
   const me = group.members.find((m) => m.you)
   const owner = me?.role === 'OWNER'
 
+  async function removeMember(memberId: string, who: string): Promise<boolean> {
+    try {
+      await remove.mutateAsync(memberId)
+      return true
+    } catch (err) {
+      toast.error(err instanceof ApiError && err.code === 'member-has-balance'
+        ? `${who} still owe${who === 'You' ? '' : 's'} or ${who === 'You' ? 'are' : 'is'} owed money here: settle up first.` : 'Could not do that. Try again.')
+      return false
+    }
+  }
+
   async function leave() {
-    if (!me) return
-    await remove.mutateAsync(me.id)
+    if (!me || !(await removeMember(me.id, 'You'))) return
     toast(`You left ${group!.name}`)
     void navigate({ to: '/groups' })
   }
@@ -41,7 +52,7 @@ export function GroupPage() {
         </div>
       </div>
 
-      <Card className="p-pad text-sm text-muted">Shared expenses, balances and settling up arrive next. For now, bring everyone in.</Card>
+      <GroupMoney group={group} />
 
       <section aria-label="People" className="flex flex-col gap-2">
         <h3 className="text-sm font-medium text-muted">People</h3>
@@ -57,7 +68,7 @@ export function GroupPage() {
               </span>
               {!m.joined && <Badge>Invited</Badge>}
               {owner && !m.you && m.role !== 'OWNER' && (
-                <Button size="sm" variant="ghost" aria-label={`Remove ${m.name}`} onClick={() => remove.mutate(m.id)}><UserMinus /></Button>
+                <Button size="sm" variant="ghost" aria-label={`Remove ${m.name}`} onClick={() => void removeMember(m.id, m.name)}><UserMinus /></Button>
               )}
             </div>
           ))}
