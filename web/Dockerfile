@@ -20,5 +20,9 @@ COPY security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 # Where the gateway is, from inside the container.
 ENV GATEWAY_URL=http://gateway:8000
+# The DNS server nginx asks for the gateway's address (Docker's built-in one; in Kubernetes, the cluster DNS).
+ENV NGINX_RESOLVER=127.0.0.11
+# Only these are substituted into the template, so nginx's own $variables stay as they are.
+ENV NGINX_ENVSUBST_FILTER="^(GATEWAY_URL|NGINX_RESOLVER)$"
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --retries=5 CMD wget -qO- http://127.0.0.1:8080/healthz || exit 1
