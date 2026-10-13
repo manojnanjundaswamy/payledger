@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
 import { signIn } from './helpers'
 
@@ -42,6 +43,13 @@ test('reports show spending by category for the financial year and open its tran
     await expect(row).toBeVisible({ timeout: 1_000 })
   }).toPass({ timeout: 15_000 })
   await expect(page.getByRole('region', { name: 'Month by month' })).toBeVisible()
+
+  // The period's transactions download in the template's columns.
+  const download = page.waitForEvent('download')
+  await page.getByRole('link', { name: 'CSV' }).click()
+  const file = await download
+  expect(file.suggestedFilename()).toMatch(/^payledger-transactions-\d{4}-04-01-to-\d{4}-03-31\.csv$/)
+  expect(readFileSync(await file.path(), 'utf-8')).toContain(`,expense,${bank},${category},,Report check,`)
 
   // A category opens its transactions for the same dates.
   await row.click()

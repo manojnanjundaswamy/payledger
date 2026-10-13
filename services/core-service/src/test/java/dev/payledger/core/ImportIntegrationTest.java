@@ -270,6 +270,43 @@ class ImportIntegrationTest {
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("unreadable-file"));
     }
 
+    @Test
+    void anExportIsTheTemplateAndImportingItBackAddsNothing() throws Exception {
+        String categories = mvc.perform(get(path("/categories")).with(me)).andReturn().getResponse().getContentAsString();
+        String groceries = JsonPath.<List<String>>read(categories, "$[?(@.name == 'Groceries')].id").getFirst();
+        String snacks = JsonPath.read(mvc.perform(post(path("/categories")).with(me).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"kind\":\"EXPENSE\",\"name\":\"Snacks\",\"icon\":\"cookie\",\"color\":\"series-2\",\"parentId\":\"" + groceries + "\"}"))
+                .andReturn().getResponse().getContentAsString(), "$.id");
+        mvc.perform(post(path("/transactions")).with(me).contentType(MediaType.APPLICATION_JSON).content("""
+                {"kind":"EXPENSE","amount":48650,"accountId":"%s","categoryId":"%s","occurredOn":"2026-10-05",
+                 "description":"Chips, and more","note":"Party","tags":["weekend","upi"]}
+                """.formatted(hdfc, snacks))).andExpect(status().isCreated());
+        commit(HEADER + "06-10-2026,2000,transfer,HDFC savings,,,ATM,,,Cash,,,,UTR-77\n", Map.of(), Map.of()).andExpect(status().isCreated());
+
+        String csv = mvc.perform(get(path("/exports/transactions.csv")).with(me).param("from", "2026-10-01").param("to", "2026-10-31"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("payledger-transactions-2026-10-01-to-2026-10-31.csv")))
+                .andReturn().getResponse().getContentAsString();
+        String[] lines = csv.split("\r\n");
+        assertThat(lines[0]).isEqualTo(HEADER.strip());
+        assertThat(lines[1]).startsWith("05-10-2026,486.50,expense,HDFC savings,Groceries,Snacks,\"Chips, and more\",,,,weekend;upi,Party,INR,");
+        // An imported row keeps its own reference.
+        assertThat(lines[2]).isEqualTo("06-10-2026,2000.00,transfer,HDFC savings,,,ATM,,,Cash,,,INR,UTR-77");
+
+        preview(csv, Map.of(), Map.of()).andExpect(jsonPath("$.ready").value(0)).andExpect(jsonPath("$.duplicates").value(2));
+
+        byte[] xlsx = mvc.perform(get(path("/exports/transactions.xlsx")).with(me)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        try (var book = new XSSFWorkbook(new ByteArrayInputStream(xlsx))) {
+            var row = book.getSheet("Transactions").getRow(1);
+            assertThat(row.getCell(0).getLocalDateTimeCellValue().toLocalDate()).isEqualTo(LocalDate.of(2026, 10, 5));
+            assertThat(row.getCell(1).getNumericCellValue()).isEqualTo(486.5);
+            assertThat(row.getCell(5).getStringCellValue()).isEqualTo("Snacks");
+        }
+        mvc.perform(get(path("/exports/transactions.csv")).with(me).param("from", "2026-10-31").param("to", "2026-10-01"))
+                .andExpect(status().isUnprocessableContent());
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private String path(String rest) {

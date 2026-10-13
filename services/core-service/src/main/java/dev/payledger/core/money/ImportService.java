@@ -284,8 +284,12 @@ public class ImportService {
     /** What is already in the space over the file's dates, to find duplicates without a query per row. */
     private Existing existing(UUID spaceId, List<ImportParser.Line> lines) {
         List<LocalDate> dates = lines.stream().map(l -> ImportParser.date(l.get("date"))).flatMap(Optional::stream).sorted().toList();
+        // A transaction's own id counts as its reference too: an exported file carries it, so importing
+        // an export back adds nothing.
         Set<String> refs = new HashSet<>(jdbc.sql("""
                         select external_id from transactions where space_id = :spaceId and external_id is not null and deleted_at is null
+                        union all
+                        select id::text from transactions where space_id = :spaceId and deleted_at is null
                         """)
                 .param("spaceId", spaceId).query(String.class).list());
         Set<String> keys = new HashSet<>();
