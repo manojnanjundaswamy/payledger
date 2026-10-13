@@ -19,6 +19,8 @@ test('an account and an expense end up in the ledger, and edits and deletes chan
   await accountDialog.getByRole('button', { name: 'Add account' }).click()
   // The ledger applies the opening balance asynchronously; the page refetches until it shows.
   await expect(balance).toHaveText('₹50,000.00', { timeout: 15_000 })
+  // Net worth month by month, from the ledger.
+  await expect(page.getByRole('figure', { name: 'Net worth over the last 12 months' })).toContainText('in 12 months')
 
   // The sidebar's Add menu opens the dialog straight away; amount first.
   await page.getByRole('button', { name: 'Add', exact: true }).first().click()

@@ -75,6 +75,13 @@ class MoneyController {
         return accounts.update(user, spaceId, accountId, request);
     }
 
+    @GetMapping("/net-worth")
+    @Operation(summary = "Net worth at the end of each of the last months (this month: today), in the space's currency; 503 if the ledger is unreachable")
+    List<BalanceService.NetWorthPoint> netWorth(CurrentUser user, @PathVariable UUID spaceId,
+                                                @RequestParam(defaultValue = "12") @Min(2) @Max(60) int months) {
+        return balances.netWorth(user, spaceId, months, accounts.today(user));
+    }
+
     // ---------------------------------------------------------------- categories
 
     @GetMapping("/categories")
