@@ -47,6 +47,8 @@ class SetupIntegrationTest {
 
     @BeforeEach
     void newUser() throws Exception {
+        // The fake ledger is shared: another test class may have left it "down".
+        FakeLedger.DOWN.set(false);
         String subject = UUID.randomUUID().toString();
         me = jwt().jwt(j -> j.subject(subject).claim("email", subject + "@example.com").claim("email_verified", true));
         space = JsonPath.read(mvc.perform(get("/api/core/me").with(me)).andReturn().getResponse().getContentAsString(), "$.spaces[0].id");
