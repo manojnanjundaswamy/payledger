@@ -501,12 +501,12 @@ function Household() {
 
 function GettingStarted() {
   const { prefs, profile, real } = useWidgetEnv()
-  const steps: { done: boolean; label: string; tab: SettingsTab | null; to?: '/accounts' }[] = [
+  const steps: { done: boolean; label: string; tab: SettingsTab | null; to?: '/welcome' }[] = [
     { done: true, label: 'Create your account', tab: null },
     { done: prefs.theme.accent !== null || prefs.theme.mode !== 'system', label: 'Make it yours: pick a theme', tab: 'appearance' },
     { done: profile.settings.budgetStartDay !== 1, label: 'Set the day your month starts (payday)', tab: 'regional' },
     { done: prefs.dashboards.length > 1 || prefs.dashboards.some((d) => d.widgets.some((w) => w.title || w.type === 'note')), label: 'Customize a dashboard', tab: 'dashboards' },
-    { done: real, label: 'Add your first account', tab: null, to: '/accounts' },
+    { done: real, label: 'Set up your accounts and bills (2 minutes)', tab: null, to: '/welcome' },
   ]
   const done = steps.filter((s) => s.done).length
   return (

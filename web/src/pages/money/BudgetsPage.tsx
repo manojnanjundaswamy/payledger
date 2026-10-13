@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { ChevronLeft, ChevronRight, PieChart, Plus, TrendingUp } from 'lucide-react'
+import { ChevronLeft, ChevronRight, PieChart, Plus, Sparkles, TrendingUp } from 'lucide-react'
+import { toast } from 'sonner'
+import { ApiError } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Skeleton } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
 import { formatMoneyWhole } from '@/lib/money'
 import { BUDGET_STATUS, Progress } from '@/dashboard/charts'
-import { shiftMonth, useBudgets, useCategories, type Budget, type BudgetMonth } from '@/state/money'
+import { shiftMonth, useBudgetSuggestions, useBudgets, useCategories, useSetBudget, type Budget, type BudgetMonth } from '@/state/money'
 import { useProfile } from '@/state/profile'
 import { BudgetDialog, monthLabel } from './BudgetDialog'
 import { CategoryIcon, EditButton } from './parts'
@@ -42,6 +44,8 @@ export function BudgetsPage() {
         </div>
         <Button variant="primary" onClick={() => setEditing('new')}><Plus />Set budget</Button>
       </div>
+
+      {!wanted && <Suggestions month={month.month} money={money} />}
 
       {month.budgets.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 px-pad py-12 text-center">
@@ -106,6 +110,47 @@ function Summary({ month, current, money }: { month: BudgetMonth; current: boole
           )}
         </div>
       )}
+    </Card>
+  )
+}
+
+/** "From your last 3 months": a realistic first limit per category, set with one click. */
+function Suggestions({ month, money }: { month: string; money: (m: number) => string }) {
+  const { data: suggestions = [] } = useBudgetSuggestions()
+  const { data: categories = [] } = useCategories()
+  const set = useSetBudget()
+  if (suggestions.length === 0) return null
+  async function apply(categoryId: string, amount: number, name: string) {
+    try {
+      await set.mutateAsync({ categoryId, amount, rollover: false, from: month })
+      toast.success(`${name}: ${money(amount)} a month`)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not set it. Try again.')
+    }
+  }
+  return (
+    <Card className="flex flex-col gap-3 p-pad" aria-label="Suggested budgets">
+      <div className="flex items-center gap-2">
+        <Sparkles className="size-4 text-accent" />
+        <h3 className="font-medium">Suggested from your last 3 months</h3>
+      </div>
+      <ul className="flex flex-col divide-y divide-border">
+        {suggestions.slice(0, 6).map((s) => {
+          const category = categories.find((c) => c.id === s.categoryId)
+          const name = category?.name ?? 'Category'
+          return (
+            <li key={s.categoryId} className="flex items-center gap-3 py-2 text-sm">
+              <CategoryIcon category={category} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{name}</span>
+                <span className="block text-xs text-subtle">about {money(s.average)} a month</span>
+              </span>
+              <Button size="sm" variant="outline" disabled={set.isPending} onClick={() => void apply(s.categoryId, s.suggested, name)}
+                aria-label={`Budget ${money(s.suggested)} for ${name}`}>Budget {money(s.suggested)}</Button>
+            </li>
+          )
+        })}
+      </ul>
     </Card>
   )
 }

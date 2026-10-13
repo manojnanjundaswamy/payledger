@@ -209,6 +209,9 @@ services:
       KEYCLOAK_PUBLIC_URL: http://localhost:${KEYCLOAK_PORT:-8180}
       KEYCLOAK_INTERNAL_URL: http://keycloak:8080
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      # Locally every browser test signs in as the demo user, so one "user" makes all the calls; production keeps 600/120.
+      PAYLEDGER_RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-3000}
+      PAYLEDGER_RATE_LIMIT_WRITES_PER_MINUTE: ${RATE_LIMIT_WRITES_PER_MINUTE:-600}
     ports:
       - "${GATEWAY_PORT:-8000}:8000"
       - "${GATEWAY_MANAGEMENT_PORT:-8001}:8001"

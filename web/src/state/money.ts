@@ -294,6 +294,18 @@ export function useSetBudget() {
     api<BudgetMonth>(`${base(spaceId)}/budgets/${categoryId}`, { method: 'PUT', json: { amount, rollover, from } }))
 }
 
+export interface BudgetSuggestion { categoryId: string; average: number; suggested: number }
+
+/** Unbudgeted categories' average spending over the last 3 budget months, rounded up to ₹500. */
+export function useBudgetSuggestions() {
+  const spaceId = useSpaceId()
+  return useQuery({
+    queryKey: ['money', spaceId, 'budget-suggestions'],
+    queryFn: () => api<BudgetSuggestion[]>(`${base(spaceId!)}/budgets/suggestions`),
+    enabled: !!spaceId,
+  })
+}
+
 export function useRemoveBudget() {
   return useMoneyMutation((spaceId, { categoryId, from }: { categoryId: string; from: string }) =>
     api<void>(`${base(spaceId)}/budgets/${categoryId}?from=${from}`, { method: 'DELETE' }))

@@ -19,7 +19,7 @@ import { ThemeQuickToggle } from './ThemeQuickToggle'
 import { UserMenu } from './UserMenu'
 
 /** Pages outside the navigation still get a title in the top bar. */
-const OTHER_TITLES: Record<string, string> = { '/import': 'Import' }
+const OTHER_TITLES: Record<string, string> = { '/import': 'Import', '/welcome': 'Get started' }
 
 export function AppShell() {
   const { prefs, dispatch } = usePreferences()

@@ -59,4 +59,10 @@ class BudgetController {
                 @RequestParam(required = false) YearMonth from) {
         budgets.remove(user, spaceId, categoryId, from);
     }
+
+    @GetMapping("/suggestions")
+    @Operation(summary = "Budgets suggested from the last 3 complete budget months: each unbudgeted category's average, rounded up to ₹500; empty if the ledger is unreachable")
+    java.util.List<BudgetService.Suggestion> suggestions(CurrentUser user, @PathVariable UUID spaceId) {
+        return budgets.suggestions(user, spaceId, 3);
+    }
 }
