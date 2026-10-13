@@ -32,7 +32,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Import(TestcontainersConfiguration.class)
-@SpringBootTest
+// A short read timeout so the "core-service hangs" test stays fast; production uses application.properties.
+@SpringBootTest(properties = "spring.http.clients.read-timeout=1s")
 @AutoConfigureMockMvc
 class GatewaySecurityTest {
 
@@ -118,6 +119,18 @@ class GatewaySecurityTest {
                         org.hamcrest.Matchers.containsString("id_token_hint="))));
     }
 
+    @Test
+    void aHangingCoreServiceGetsAnErrorQuicklyInsteadOfAHungPage() throws Exception {
+        long start = System.nanoTime();
+        mvc.perform(get("/api/core/slow").with(oidcLogin().oidcUser(user())))
+                .andExpect(status().isGatewayTimeout())
+                .andExpect(jsonPath("$.code").value("core-service-timeout"));
+        long millis = (System.nanoTime() - start) / 1_000_000;
+
+        // Without a read timeout the browser waited forever and the app never left its loading skeleton.
+        assertThat(millis).isLessThan(2_500);
+    }
+
     private static DefaultOidcUser user() {
         var idToken = new OidcIdToken("id-token-value", Instant.now(), Instant.now().plusSeconds(300),
                 Map.of("sub", "user-1", "email", "priya@example.com", "name", "Priya Sharma"));
@@ -140,6 +153,17 @@ class GatewaySecurityTest {
                 exchange.getResponseBody().write(body);
                 exchange.close();
             });
+            server.createContext("/api/core/slow", exchange -> {
+                try {
+                    Thread.sleep(5_000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                exchange.sendResponseHeaders(204, -1);
+                exchange.close();
+            });
+            // Several threads, so the slow handler can't hold up the other tests' requests.
+            server.setExecutor(java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor());
             server.start();
             return server;
         } catch (IOException e) {
