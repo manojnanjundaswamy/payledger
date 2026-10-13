@@ -117,7 +117,7 @@ export function useTransactions(filter: TransactionFilter) {
  */
 function refreshAfterWrite(client: QueryClient, spaceId: string) {
   void client.invalidateQueries({ queryKey: ['money', spaceId] })
-  const fromLedger = new Set(['accounts', 'category-totals', 'budgets', 'safe-to-spend', 'planner'])
+  const fromLedger = new Set(['accounts', 'category-totals', 'budgets', 'safe-to-spend', 'planner', 'net-worth'])
   for (const delay of [800, 2500]) {
     setTimeout(() => void client.invalidateQueries({
       predicate: (q) => q.queryKey[0] === 'money' && q.queryKey[1] === spaceId && fromLedger.has(q.queryKey[2] as string),

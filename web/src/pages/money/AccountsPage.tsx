@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/controls'
 import { cn } from '@/lib/cn'
 import { useAccounts, type Account } from '@/state/money'
 import { AccountDialog } from './AccountDialog'
+import { NetWorthChart } from './NetWorthChart'
 import { ACCOUNT_KINDS, useMoneyFormat } from './parts'
 
 /** Bank accounts, cash, cards and wallets with balances from the ledger. */
@@ -39,6 +40,8 @@ export function AccountsPage() {
         </div>
         <Button variant="primary" onClick={() => setEditing('new')}><Plus />Add account</Button>
       </div>
+
+      {open.length > 0 && known && <Card className="p-pad"><NetWorthChart /></Card>}
 
       {isError && <Card className="p-pad text-sm text-critical">Couldn't load your accounts. Refresh to try again.</Card>}
 
