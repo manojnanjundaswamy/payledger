@@ -117,7 +117,7 @@ export function useTransactions(filter: TransactionFilter) {
  */
 function refreshAfterWrite(client: QueryClient, spaceId: string) {
   void client.invalidateQueries({ queryKey: ['money', spaceId] })
-  const fromLedger = new Set(['accounts', 'category-totals', 'budgets'])
+  const fromLedger = new Set(['accounts', 'category-totals', 'budgets', 'safe-to-spend'])
   for (const delay of [800, 2500]) {
     setTimeout(() => void client.invalidateQueries({
       predicate: (q) => q.queryKey[0] === 'money' && q.queryKey[1] === spaceId && fromLedger.has(q.queryKey[2] as string),
@@ -284,4 +284,116 @@ export function shiftMonth(month: string, by: number): string {
   const [y, m] = month.split('-').map(Number)
   const d = new Date(y!, m! - 1 + by, 1)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** BILL: an expense in a category (EMI, rent, insurance). SAVING: a transfer to your own account (SIP, RD). */
+export type CommitmentKind = 'BILL' | 'SAVING'
+
+export interface CommitmentFields {
+  kind: CommitmentKind
+  name: string
+  amount: number
+  accountId: string
+  categoryId: string | null
+  toAccountId: string | null
+  /** 1 monthly, 3 quarterly, 6 half-yearly, 12 yearly. */
+  everyMonths: number
+  firstDue: string
+  endsOn: string | null
+}
+
+export interface Commitment extends CommitmentFields {
+  id: string
+  currency: string
+  version: number
+}
+
+export interface Due {
+  commitmentId: string
+  kind: CommitmentKind
+  name: string
+  dueDate: string
+  /** What was paid, or the usual amount while unpaid. */
+  amount: number
+  currency: string
+  transactionId: string | null
+  paid: boolean
+}
+
+export interface SafeToSpend {
+  month: string
+  start: string
+  end: string
+  daysLeft: number
+  currency: string
+  /** False when the ledger couldn't be reached: income, spent, safeToSpend and perDay are then null. */
+  known: boolean
+  income: number | null
+  spent: number | null
+  billsLeft: number
+  savings: number
+  safeToSpend: number | null
+  perDay: number | null
+}
+
+export function useCommitments() {
+  const spaceId = useSpaceId()
+  return useQuery({
+    queryKey: ['money', spaceId, 'commitments'],
+    queryFn: () => api<Commitment[]>(`${base(spaceId!)}/commitments`),
+    enabled: !!spaceId,
+  })
+}
+
+/** Due dates between two dates (yyyy-mm-dd, inclusive), paid or not. */
+export function useDue(from: string, to: string) {
+  const spaceId = useSpaceId()
+  return useQuery({
+    queryKey: ['money', spaceId, 'commitments-due', { from, to }],
+    queryFn: () => api<Due[]>(`${base(spaceId!)}/commitments/due?${new URLSearchParams({ from, to })}`),
+    enabled: !!spaceId,
+  })
+}
+
+export function useSafeToSpend() {
+  const spaceId = useSpaceId()
+  return useQuery({
+    queryKey: ['money', spaceId, 'safe-to-spend'],
+    queryFn: () => api<SafeToSpend>(`${base(spaceId!)}/safe-to-spend`),
+    enabled: !!spaceId,
+  })
+}
+
+export function useCreateCommitment() {
+  return useMoneyMutation((spaceId, body: CommitmentFields) =>
+    api<Commitment>(`${base(spaceId)}/commitments`, { method: 'POST', json: body }))
+}
+
+export function useUpdateCommitment() {
+  return useMoneyMutation((spaceId, { id, version, fields }: { id: string; version: number; fields: CommitmentFields }) =>
+    api<Commitment>(`${base(spaceId)}/commitments/${id}?version=${version}`, { method: 'PUT', json: fields }))
+}
+
+export function useDeleteCommitment() {
+  return useMoneyMutation((spaceId, id: string) => api<void>(`${base(spaceId)}/commitments/${id}`, { method: 'DELETE' }))
+}
+
+/** Records the payment as an expense (bill) or transfer (saving); 409 already-paid if it was. */
+export function usePayCommitment() {
+  return useMoneyMutation((spaceId, { id, dueDate, amount }: { id: string; dueDate: string; amount?: number }) =>
+    api<Due>(`${base(spaceId)}/commitments/${id}/payments`, { method: 'POST', json: { dueDate, amount } }))
+}
+
+/** "Every month", "Every 3 months", "Every year". */
+export function everyLabel(months: number): string {
+  if (months === 1) return 'Every month'
+  if (months === 12) return 'Every year'
+  return `Every ${months} months`
+}
+
+/** Whole days from today (local) to a yyyy-mm-dd date; negative when it has passed. */
+export function daysUntil(iso: string, today = new Date()): number {
+  const [y, m, d] = iso.split('-').map(Number)
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  return Math.round((new Date(y!, m! - 1, d!).getTime() - start.getTime()) / 86_400_000)
 }

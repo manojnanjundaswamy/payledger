@@ -119,6 +119,9 @@ public class CategoryService {
         if (exists("select 1 from transactions where category_id = :id", id)) {
             throw new InUseException("category-in-use", "it has transactions; hide it instead, and its history stays in your reports");
         }
+        if (exists("select 1 from commitments where category_id = :id", id)) {
+            throw new InUseException("category-in-use", "a bill on your plan uses it; change or delete that first");
+        }
         if (exists("select 1 from categories where parent_id = :id", id)) {
             throw new InUseException("category-has-subcategories", "it has subcategories; move or delete them first");
         }

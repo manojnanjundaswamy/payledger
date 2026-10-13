@@ -206,6 +206,15 @@ public class BudgetService {
     private record Settings(int startDay, LocalDate today) {
     }
 
+    /** The user's date and the budget period it falls in. */
+    public record Now(LocalDate today, BudgetPeriod period) {
+    }
+
+    public Now now(CurrentUser user) {
+        Settings s = settings(user);
+        return new Now(s.today(), BudgetPeriod.containing(s.today(), s.startDay()));
+    }
+
     /** The user's own start day and time zone (a household will have its own when households arrive in Phase 5). */
     private Settings settings(CurrentUser user) {
         record Row(int budgetStartDay, String timeZone) {
