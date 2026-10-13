@@ -9,6 +9,8 @@ import { Logo } from '@/layout/Logo'
 import { defaultTheme, parsePreferences } from '@/state/preferences'
 import { useSession } from '@/state/session'
 import { applyTheme, resolveMode } from '@/theme/engine'
+import { PRICE } from '@/lib/plans'
+import { PlanTable } from '@/pages/settings/PlanSettings'
 
 const FEATURES = [
   { icon: Wallet, title: 'Safe to spend, every day', text: 'What is really left after EMIs, card dues, SIPs and savings: not just your bank balance.' },
@@ -75,6 +77,16 @@ export function Landing() {
               <p className="mt-1.5 text-sm text-muted">{f.text}</p>
             </motion.div>
           ))}
+        </section>
+        <section aria-labelledby="pricing" className="flex flex-col items-center gap-6 pb-24">
+          <div className="text-center">
+            <h2 id="pricing" className="text-3xl font-semibold tracking-tight">Free for a complete budget</h2>
+            <p className="mt-2 max-w-xl text-muted text-balance">
+              Premium for households and serious planners: {PRICE.monthly} a month or {PRICE.yearly} a year. Try it free for 30 days, no card.
+              No ads, and we never sell your data.
+            </p>
+          </div>
+          <div className="w-full max-w-3xl"><PlanTable /></div>
         </section>
       </main>
       <footer className="border-t border-border py-8 text-center text-xs text-subtle">PayLedger · a learning project, made in India</footer>

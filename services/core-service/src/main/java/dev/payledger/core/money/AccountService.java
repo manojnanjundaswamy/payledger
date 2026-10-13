@@ -1,5 +1,6 @@
 package dev.payledger.core.money;
 
+import dev.payledger.core.plan.PlanService;
 import dev.payledger.core.common.InvalidRequestException;
 import dev.payledger.core.common.NotFoundException;
 import dev.payledger.core.common.Uuid7;
@@ -34,11 +35,13 @@ public class AccountService {
     private final JdbcClient jdbc;
     private final SpaceAccess access;
     private final LedgerCommands ledger;
+    private final PlanService plans;
 
-    public AccountService(JdbcClient jdbc, SpaceAccess access, LedgerCommands ledger) {
+    public AccountService(JdbcClient jdbc, SpaceAccess access, LedgerCommands ledger, PlanService plans) {
         this.jdbc = jdbc;
         this.access = access;
         this.ledger = ledger;
+        this.plans = plans;
     }
 
     @Transactional(readOnly = true)
@@ -72,6 +75,7 @@ public class AccountService {
     @Transactional
     public MoneyAccount create(CurrentUser user, UUID spaceId, AccountRequests.Create request) {
         Space space = access.write(user, spaceId);
+        plans.check(spaceId, PlanService.Limit.ACCOUNTS);
         UUID id = Uuid7.next();
         long opening = Objects.requireNonNullElse(request.openingBalance(), 0L);
         LocalDate openingDate = request.openingDate() != null ? request.openingDate() : today(user);
@@ -93,6 +97,9 @@ public class AccountService {
     public MoneyAccount update(CurrentUser user, UUID spaceId, UUID accountId, AccountRequests.Update request) {
         Space space = access.write(user, spaceId);
         MoneyAccount before = find(spaceId, accountId, true);
+        if (Boolean.FALSE.equals(request.archived()) && before.archived()) {
+            plans.check(spaceId, PlanService.Limit.ACCOUNTS);
+        }
         long opening = Objects.requireNonNullElse(request.openingBalance(), before.openingBalance());
         LocalDate openingDate = Objects.requireNonNullElse(request.openingDate(), before.openingDate());
         boolean openingChanged = opening != before.openingBalance() || !openingDate.equals(before.openingDate());

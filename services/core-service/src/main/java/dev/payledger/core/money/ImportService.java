@@ -1,5 +1,6 @@
 package dev.payledger.core.money;
 
+import dev.payledger.core.plan.PlanService;
 import dev.payledger.core.common.ApiException;
 import dev.payledger.core.common.InvalidRequestException;
 import dev.payledger.core.common.NotFoundException;
@@ -46,14 +47,16 @@ public class ImportService {
     private final AccountService accounts;
     private final CategoryService categories;
     private final TransactionService transactions;
+    private final PlanService plans;
 
     public ImportService(JdbcClient jdbc, SpaceAccess access, AccountService accounts, CategoryService categories,
-                         TransactionService transactions) {
+                         TransactionService transactions, PlanService plans) {
         this.jdbc = jdbc;
         this.access = access;
         this.accounts = accounts;
         this.categories = categories;
         this.transactions = transactions;
+        this.plans = plans;
     }
 
     public enum Status { READY, DUPLICATE, ERROR }
@@ -112,6 +115,7 @@ public class ImportService {
         Space space = access.write(user, spaceId);
         // One import at a time per space, so two uploads of the same file can't both pass the duplicate check.
         jdbc.sql("select id from spaces where id = :id for update").param("id", spaceId).query(UUID.class).single();
+        plans.check(spaceId, PlanService.Limit.IMPORTS);
         List<ImportParser.Line> lines = lines(request);
         Preview first = check(space, lines, request, null);
         Created created = createMapped(user, space, first, request);

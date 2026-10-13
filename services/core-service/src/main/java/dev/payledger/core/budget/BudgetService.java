@@ -1,5 +1,6 @@
 package dev.payledger.core.budget;
 
+import dev.payledger.core.plan.PlanService;
 import dev.payledger.core.common.InvalidRequestException;
 import dev.payledger.core.common.NotFoundException;
 import dev.payledger.core.ledger.LedgerClient;
@@ -35,11 +36,13 @@ public class BudgetService {
     private final JdbcClient jdbc;
     private final SpaceAccess access;
     private final LedgerClient ledger;
+    private final PlanService plans;
 
-    public BudgetService(JdbcClient jdbc, SpaceAccess access, LedgerClient ledger) {
+    public BudgetService(JdbcClient jdbc, SpaceAccess access, LedgerClient ledger, PlanService plans) {
         this.jdbc = jdbc;
         this.access = access;
         this.ledger = ledger;
+        this.plans = plans;
     }
 
     public enum Status { ON_TRACK, CLOSE, OVER }
@@ -104,6 +107,10 @@ public class BudgetService {
             throw new InvalidRequestException("budget-category-invalid", name + " is hidden; show it first");
         }
         YearMonth month = from != null ? from : currentMonth(user);
+        List<Limit> existing = limits(spaceId, month);
+        if (existing.stream().noneMatch(l -> l.categoryId().equals(categoryId))) {
+            plans.check(spaceId, PlanService.Limit.BUDGETS, () -> limits(spaceId, month).size());
+        }
         write(space, user, categoryId, month, amount);
         return month(user, spaceId, month);
     }

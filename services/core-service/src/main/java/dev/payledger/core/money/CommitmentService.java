@@ -1,5 +1,6 @@
 package dev.payledger.core.money;
 
+import dev.payledger.core.plan.PlanService;
 import dev.payledger.core.common.ApiException;
 import dev.payledger.core.common.InvalidRequestException;
 import dev.payledger.core.common.NotFoundException;
@@ -38,14 +39,16 @@ public class CommitmentService {
     private final AccountService accounts;
     private final CategoryService categories;
     private final TransactionService transactions;
+    private final PlanService plans;
 
     public CommitmentService(JdbcClient jdbc, SpaceAccess access, AccountService accounts, CategoryService categories,
-                             TransactionService transactions) {
+                             TransactionService transactions, PlanService plans) {
         this.jdbc = jdbc;
         this.access = access;
         this.accounts = accounts;
         this.categories = categories;
         this.transactions = transactions;
+        this.plans = plans;
     }
 
     /**
@@ -75,6 +78,7 @@ public class CommitmentService {
     public Commitment create(CurrentUser user, UUID spaceId, CommitmentRequests.Fields f) {
         Space space = access.write(user, spaceId);
         String currency = validate(space, f);
+        plans.check(spaceId, big(f) ? PlanService.Limit.BIG_COSTS : PlanService.Limit.BILLS);
         UUID id = Uuid7.next();
         jdbc.sql("""
                         insert into commitments (id, space_id, kind, name, amount, currency, account_id, category_id, to_account_id,
@@ -91,8 +95,13 @@ public class CommitmentService {
     @Transactional
     public Commitment replace(CurrentUser user, UUID spaceId, UUID id, int version, CommitmentRequests.Fields f) {
         Space space = access.write(user, spaceId);
-        find(spaceId, id);
+        Commitment before = find(spaceId, id);
         String currency = validate(space, f);
+        boolean wasBig = before.kind().equals("BILL") && (before.everyMonths() >= 6 || before.firstDue().equals(before.endsOn()));
+        if (big(f) != wasBig) {
+            // Moving between ordinary bills and big costs takes a place in the other list.
+            plans.check(spaceId, big(f) ? PlanService.Limit.BIG_COSTS : PlanService.Limit.BILLS);
+        }
         int updated = jdbc.sql("""
                         update commitments set kind = :kind, name = :name, amount = :amount, currency = :currency,
                             account_id = :accountId, category_id = :categoryId, to_account_id = :toAccountId,
@@ -230,6 +239,11 @@ public class CommitmentService {
             throw new InvalidRequestException("invalid-commitment", "endsOn is before firstDue");
         }
         return from.currency();
+    }
+
+    /** A big yearly or one-off cost for the annual planner (and the plan limits). */
+    private static boolean big(CommitmentRequests.Fields f) {
+        return f.kind().equals("BILL") && (f.everyMonths() >= 6 || f.firstDue().equals(f.endsOn()));
     }
 
     private static Map<String, Object> params(CommitmentRequests.Fields f) {

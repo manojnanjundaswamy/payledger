@@ -228,6 +228,8 @@ services:
       LEDGER_URL: http://ledger-service:8080
       KEYCLOAK_ISSUER: http://localhost:${KEYCLOAK_PORT:-8180}/realms/payledger
       KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/payledger/protocol/openid-connect/certs
+      # Complimentary Premium (comma-separated): the demo user never meets a Free limit in the e2e tests.
+      PREMIUM_EMAILS: ${PREMIUM_EMAILS:-demo@payledger.local}
     ports:
       - "${CORE_PORT:-8060}:8060"
       - "${CORE_MANAGEMENT_PORT:-8061}:8061"
