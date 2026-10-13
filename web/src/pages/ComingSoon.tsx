@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { motion } from 'motion/react'
 import {
-  Bell, CalendarClock, CalendarRange, Home, LayoutGrid, Link2, Lock, Milk, PieChart,
+  CalendarClock, Home, LayoutGrid, Link2, Lock, Milk,
   Repeat, Scale, ShieldCheck, Split, UserPlus, UserRoundPlus, Users, type LucideIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -11,15 +11,6 @@ interface Feature { icon: LucideIcon; title: string; text: string }
 interface PageInfo { icon: LucideIcon; title: string; lead: string; phase: string; features: Feature[] }
 
 export const COMING: Record<string, PageInfo> = {
-  budgets: {
-    icon: PieChart, phase: 'Phase 4', title: 'Budgets that warn you early',
-    lead: 'Monthly limits per category that follow your payday, with a heads-up before you go over, not after.',
-    features: [
-      { icon: CalendarRange, title: 'Payday months', text: 'Your month can start on the 25th. Budgets follow it.' },
-      { icon: Bell, title: 'Spending pace', text: '“At this rate you’ll spend ₹6,000 over on food” from the 5th of the month.' },
-      { icon: Split, title: 'Only your share counts', text: 'A ₹3,000 dinner split three ways is ₹1,000 of your budget.' },
-    ],
-  },
   plan: {
     icon: CalendarClock, phase: 'Phase 4', title: 'No more surprise bills',
     lead: 'EMIs, card dues, SIPs, insurance and school fees on one calendar, counted before “safe to spend”.',

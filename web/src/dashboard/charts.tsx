@@ -146,11 +146,18 @@ function ChartTooltip({ x, children }: { x: number; children: ReactNode }) {
 }
 
 /** Status is always icon + words, never colour alone. */
+/** How each budget status looks: colour plus icon plus text, never colour alone. */
+export const BUDGET_STATUS = {
+  OVER: { tone: 'critical' as const, label: 'Over', icon: CircleAlert, color: 'var(--critical)' },
+  CLOSE: { tone: 'warning' as const, label: 'Close', icon: AlertTriangle, color: 'var(--warning)' },
+  ON_TRACK: { tone: 'good' as const, label: 'On track', icon: CheckCircle2, color: 'var(--good)' },
+}
+
 export function budgetStatus(spent: number, limit: number) {
   const ratio = limit > 0 ? spent / limit : 0
-  if (ratio > 1) return { tone: 'critical' as const, label: 'Over', icon: CircleAlert, color: 'var(--critical)', ratio }
-  if (ratio >= 0.85) return { tone: 'warning' as const, label: 'Close', icon: AlertTriangle, color: 'var(--warning)', ratio }
-  return { tone: 'good' as const, label: 'On track', icon: CheckCircle2, color: 'var(--good)', ratio }
+  // Close from 80%, as core-service decides it (and where the plan puts the first alert).
+  const status = ratio > 1 ? 'OVER' : ratio >= 0.8 ? 'CLOSE' : 'ON_TRACK'
+  return { ...BUDGET_STATUS[status], ratio }
 }
 
 export function Progress({ value, color = 'var(--accent)', label }: { value: number; color?: string; label: string }) {
