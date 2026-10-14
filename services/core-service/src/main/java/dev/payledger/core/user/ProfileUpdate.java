@@ -17,6 +17,8 @@ public record ProfileUpdate(
         @Size(max = 64) String timeZone,
         @Pattern(regexp = "[A-Z]{3}", message = "must be an ISO-4217 code like INR") String currency,
         @Min(1) @Max(28) Integer budgetStartDay,
+        // "" removes it.
+        @Pattern(regexp = "|[a-zA-Z0-9._-]{2,64}@[a-zA-Z][a-zA-Z0-9]{1,63}", message = "must be a UPI id like name@okhdfcbank") String upiId,
         @Size(max = 50, message = "at most 50 top-level keys") Map<String, Object> preferences) {
 
     @AssertTrue(message = "timeZone must be an IANA zone like Asia/Kolkata")

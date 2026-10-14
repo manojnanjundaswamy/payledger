@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowRight, HandCoins, MessageCircle, Plus, Receipt } from 'lucide-react'
+import { ArrowRight, HandCoins, IndianRupee, MessageCircle, Plus, Receipt } from 'lucide-react'
 import { whatsAppShare } from '@/lib/whatsapp'
+import { upiPayLink } from '@/lib/upi'
+import { useProfile } from '@/state/profile'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, Skeleton } from '@/components/ui/card'
@@ -24,6 +26,8 @@ export function GroupMoney({ group }: { group: Group }) {
     return m ? (m.you ? 'You' : m.name) : 'Someone who left'
   }
   const mine = balances?.balance?.[group.you] ?? 0
+  const myUpi = useProfile().data?.settings.upiId
+  const upiOf = (id: string) => group.members.find((m) => m.id === id)?.upiId ?? null
 
   type Row = { kind: 'expense'; date: string; expense: GroupExpense } | { kind: 'settlement'; date: string; id: string; from: string; to: string; amount: number; note: string | null }
   const rows: Row[] = [
@@ -53,9 +57,18 @@ export function GroupMoney({ group }: { group: Group }) {
                 <span className="font-medium">{name(p.from)}</span><ArrowRight className="size-4 text-muted" /><span className="font-medium">{name(p.to)}</span>
                 <span className="flex-1 tabular">{formatMoney(p.amount)}</span>
                 {/* A friendly nudge, written for them; they pay by UPI and the payment is recorded here. */}
+                {/* You owe them and they have a UPI id: pay in one tap from a phone's UPI app. */}
+                {p.from === group.you && upiOf(p.to) && (
+                  <Button asChild size="sm" variant="primary">
+                    <a href={upiPayLink(upiOf(p.to)!, name(p.to), p.amount, `${group.name} settle-up`)} aria-label={`Pay ${name(p.to)} via UPI`}
+                      title={`Opens your UPI app to pay ${upiOf(p.to)}. On a computer, open PayLedger on your phone.`}>
+                      <IndianRupee />Pay via UPI
+                    </a>
+                  </Button>
+                )}
                 {p.to === group.you && (
                   <Button asChild size="sm" variant="ghost">
-                    <a href={whatsAppShare(`Hi ${name(p.from)}, a reminder for ${group.name}: you owe me ${formatMoney(p.amount)}. Thanks!`)}
+                    <a href={whatsAppShare(`Hi ${name(p.from)}, a reminder for ${group.name}: you owe me ${formatMoney(p.amount)}.${myUpi ? ` Pay by UPI to ${myUpi}: ${upiPayLink(myUpi, name(p.to), p.amount, `${group.name} settle-up`)}` : ''} Thanks!`)}
                       target="_blank" rel="noopener noreferrer" aria-label={`Remind ${name(p.from)} on WhatsApp`}><MessageCircle />Remind</a>
                   </Button>
                 )}
