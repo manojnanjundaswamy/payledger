@@ -37,8 +37,33 @@ class Routes {
                 .before(removeRequestHeader("X-XSRF-TOKEN"))
                 // ...and the user's access token (refreshed when it expires) goes downstream instead.
                 .filter(tokenRelay())
+                // A session whose tokens Keycloak no longer accepts (expired, or issued for another address) ends here,
+                // once: the app then shows "sign in" instead of being bounced through a login on every call.
+                .after((request, response) -> {
+                    if (response.statusCode().value() == 401) {
+                        endSession(request);
+                    }
+                    return response;
+                })
+                .onError(org.springframework.security.oauth2.client.ClientAuthorizationRequiredException.class, Routes::signInAgain)
                 .onError(ResourceAccessException.class, Routes::coreServiceUnavailable)
                 .build();
+    }
+
+    /** The gateway can't get a valid token for this session: 401, not a redirect a fetch can't follow. */
+    static ServerResponse signInAgain(Throwable error, ServerRequest request) {
+        endSession(request);
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Your session has ended. Please sign in again.");
+        problem.setTitle("session-ended");
+        problem.setProperty("code", "session-ended");
+        return ServerResponse.status(HttpStatus.UNAUTHORIZED).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(problem);
+    }
+
+    private static void endSession(ServerRequest request) {
+        var session = request.servletRequest().getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
     }
 
     /** The Email Worker's door to core-service: no session and no token to relay; the shared secret is checked there. */

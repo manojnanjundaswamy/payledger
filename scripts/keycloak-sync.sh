@@ -9,7 +9,8 @@ set -euo pipefail
 export MSYS_NO_PATHCONV=1
 
 # SMTP_* and others from .env, the same file docker compose reads.
-if [ -f .env ]; then set -a; . ./.env; set +a; fi
+ENV_FILE=${ENV_FILE:-.env}
+if [ -f "$ENV_FILE" ]; then set -a; . "./$ENV_FILE"; set +a; fi
 
 SECRET=${IDENTITY_ADMIN_CLIENT_SECRET:-local-dev-core-admin-secret}
 kc() { docker compose exec -T keycloak /opt/keycloak/bin/kcadm.sh "$@"; }
@@ -45,9 +46,10 @@ fi
 # Hosted (PUBLIC_URL in .env, e.g. https://payledger.example.com): sign-in may return to that address too. The local
 # addresses stay, so the laptop keeps working.
 gw=$(kc get clients -r payledger -q clientId=payledger-gateway --fields id --format csv --noquotes)
-uris="\"http://localhost:8000/login/oauth2/code/keycloak\",\"http://localhost:5173/login/oauth2/code/keycloak\""
-origins="\"http://localhost:5173\",\"http://localhost:8000\""
-logout="http://localhost:5173*##http://localhost:8000*"
+web="http://localhost:${WEB_PORT:-5173}"; gateway="http://localhost:${GATEWAY_PORT:-8000}"
+uris="\"$gateway/login/oauth2/code/keycloak\",\"$web/login/oauth2/code/keycloak\""
+origins="\"$web\",\"$gateway\""
+logout="$web*##$gateway*"
 if [ -n "${PUBLIC_URL:-}" ]; then
   uris="$uris,\"${PUBLIC_URL%/}/login/oauth2/code/keycloak\""
   origins="$origins,\"${PUBLIC_URL%/}\""

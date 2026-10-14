@@ -107,6 +107,17 @@ class GatewaySecurityTest {
     }
 
     @Test
+    void aSessionCoreServiceNoLongerAcceptsEndsSoTheAppAsksToSignInOnce() throws Exception {
+        // A real (Redis) session, as a signed-in browser has.
+        Cookie session = mvc.perform(get("/oauth2/authorization/keycloak")).andReturn().getResponse().getCookie("PAYLEDGER_SESSION");
+        assertThat(session).isNotNull();
+        List<String> cleared = mvc.perform(get("/api/core/rejected").with(oidcLogin().oidcUser(user())).cookie(session))
+                .andExpect(status().isUnauthorized())
+                .andReturn().getResponse().getHeaders("Set-Cookie");
+        assertThat(cleared).anySatisfy(c -> assertThat(c).startsWith("PAYLEDGER_SESSION=").contains("Max-Age=0"));
+    }
+
+    @Test
     void loginStartsAnHttpOnlySameSiteSessionCookie() throws Exception {
         // Starting a login stores the PKCE verifier and state in the (Redis) session.
         List<String> setCookies = mvc.perform(get("/oauth2/authorization/keycloak")).andReturn().getResponse().getHeaders("Set-Cookie");
@@ -161,6 +172,10 @@ class GatewaySecurityTest {
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
                 exchange.sendResponseHeaders(200, body.length);
                 exchange.getResponseBody().write(body);
+                exchange.close();
+            });
+            server.createContext("/api/core/rejected", exchange -> {
+                exchange.sendResponseHeaders(401, -1);
                 exchange.close();
             });
             server.createContext("/api/core/me", exchange -> {

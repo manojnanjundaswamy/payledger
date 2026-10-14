@@ -8,3 +8,5 @@ dist/
 *.log
 .DS_Store
 deploy/backups/
+.env.*
+!.env.example

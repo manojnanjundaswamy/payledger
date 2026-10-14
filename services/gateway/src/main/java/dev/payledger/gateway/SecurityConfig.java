@@ -37,6 +37,8 @@ class SecurityConfig {
         return http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/session").permitAll()
+                        // Health probes on the management port (not reachable through the web server); metrics stay closed.
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .requestMatchers("/oauth2/authorization/**", "/login/oauth2/code/**", "/logout").permitAll()
                         // Bank alerts from our Cloudflare Email Worker: no user, core-service checks its shared secret.
