@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { motion } from 'motion/react'
 import {
   Home, LayoutGrid, Lock,
-  Scale, ShieldCheck, UserPlus, UserRoundPlus, Users, type LucideIcon,
+  Scale, Users, type LucideIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/card'
@@ -18,15 +18,6 @@ export const COMING: Record<string, PageInfo> = {
       { icon: Users, title: 'Members & dependents', text: 'Children and elderly parents without a login, still part of the plan.' },
       { icon: Lock, title: 'Shared or private', text: 'Choose per account. Share a summary without the details.' },
       { icon: Scale, title: 'Fair contributions', text: '50/50, by income or fixed amounts, tracked automatically.' },
-    ],
-  },
-  people: {
-    icon: UserRoundPlus, phase: 'Phase 5', title: 'Your people',
-    lead: 'Everyone you share money with, in one place: balances per person, shared groups, and who you have invited.',
-    features: [
-      { icon: UserPlus, title: 'Connections', text: 'Invite by email; they can join from a link without signing up.' },
-      { icon: Scale, title: 'Balance per person', text: 'Across every group and household you share.' },
-      { icon: ShieldCheck, title: 'You decide what they see', text: 'Only shared groups and summaries, never your private accounts.' },
     ],
   },
 }

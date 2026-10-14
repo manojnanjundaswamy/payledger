@@ -140,6 +140,8 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
       description: description.trim(), amount: total, occurredOn: date, category: category.trim() || null, paidBy, split,
       shares: split === 'EQUAL' ? chosen.map((m) => ({ memberId: m.id })) : parts,
       paidFromAccountId: youPaid && fromAccount ? fromAccount : null,
+      // A loan stays a loan when edited here.
+      loan: expense?.loan ?? false, dueOn: expense?.dueOn ?? null,
     }
     try {
       if (expense) await update.mutateAsync({ expenseId: expense.id, version: expense.version, fields })

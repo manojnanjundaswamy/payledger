@@ -12,7 +12,7 @@ import { useProfile } from '@/state/profile'
 
 const ICONS: Record<InboxKind, LucideIcon> = {
   GROUP_EXPENSE: Receipt, SETTLEMENT: HandCoins, GROUP_MEMBER: UserPlus, BILL_DUE: CalendarClock,
-  BILL_OVERDUE: AlarmClock, BUDGET: PieChart, SIGN_IN: KeyRound, RECAP: CalendarRange,
+  BILL_OVERDUE: AlarmClock, BUDGET: PieChart, SIGN_IN: KeyRound, RECAP: CalendarRange, LOAN_DUE: HandCoins,
 }
 
 /** The bell: how many are unread, and a panel with the latest. New ones also pop up while you're here. */

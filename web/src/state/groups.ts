@@ -104,6 +104,8 @@ export interface ExpensePart { memberId: string; paid: number; share: number; in
 export interface GroupExpense {
   id: string; description: string; amount: number; currency: string; occurredOn: string; category: string | null
   split: SplitType; version: number; parts: ExpensePart[]
+  /** Money lent, not shared spending; with the date it should be paid back by. */
+  loan?: boolean; dueOn?: string | null
 }
 
 export interface Settlement { id: string; fromMemberId: string; toMemberId: string; amount: number; currency: string; occurredOn: string; note: string | null }
@@ -128,6 +130,8 @@ export interface ExpenseFields {
   shares: { memberId: string; value?: number }[]
   /** Which of your own accounts you paid from, for your book (else your usual one). */
   paidFromAccountId?: string | null
+  loan?: boolean
+  dueOn?: string | null
 }
 
 export function useActivity(id: string) {

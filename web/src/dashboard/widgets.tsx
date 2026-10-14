@@ -8,7 +8,6 @@ import {
   ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BarChart3, CalendarClock, Check, Goal, Home, ListChecks, ListOrdered,
   PieChart, Rocket, StickyNote, Upload, Users, Wallet, Zap,
 } from 'lucide-react'
-import { toast } from 'sonner'
 import { Badge } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
 import type { SettingsTab } from '@/pages/settings/tabs'
@@ -543,15 +542,17 @@ function StepDot({ done }: { done: boolean }) {
 }
 
 function QuickActions() {
-  const soon = (what: string) => toast(`${what} is coming in Phase 4`)
+  const navigate = useNavigate()
+  const add = (kind: 'EXPENSE' | 'INCOME' | 'TRANSFER') => () => void navigate({ to: '/transactions', search: { add: kind } })
   const actions = [
-    { icon: ArrowUpRight, label: 'Expense' }, { icon: ArrowDownLeft, label: 'Income' },
-    { icon: ArrowLeftRight, label: 'Transfer' }, { icon: Users, label: 'Split' }, { icon: Upload, label: 'Import' }, { icon: Zap, label: 'Pay bill' },
+    { icon: ArrowUpRight, label: 'Expense', go: add('EXPENSE') }, { icon: ArrowDownLeft, label: 'Income', go: add('INCOME') },
+    { icon: ArrowLeftRight, label: 'Transfer', go: add('TRANSFER') }, { icon: Users, label: 'Split', go: () => void navigate({ to: '/groups' }) },
+    { icon: Upload, label: 'Import', go: () => void navigate({ to: '/import' }) }, { icon: Zap, label: 'Pay bill', go: () => void navigate({ to: '/plan' }) },
   ]
   return (
     <div className="grid grid-cols-3 gap-2 @md:grid-cols-6">
       {actions.map((a) => (
-        <button key={a.label} onClick={() => soon(a.label)}
+        <button key={a.label} onClick={a.go}
           className="flex flex-col items-center gap-1.5 rounded-control border border-border py-3 text-xs font-medium text-muted transition-all hover:-translate-y-0.5 hover:border-border-strong hover:text-fg hover:shadow-card">
           <a.icon className="size-5" />{a.label}
         </button>

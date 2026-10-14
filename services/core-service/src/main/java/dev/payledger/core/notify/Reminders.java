@@ -72,6 +72,7 @@ public class Reminders {
             try {
                 Integer b = tx.execute(s -> bills(u) ? 1 : 0);
                 Integer a = tx.execute(s -> budgetAlerts(u));
+                tx.executeWithoutResult(s -> loans(u));
                 bills += b == null ? 0 : b;
                 alerts += a == null ? 0 : a;
             } catch (RuntimeException e) {
@@ -113,6 +114,42 @@ public class Reminders {
                 inbox.notify(u.id(), Inbox.Kind.BILL_OVERDUE, d.name() + " was due on " + day.format(d.dueDate()),
                         money(d.amount()) + " isn't marked paid yet. Paid it? Mark it, so safe to spend stays right.", "/plan?open=" + d.commitmentId(),
                         null, "overdue:" + d.commitmentId() + ":" + d.dueDate(), null));
+    }
+
+    /** A loan due today, or three days ago and still not paid back: to whoever lent and whoever borrowed. */
+    private void loans(CurrentUser u) {
+        LocalDate today = today(u);
+        record Due(java.util.UUID id, java.util.UUID groupId, String description, long amount, LocalDate dueOn, boolean lent, String other,
+                   long owed) {
+        }
+        List<Due> due = jdbc.sql("""
+                        select e.id, e.group_id, e.description, e.amount, e.due_on, mine.paid > 0 as lent,
+                               (select o.display_name from group_members o where o.group_id = e.group_id and o.id <> me.id limit 1) as other,
+                               -- What the borrower still owes the group (positive: owes).
+                               coalesce((select sum(p.share - p.paid) from group_expense_parts p join group_expenses x on x.id = p.expense_id and x.deleted_at is null
+                                         where p.member_id = b.member_id), 0)
+                                 - coalesce((select sum(s.amount) from group_settlements s where s.from_member = b.member_id and s.deleted_at is null), 0)
+                                 + coalesce((select sum(s.amount) from group_settlements s where s.to_member = b.member_id and s.deleted_at is null), 0) as owed
+                        from group_expenses e
+                        join group_members me on me.group_id = e.group_id and me.user_id = :u and me.left_at is null
+                        join group_expense_parts mine on mine.expense_id = e.id and mine.member_id = me.id
+                        join lateral (select member_id from group_expense_parts where expense_id = e.id and share > 0 limit 1) b on true
+                        where e.loan and e.deleted_at is null and e.due_on in (:today, :late)
+                        """).param("u", u.id()).param("today", today).param("late", today.minusDays(3)).query(Due.class).list();
+        for (Due d : due) {
+            if (d.owed() <= 0) {
+                continue;
+            }
+            boolean late = !d.dueOn().equals(today);
+            long amount = Math.min(d.amount(), d.owed());
+            String title = d.lent()
+                    ? d.other() + (late ? " hasn't paid back " : " should pay back ") + money(amount) + (late ? " yet" : " today")
+                    : "Pay " + d.other() + " back " + money(amount) + (late ? ": it was due on " + d.dueOn().format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)) : " today");
+            inbox.notify(u.id(), Inbox.Kind.LOAN_DUE, title, d.description(), "/people", null, "loan:" + d.id() + ":" + u.id() + ":" + d.dueOn() + ":" + late,
+                    Email.titled(title).heading(title).para(d.description())
+                            .button("Open People", notifications.url("/people"))
+                            .footer("You got this because a loan between you has a date to pay back.", notifications.settingsUrl()));
+        }
     }
 
     private int budgetAlerts(CurrentUser u) {
