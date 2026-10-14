@@ -177,14 +177,30 @@ export function useUpdateAccount() {
  * `id` is chosen by the form once per new transaction, so a double tap or a retry after a
  * timeout sends the same id and core-service adds it only once.
  */
+/** A saved transaction, and the bill or saving it was taken as paying, if any (X-Paid-Commitment). */
+export type SavedTransaction = Transaction & { paid?: { name: string; dueDate: string } }
+
+function paidFrom(h: Headers): SavedTransaction['paid'] {
+  const v = h.get('X-Paid-Commitment')
+  if (!v) return undefined
+  const [name, dueDate] = decodeURIComponent(v.replace(/\+/g, ' ')).split('|')
+  return name && dueDate ? { name, dueDate } : undefined
+}
+
 export function useCreateTransaction() {
-  return useMoneyMutation((spaceId, body: TransactionFields & { id: string }) =>
-    api<Transaction>(`${base(spaceId)}/transactions`, { method: 'POST', json: body }))
+  return useMoneyMutation(async (spaceId, body: TransactionFields & { id: string }) => {
+    let paid: SavedTransaction['paid']
+    const t = await api<Transaction>(`${base(spaceId)}/transactions`, { method: 'POST', json: body, onHeaders: (h) => { paid = paidFrom(h) } })
+    return { ...t, paid } as SavedTransaction
+  })
 }
 
 export function useUpdateTransaction() {
-  return useMoneyMutation((spaceId, { id, version, fields }: { id: string; version: number; fields: TransactionFields }) =>
-    api<Transaction>(`${base(spaceId)}/transactions/${id}`, { method: 'PUT', json: { version, ...fields } }))
+  return useMoneyMutation(async (spaceId, { id, version, fields }: { id: string; version: number; fields: TransactionFields }) => {
+    let paid: SavedTransaction['paid']
+    const t = await api<Transaction>(`${base(spaceId)}/transactions/${id}`, { method: 'PUT', json: { version, ...fields }, onHeaders: (h) => { paid = paidFrom(h) } })
+    return { ...t, paid } as SavedTransaction
+  })
 }
 
 export function useDeleteTransaction() {
@@ -376,6 +392,8 @@ export interface Due {
   currency: string
   transactionId: string | null
   paid: boolean
+  /** While unpaid: a transaction already entered that looks like this payment. */
+  suggestion?: { transactionId: string; description: string; occurredOn: string; amount: number } | null
 }
 
 export interface SafeToSpend {
@@ -442,6 +460,18 @@ export function useDeleteCommitment() {
 export function usePayCommitment() {
   return useMoneyMutation((spaceId, { id, dueDate, amount }: { id: string; dueDate: string; amount?: number }) =>
     api<Due>(`${base(spaceId)}/commitments/${id}/payments`, { method: 'POST', json: { dueDate, amount } }))
+}
+
+/** Says that a transaction already entered paid this due date. */
+export function useLinkPayment() {
+  return useMoneyMutation((spaceId, { id, dueDate, transactionId }: { id: string; dueDate: string; transactionId: string }) =>
+    api<Due>(`${base(spaceId)}/commitments/${id}/link`, { method: 'POST', json: { dueDate, transactionId } }))
+}
+
+/** Forgets which transaction paid a due date; the transaction stays. */
+export function useUnlinkPayment() {
+  return useMoneyMutation((spaceId, { id, dueDate }: { id: string; dueDate: string }) =>
+    api<void>(`${base(spaceId)}/commitments/${id}/payments/${dueDate}`, { method: 'DELETE' }))
 }
 
 /** "Every month", "Every 3 months", "Every year". */

@@ -82,6 +82,10 @@ class TenantIsolationIntegrationTest {
         post("/api/core/spaces/" + space + "/goals/" + a.get("goal") + "/contributions", alice, "{\"amount\":5000,\"note\":\"" + secret + "\"}");
         a.put("contributionId", JsonPath.<List<String>>read(mvc.perform(get("/api/core/spaces/" + space + "/goals/" + a.get("goal") + "/contributions").with(alice))
                 .andReturn().getResponse().getContentAsString(), "$[*].id").getFirst());
+        a.put("dueDate", "2026-11-01");
+        // A's bill is paid by A's transaction, so unlinking it would show as a change.
+        post("/api/core/spaces/" + space + "/commitments/" + a.get("commitment") + "/link", alice,
+                "{\"dueDate\":\"2026-11-01\",\"transactionId\":\"" + a.get("transaction") + "\"}");
         mvc.perform(request(HttpMethod.PUT, "/api/core/spaces/" + space + "/budgets/" + category).with(alice)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"amount\":500000,\"rollover\":false}")).andExpect(status().isOk());
         String imported = post("/api/core/spaces/" + space + "/imports", alice, importBody(account, category));
@@ -213,6 +217,7 @@ class TenantIsolationIntegrationTest {
                 "{\"amount\":1,\"rollover\":false}",
                 "{\"into\":\"" + cat + "\"}",
                 "{\"dueDate\":\"2026-11-01\"}",
+                "{\"dueDate\":\"2026-11-01\",\"transactionId\":\"" + a.get("transaction") + "\"}",
                 importBody(acc, cat),
                 groupExpense(a.get("selfMember"), a.get("memberId")),
                 "{\"version\":1," + groupExpense(a.get("selfMember"), a.get("memberId")).strip().substring(1),

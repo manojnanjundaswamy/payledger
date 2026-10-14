@@ -38,9 +38,11 @@ class MoneyController {
     private final CategoryService categories;
     private final TransactionService transactions;
     private final BalanceService balances;
+    private final CommitmentService commitments;
 
     MoneyController(AccountService accounts, CategoryService categories, TransactionService transactions,
-                    BalanceService balances) {
+                    BalanceService balances, CommitmentService commitments) {
+        this.commitments = commitments;
         this.accounts = accounts;
         this.categories = categories;
         this.transactions = transactions;
@@ -147,14 +149,27 @@ class MoneyController {
     ResponseEntity<Transaction> createTransaction(CurrentUser user, @PathVariable UUID spaceId,
                                                   @Valid @RequestBody TransactionRequests.Create request) {
         TransactionService.Outcome outcome = transactions.create(user, spaceId, request);
-        return ResponseEntity.status(outcome.created() ? HttpStatus.CREATED : HttpStatus.OK).body(outcome.transaction());
+        // Entering a bill's expense yourself pays it: say which, so the app can tell you.
+        CommitmentService.Due paid = outcome.created() ? commitments.autoLink(spaceId, outcome.transaction()) : null;
+        return ResponseEntity.status(outcome.created() ? HttpStatus.CREATED : HttpStatus.OK)
+                .headers(paidHeader(paid)).body(outcome.transaction());
     }
 
     @PutMapping("/transactions/{id}")
     @Operation(summary = "Replace a transaction (send the version you edited; 409 if it changed meanwhile)")
-    Transaction replaceTransaction(CurrentUser user, @PathVariable UUID spaceId, @PathVariable UUID id,
-                                   @Valid @RequestBody TransactionRequests.Replace request) {
-        return transactions.replace(user, spaceId, id, request);
+    ResponseEntity<Transaction> replaceTransaction(CurrentUser user, @PathVariable UUID spaceId, @PathVariable UUID id,
+                                                  @Valid @RequestBody TransactionRequests.Replace request) {
+        Transaction t = transactions.replace(user, spaceId, id, request);
+        return ResponseEntity.ok().headers(paidHeader(commitments.autoLink(spaceId, t))).body(t);
+    }
+
+    /** X-Paid-Commitment: the bill or saving (and due date) a transaction was taken as paying, URL-encoded. */
+    private static org.springframework.http.HttpHeaders paidHeader(CommitmentService.Due paid) {
+        var headers = new org.springframework.http.HttpHeaders();
+        if (paid != null) {
+            headers.add("X-Paid-Commitment", java.net.URLEncoder.encode(paid.name() + "|" + paid.dueDate(), java.nio.charset.StandardCharsets.UTF_8));
+        }
+        return headers;
     }
 
     @DeleteMapping("/transactions/{id}")
