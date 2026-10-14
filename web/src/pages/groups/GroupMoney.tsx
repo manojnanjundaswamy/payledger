@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowRight, HandCoins, IndianRupee, MessageCircle, Plus, Receipt } from 'lucide-react'
+import { ArrowRight, ChevronLeft, ChevronRight, HandCoins, IndianRupee, MessageCircle, Pencil, Plus, Receipt, Search } from 'lucide-react'
+import { MonthCalendar, monthBounds } from '@/components/MonthCalendar'
+import { GroupInsights } from './GroupInsights'
 import { whatsAppShare } from '@/lib/whatsapp'
 import { upiPayLink } from '@/lib/upi'
 import { useProfile } from '@/state/profile'
@@ -9,17 +11,31 @@ import { Card, Skeleton } from '@/components/ui/card'
 import { Input } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/overlay'
 import { cn } from '@/lib/cn'
-import { formatMoney, minorToInput, parseMoney } from '@/lib/money'
-import { Field, dayLabel, today } from '@/pages/money/parts'
-import { useActivity, useBalances, useDeleteSettlement, useSettle, type Group, type GroupExpense } from '@/state/groups'
+import { formatMoney, formatMoneyShort, minorToInput, parseMoney } from '@/lib/money'
+import { Field, Select, dayLabel, today } from '@/pages/money/parts'
+import { useActivity, useBalances, useDeleteSettlement, useSettle, type Group, type GroupActivity, type GroupExpense } from '@/state/groups'
 import { ExpenseDialog } from './ExpenseDialog'
 
-/** A group's money: where you stand, who should pay whom, and everything spent and settled. */
-export function GroupMoney({ group }: { group: Group }) {
+export type GroupTab = 'overview' | 'activity' | 'calendar' | 'people'
+
+/**
+ * A group's money, by tab: the overview (where you stand, settling up, charts), the activity list with search, and the
+ * calendar. Editing and recording payments work the same from each.
+ */
+export function GroupMoney({ group, tab, month, onTab }: {
+  group: Group
+  tab: GroupTab
+  month?: string
+  onTab: (tab: GroupTab, extra?: { month?: string }) => void
+}) {
   const { data: activity, isPending } = useActivity(group.id)
   const { data: balances } = useBalances(group.id)
+  const locale = useProfile().data?.settings.locale ?? 'en-IN'
   const [editing, setEditing] = useState<GroupExpense | 'new' | null>(null)
+  const [newDate, setNewDate] = useState<string>()
   const [settling, setSettling] = useState<{ from: string; to: string; amount: number } | null>(null)
+  const [q, setQ] = useState('')
+  const [who, setWho] = useState<string>()
   const deleteSettlement = useDeleteSettlement(group.id)
   const name = (id: string) => {
     const m = group.members.find((x) => x.id === id)
@@ -28,12 +44,29 @@ export function GroupMoney({ group }: { group: Group }) {
   const mine = balances?.balance?.[group.you] ?? 0
   const myUpi = useProfile().data?.settings.upiId
   const upiOf = (id: string) => group.members.find((m) => m.id === id)?.upiId ?? null
+  const openExpense = (id: string) => {
+    const e = activity?.expenses.find((x) => x.id === id)
+    if (e) setEditing(e)
+  }
+  const addOn = (date?: string) => { setNewDate(date); setEditing('new') }
 
   type Row = { kind: 'expense'; date: string; expense: GroupExpense } | { kind: 'settlement'; date: string; id: string; from: string; to: string; amount: number; note: string | null }
   const rows: Row[] = [
     ...(activity?.expenses ?? []).map((e) => ({ kind: 'expense' as const, date: e.occurredOn, expense: e })),
     ...(activity?.settlements ?? []).map((s) => ({ kind: 'settlement' as const, date: s.occurredOn, id: s.id, from: s.fromMemberId, to: s.toMemberId, amount: s.amount, note: s.note })),
   ].sort((a, b) => b.date.localeCompare(a.date))
+  // Search: words in the description or label, an amount, or a payer's name; "who" keeps one member's.
+  const needle = q.trim().toLowerCase()
+  const amountQ = /^[\d,.]+$/.test(needle) ? parseMoney(needle) : null
+  const shown = rows.filter((r) => {
+    if (who && (r.kind === 'expense' ? !r.expense.parts.some((p) => p.memberId === who && (p.paid > 0 || p.share > 0)) : r.from !== who && r.to !== who)) return false
+    if (!needle) return true
+    if (r.kind === 'expense') {
+      return r.expense.description.toLowerCase().includes(needle) || (r.expense.category ?? '').toLowerCase().includes(needle)
+        || r.expense.amount === amountQ || r.expense.parts.some((p) => p.paid > 0 && name(p.memberId).toLowerCase().includes(needle))
+    }
+    return `${name(r.from)} paid ${name(r.to)} ${r.note ?? ''}`.toLowerCase().includes(needle) || r.amount === amountQ
+  })
 
   return (
     <div className="flex flex-col gap-6">
@@ -45,10 +78,10 @@ export function GroupMoney({ group }: { group: Group }) {
           </p>
           {balances && !balances.known && <p className="text-xs text-subtle">Balances are unavailable right now; they will be back shortly.</p>}
         </div>
-        {!group.archived && <Button variant="primary" onClick={() => setEditing('new')}><Plus />Add expense</Button>}
+        {!group.archived && <Button variant="primary" onClick={() => addOn()}><Plus />Add expense</Button>}
       </Card>
 
-      {balances?.known && balances.payments.length > 0 && (
+      {tab === 'overview' && balances?.known && balances.payments.length > 0 && (
         <section aria-label="Settle up" className="flex flex-col gap-2">
           <h3 className="text-sm font-medium text-muted">Settle up in {balances.payments.length} payment{balances.payments.length === 1 ? '' : 's'}</h3>
           <Card className="divide-y divide-border p-0">
@@ -56,7 +89,6 @@ export function GroupMoney({ group }: { group: Group }) {
               <div key={`${p.from}-${p.to}`} className="flex flex-wrap items-center gap-3 px-pad py-3 text-sm" data-testid={`payment-${name(p.from)}-${name(p.to)}`}>
                 <span className="font-medium">{name(p.from)}</span><ArrowRight className="size-4 text-muted" /><span className="font-medium">{name(p.to)}</span>
                 <span className="flex-1 tabular">{formatMoney(p.amount)}</span>
-                {/* A friendly nudge, written for them; they pay by UPI and the payment is recorded here. */}
                 {/* You owe them and they have a UPI id: pay in one tap from a phone's UPI app. */}
                 {p.from === group.you && upiOf(p.to) && (
                   <Button asChild size="sm" variant="primary">
@@ -66,6 +98,7 @@ export function GroupMoney({ group }: { group: Group }) {
                     </a>
                   </Button>
                 )}
+                {/* A friendly nudge, written for them; they pay by UPI and the payment is recorded here. */}
                 {p.to === group.you && (
                   <Button asChild size="sm" variant="ghost">
                     <a href={whatsAppShare(`Hi ${name(p.from)}, a reminder for ${group.name}: you owe me ${formatMoney(p.amount)}.${myUpi ? ` Pay by UPI to ${myUpi}: ${upiPayLink(myUpi, name(p.to), p.amount, `${group.name} settle-up`)}` : ''} Thanks!`)}
@@ -79,46 +112,115 @@ export function GroupMoney({ group }: { group: Group }) {
         </section>
       )}
 
-      <section aria-label="Activity" className="flex flex-col gap-2">
-        <h3 className="text-sm font-medium text-muted">Activity</h3>
-        {isPending ? <Skeleton className="h-24" /> : rows.length === 0 ? (
-          <Card className="p-pad text-sm text-muted">No expenses yet. Add the first one: who paid, and who it was for.</Card>
-        ) : (
-          <Card className="divide-y divide-border p-0">
-            {rows.map((r) => r.kind === 'expense' ? (
-              <button key={r.expense.id} type="button" onClick={() => setEditing(r.expense)} aria-label={`Edit ${r.expense.description}`}
-                className="flex w-full items-center gap-3 px-pad py-3 text-left hover:bg-surface-2">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted"><Receipt className="size-4" /></span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{r.expense.description}</span>
-                  <span className="block truncate text-xs text-subtle">
-                    {dayLabel(r.date)} · {r.expense.parts.filter((p) => p.paid > 0).map((p) => name(p.memberId)).join(' & ')} paid
-                  </span>
-                </span>
-                <span className="text-right">
-                  <span className="block tabular font-medium">{formatMoney(r.expense.amount, r.expense.currency)}</span>
-                  <YourPart expense={r.expense} you={group.you} />
-                </span>
-              </button>
-            ) : (
-              <div key={r.id} className="flex items-center gap-3 px-pad py-3 text-sm">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-good/10 text-good-text"><HandCoins className="size-4" /></span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{name(r.from)} paid {name(r.to)}</span>
-                  <span className="block text-xs text-subtle">{dayLabel(r.date)}{r.note && ` · ${r.note}`}</span>
-                </span>
-                <span className="tabular">{formatMoney(r.amount)}</span>
-                <Button size="sm" variant="ghost" aria-label="Delete this payment" onClick={() => deleteSettlement.mutate(r.id)}>Undo</Button>
-              </div>
-            ))}
-          </Card>
-        )}
-      </section>
+      {tab === 'overview' && (
+        <GroupInsights group={group} locale={locale} onExpense={openExpense}
+          onLabel={(label) => { setWho(undefined); setQ(label ?? ''); onTab('activity') }}
+          onMember={(id) => { setQ(''); setWho(id); onTab('activity') }}
+          onMonth={(m) => onTab('calendar', { month: m })} />
+      )}
 
-      <ExpenseDialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)} groupId={group.id}
+      {tab === 'calendar' && (
+        <GroupCalendar group={group} month={month ?? new Date().toISOString().slice(0, 7)} locale={locale} activity={activity}
+          name={name} onMonth={(m) => onTab('calendar', { month: m })} onOpen={openExpense} onAdd={group.archived ? undefined : addOn} />
+      )}
+
+      {tab === 'activity' && (
+        <section aria-label="Activity" className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="relative min-w-0 flex-1 basis-52">
+              <span className="sr-only">Search this group</span>
+              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle" />
+              <Input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search: dinner, Food, 600, a name…" className="pl-9" />
+            </label>
+            <Select aria-label="Whose" value={who ?? ''} onChange={(e) => setWho(e.target.value || undefined)} className="w-auto min-w-36">
+              <option value="">Everyone</option>
+              {group.members.map((m) => <option key={m.id} value={m.id}>{m.you ? 'You' : m.name}</option>)}
+            </Select>
+          </div>
+          {(needle || who) && (
+            <p className="text-xs text-muted" data-testid="group-found">
+              {shown.length} of {rows.length} · {formatMoney(shown.reduce((s, r) => s + (r.kind === 'expense' ? r.expense.amount : 0), 0))} in expenses
+            </p>
+          )}
+          {isPending ? <Skeleton className="h-24" /> : rows.length === 0 ? (
+            <Card className="p-pad text-sm text-muted">No expenses yet. Add the first one: who paid, and who it was for.</Card>
+          ) : shown.length === 0 ? (
+            <Card className="p-pad text-sm text-muted">Nothing matches. <button type="button" className="underline" onClick={() => { setQ(''); setWho(undefined) }}>Show everything</button></Card>
+          ) : (
+            <Card className="divide-y divide-border p-0">
+              {shown.map((r) => r.kind === 'expense' ? (
+                <button key={r.expense.id} type="button" onClick={() => setEditing(r.expense)} aria-label={`Edit ${r.expense.description}`}
+                  className="flex w-full items-center gap-3 px-pad py-3 text-left hover:bg-surface-2">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted"><Receipt className="size-4" /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{r.expense.description}</span>
+                    <span className="block truncate text-xs text-subtle">
+                      {dayLabel(r.date)}{r.expense.category && ` · ${r.expense.category}`} · {r.expense.parts.filter((p) => p.paid > 0).map((p) => name(p.memberId)).join(' & ')} paid
+                    </span>
+                  </span>
+                  <span className="text-right">
+                    <span className="block tabular font-medium">{formatMoney(r.expense.amount, r.expense.currency)}</span>
+                    <YourPart expense={r.expense} you={group.you} />
+                  </span>
+                </button>
+              ) : (
+                <div key={r.id} className="flex items-center gap-3 px-pad py-3 text-sm">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-good/10 text-good-text"><HandCoins className="size-4" /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{name(r.from)} paid {name(r.to)}</span>
+                    <span className="block text-xs text-subtle">{dayLabel(r.date)}{r.note && ` · ${r.note}`}</span>
+                  </span>
+                  <span className="tabular">{formatMoney(r.amount)}</span>
+                  <Button size="sm" variant="ghost" aria-label="Delete this payment" onClick={() => deleteSettlement.mutate(r.id)}>Undo</Button>
+                </div>
+              ))}
+            </Card>
+          )}
+        </section>
+      )}
+
+      <ExpenseDialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)} groupId={group.id} initialDate={newDate}
         members={group.members} you={group.you} expense={editing === 'new' || editing === null ? undefined : editing} />
       <SettleDialog payment={settling} onClose={() => setSettling(null)} groupId={group.id} name={name} />
     </div>
+  )
+}
+
+/** The group's expenses and payments on a month calendar; a day adds an expense on that date. */
+function GroupCalendar({ group, month, locale, activity, name, onMonth, onOpen, onAdd }: {
+  group: Group; month: string; locale: string; activity?: GroupActivity; name: (id: string) => string
+  onMonth: (m: string) => void; onOpen: (id: string) => void; onAdd?: (date: string) => void
+}) {
+  const { start, end, prev, next } = monthBounds(month)
+  const expenses = (activity?.expenses ?? []).filter((e) => e.occurredOn >= start && e.occurredOn <= end)
+  const settlements = (activity?.settlements ?? []).filter((s) => s.occurredOn >= start && s.occurredOn <= end)
+  const spentOn = (day: string) => expenses.filter((e) => e.occurredOn === day).reduce((s, e) => s + e.amount, 0)
+  const max = Math.max(1, ...expenses.map((e) => spentOn(e.occurredOn)))
+  const [y, m] = month.split('-').map(Number)
+  return (
+    <section aria-label="Calendar" className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="icon" aria-label="Previous month" onClick={() => onMonth(prev)}><ChevronLeft /></Button>
+        <h3 className="min-w-36 text-center font-semibold" data-testid="calendar-month">{new Date(y!, m! - 1, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' })}</h3>
+        <Button variant="ghost" size="icon" aria-label="Next month" onClick={() => onMonth(next)}><ChevronRight /></Button>
+        <span className="flex-1" />
+        <span className="text-sm text-muted tabular">{formatMoney(expenses.reduce((s, e) => s + e.amount, 0), group.currency, locale)} spent</span>
+      </div>
+      <MonthCalendar start={start} end={end} locale={locale} label="Group calendar"
+        heat={(day) => spentOn(day) / max}
+        chips={(day) => [
+          ...expenses.filter((e) => e.occurredOn === day).map((e) => ({
+            id: e.id, label: `${e.description} ${formatMoneyShort(e.amount, e.currency, locale)}`, title: `${e.description}: ${formatMoney(e.amount, e.currency, locale)}`,
+            onOpen: () => onOpen(e.id),
+            menuLabel: <><Pencil /><span className="min-w-0 flex-1 truncate">Edit {e.description}</span><span className="pl-3 text-xs text-subtle tabular">{formatMoney(e.amount, e.currency, locale)}</span></>,
+          })),
+          ...settlements.filter((s) => s.occurredOn === day).map((s) => ({
+            id: s.id, label: `${name(s.fromMemberId)} → ${name(s.toMemberId)} ${formatMoneyShort(s.amount, s.currency, locale)}`, tone: 'good' as const,
+          })),
+        ]}
+        actions={(date) => onAdd ? [{ key: 'add', icon: <Plus />, label: 'Add an expense on this day', onSelect: () => onAdd(date) }] : []}
+      />
+    </section>
   )
 }
 

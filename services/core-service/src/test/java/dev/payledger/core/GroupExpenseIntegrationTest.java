@@ -196,6 +196,32 @@ class GroupExpenseIntegrationTest {
 
     // ---------------------------------------------------------------- helpers
 
+    @Test
+    void insightsAndTheGroupListAddUpEverythingSpentPaidAndSettled() throws Exception {
+        expense(expenseBody("Dinner", 90_000, payer(priya, 90_000), "EQUAL", share(priya), share(rahul), share(amit))).andExpect(status().isCreated());
+        expense(expenseBody("Taxi", 30_000, payer(rahul, 30_000), "EQUAL", share(priya), share(rahul), share(amit))
+                .replace("Food", "Travel").replace("2026-10-05", "2026-09-28")).andExpect(status().isCreated());
+        mvc.perform(post(path("/settlements")).with(me).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fromMemberId\":\"%s\",\"toMemberId\":\"%s\",\"amount\":10000,\"occurredOn\":\"2026-10-06\"}".formatted(amit, priya)))
+                .andExpect(status().isCreated());
+
+        mvc.perform(get(path("/insights")).with(me)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.spent").value(120_000)).andExpect(jsonPath("$.expenses").value(2))
+                .andExpect(jsonPath("$.settled").value(10_000))
+                .andExpect(jsonPath("$.yourPaid").value(90_000)).andExpect(jsonPath("$.yourShare").value(40_000))
+                .andExpect(jsonPath("$.members[0].name").value("Priya")).andExpect(jsonPath("$.members[0].share").value(40_000))
+                .andExpect(jsonPath("$.members[1].name").value("Rahul")).andExpect(jsonPath("$.members[1].paid").value(30_000))
+                .andExpect(jsonPath("$.members[2].paid").value(0)).andExpect(jsonPath("$.members[2].expenses").value(2))
+                .andExpect(jsonPath("$.labels[0].label").value("Food")).andExpect(jsonPath("$.labels[1].label").value("Travel"))
+                .andExpect(jsonPath("$.months[0].month").value("2026-09")).andExpect(jsonPath("$.months[1].amount").value(90_000))
+                .andExpect(jsonPath("$.biggest[0].description").value("Dinner"));
+
+        // In the list: the total, and where you stand (owed 50,000 less the 10,000 Amit paid back).
+        mvc.perform(get("/api/core/groups").with(me))
+                .andExpect(jsonPath("$[0].spent").value(120_000)).andExpect(jsonPath("$[0].expenses").value(2))
+                .andExpect(jsonPath("$[0].net").value(-40_000)).andExpect(jsonPath("$[0].lastActivity").value("2026-10-06"));
+    }
+
     private String path(String rest) {
         return "/api/core/groups/" + group + rest;
     }

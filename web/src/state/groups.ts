@@ -3,7 +3,24 @@ import { api } from '@/lib/api'
 
 /** core-service's groups API (docs/adr/0007-groups-and-splitting.md). */
 
-export interface GroupSummary { id: string; name: string; emoji: string | null; currency: string; role: 'OWNER' | 'MEMBER'; members: number; archived: boolean; you: string }
+/** net: what you owe the group (positive) or are owed (negative), paise; spent: all its expenses. */
+export interface GroupSummary {
+  id: string; name: string; emoji: string | null; currency: string; role: 'OWNER' | 'MEMBER'; members: number; archived: boolean; you: string
+  spent: number; expenses: number; net: number; lastActivity: string | null
+}
+
+/** A group's totals for charts (paise). */
+export interface GroupInsights {
+  currency: string; spent: number; expenses: number; settled: number; yourPaid: number; yourShare: number
+  members: { memberId: string; name: string; left: boolean; paid: number; share: number; expenses: number }[]
+  labels: { label: string | null; amount: number; count: number }[]
+  months: { month: string; amount: number; count: number }[]
+  biggest: { id: string; description: string; amount: number; occurredOn: string }[]
+}
+
+export function useInsights(id: string) {
+  return useQuery({ queryKey: ['groups', id, 'insights'], queryFn: () => api<GroupInsights>(`/api/core/groups/${id}/insights`) })
+}
 
 /** A person in a group: joined (has an account) or a placeholder, maybe invited by email. */
 export interface GroupMember { id: string; name: string; email: string | null; role: 'OWNER' | 'MEMBER'; joined: boolean; you: boolean; upiId?: string | null }

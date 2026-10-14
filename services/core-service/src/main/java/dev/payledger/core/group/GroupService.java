@@ -36,8 +36,15 @@ public class GroupService {
         this.inbox = inbox;
     }
 
-    /** @param you the signed-in user's member id in this group (their balance is under it) */
-    public record Summary(UUID id, String name, String emoji, String currency, String role, int members, boolean archived, UUID you) {
+    /**
+     * @param you          the signed-in user's member id in this group (their balance is under it)
+     * @param spent        all live expenses, paise
+     * @param net          what you owe the group (positive) or are owed (negative), from the expenses and settlements
+     *                     as entered; the ledger's balance is the same once it has caught up
+     * @param lastActivity the latest expense or settlement date; null when nothing was added yet
+     */
+    public record Summary(UUID id, String name, String emoji, String currency, String role, int members, boolean archived, UUID you,
+                          long spent, int expenses, long net, java.time.LocalDate lastActivity) {
     }
 
     /**
@@ -59,10 +66,19 @@ public class GroupService {
         return jdbc.sql("""
                         select g.id, g.name, g.emoji, g.currency, m.role,
                                (select count(*) from group_members x where x.group_id = g.id and x.left_at is null)::int as members,
-                               g.archived_at is not null as archived, m.id as you
+                               g.archived_at is not null as archived, m.id as you,
+                               coalesce(e.spent, 0) as spent, coalesce(e.count, 0)::int as expenses,
+                               coalesce((select sum(p.share - p.paid) from group_expense_parts p
+                                         join group_expenses x on x.id = p.expense_id and x.deleted_at is null
+                                         where p.member_id = m.id), 0)
+                                 - coalesce((select sum(s.amount) from group_settlements s where s.from_member = m.id and s.deleted_at is null), 0)
+                                 + coalesce((select sum(s.amount) from group_settlements s where s.to_member = m.id and s.deleted_at is null), 0) as net,
+                               greatest(e.last, (select max(s.occurred_on) from group_settlements s where s.group_id = g.id and s.deleted_at is null)) as last_activity
                         from group_members m join groups g on g.id = m.group_id
+                        left join lateral (select sum(amount) as spent, count(*) as count, max(occurred_on) as last
+                                           from group_expenses where group_id = g.id and deleted_at is null) e on true
                         where m.user_id = :userId and m.left_at is null
-                        order by g.archived_at is not null, g.created_at desc
+                        order by g.archived_at is not null, greatest(e.last, g.created_at::date) desc, g.created_at desc
                         """)
                 .param("userId", user.id())
                 .query(Summary.class)

@@ -19,13 +19,15 @@ const SPLITS: { value: SplitType; label: string }[] = [
 ]
 
 /** Add or edit a shared expense: who paid, and how it splits between whom. */
-export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expense }: {
+export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expense, initialDate }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   groupId: string
   members: GroupMember[]
   you: string
   expense?: GroupExpense
+  /** A new expense's date (from a day on the calendar). */
+  initialDate?: string
 }) {
   const add = useAddExpense(groupId)
   const update = useUpdateExpense(groupId)
@@ -63,7 +65,7 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
     } else {
       setDescription('')
       setAmount('')
-      setDate(today())
+      setDate(initialDate ?? today())
       setCategory('')
       setSplit('EQUAL')
       setIncluded(Object.fromEntries(members.map((m) => [m.id, true])))
