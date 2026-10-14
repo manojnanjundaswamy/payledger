@@ -34,6 +34,12 @@ class GroupExpenseController {
         return expenses.activity(user, groupId);
     }
 
+    @GetMapping("/history")
+    @Operation(summary = "Everything that happened in the group, newest first: who did it, when, and the details")
+    java.util.List<GroupHistory.Event> history(CurrentUser user, @PathVariable UUID groupId) {
+        return expenses.history(user, groupId);
+    }
+
     @GetMapping("/insights")
     @Operation(summary = "Totals for charts: spent, each member's paid and share, by label, by month, and the biggest expenses")
     GroupExpenseService.Insights insights(CurrentUser user, @PathVariable UUID groupId) {

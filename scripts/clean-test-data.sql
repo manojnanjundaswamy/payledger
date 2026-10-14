@@ -23,9 +23,11 @@ delete from group_expense_parts where expense_id in (select id from group_expens
 delete from group_settlements where group_id in (select id from gone_groups);
 delete from group_expenses where group_id in (select id from gone_groups);
 delete from group_links where group_id in (select id from gone_groups);
+delete from group_events where group_id in (select id from gone_groups);
 delete from group_members where group_id in (select id from gone_groups);
 delete from groups where id in (select id from gone_groups);
 update group_members set user_id = null where user_id in (select id from gone_users);
+update group_events set actor_user_id = null where actor_user_id in (select id from gone_users);
 update group_members set added_by = (select id from keep_user) where added_by in (select id from gone_users);
 update group_expenses set created_by = (select id from keep_user) where created_by in (select id from gone_users);
 update group_settlements set created_by = (select id from keep_user) where created_by in (select id from gone_users);

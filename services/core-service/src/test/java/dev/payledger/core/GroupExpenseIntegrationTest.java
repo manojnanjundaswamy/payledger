@@ -226,6 +226,37 @@ class GroupExpenseIntegrationTest {
                 .andExpect(jsonPath("$[0].net").value(-40_000)).andExpect(jsonPath("$[0].lastActivity").value("2026-10-06"));
     }
 
+    @Test
+    void theHistoryRecordsEveryChangeWithWhoWhenAndWhat() throws Exception {
+        String id = JsonPath.read(expense(expenseBody("Dinner", 90_000, payer(priya, 90_000), "EQUAL", share(priya), share(rahul), share(amit)))
+                .andReturn().getResponse().getContentAsString(), "$.id");
+        mvc.perform(put(path("/expenses/" + id)).with(me).param("version", "1").contentType(MediaType.APPLICATION_JSON)
+                .content(expenseBody("Dinner at Thalassa", 120_000, payer(priya, 120_000), "EQUAL", share(priya), share(rahul), share(amit))))
+                .andExpect(status().isOk());
+        mvc.perform(post(path("/settlements")).with(me).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fromMemberId\":\"%s\",\"toMemberId\":\"%s\",\"amount\":40000,\"occurredOn\":\"2026-10-06\",\"note\":\"UPI\"}".formatted(rahul, priya)))
+                .andExpect(status().isCreated());
+        mvc.perform(delete(path("/expenses/" + id)).with(me).param("version", "2")).andExpect(status().isNoContent());
+        mvc.perform(patch(path("")).with(me).contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Goa 2026\"}")).andExpect(status().isOk());
+
+        String history = mvc.perform(get(path("/history")).with(me)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(JsonPath.<List<String>>read(history, "$[*].action")).containsExactly(
+                "GROUP_UPDATED", "EXPENSE_DELETED", "SETTLEMENT_RECORDED", "EXPENSE_EDITED", "EXPENSE_ADDED", "MEMBER_ADDED", "MEMBER_ADDED", "GROUP_CREATED");
+        assertThat(JsonPath.<Boolean>read(history, "$[0].you")).isTrue();
+        assertThat(JsonPath.<String>read(history, "$[0].actorName")).isEqualTo("Priya");
+        assertThat(JsonPath.<String>read(history, "$[0].details.changes[0].after")).isEqualTo("Goa 2026");
+        // An edit says what changed, before and after.
+        assertThat(JsonPath.<List<String>>read(history, "$[3].details.changes[*].field")).contains("description", "amount", "shares", "paidBy");
+        assertThat(JsonPath.<List<Object>>read(history, "$[3].details.changes[?(@.field == 'amount')].before")).containsExactly(90_000);
+        assertThat(JsonPath.<List<Object>>read(history, "$[3].details.changes[?(@.field == 'amount')].after")).containsExactly(120_000);
+        assertThat(JsonPath.<List<String>>read(history, "$[4].details.shares[*].member")).containsExactly("Priya", "Rahul", "Amit");
+        assertThat(JsonPath.<String>read(history, "$[2].details.from")).isEqualTo("Rahul");
+        assertThat(JsonPath.<String>read(history, "$[2].details.note")).isEqualTo("UPI");
+        // Only people in the group see it.
+        var stranger = jwt().jwt(j -> j.subject(UUID.randomUUID().toString()).claim("email", UUID.randomUUID() + "@example.com").claim("email_verified", true));
+        mvc.perform(get(path("/history")).with(stranger)).andExpect(status().isNotFound());
+    }
+
     private String path(String rest) {
         return "/api/core/groups/" + group + rest;
     }

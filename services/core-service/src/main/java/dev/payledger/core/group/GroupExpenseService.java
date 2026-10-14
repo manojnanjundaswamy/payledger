@@ -39,9 +39,11 @@ public class GroupExpenseService {
     private final GroupService groups;
     private final LedgerCommands ledger;
     private final LedgerClient ledgerReads;
+    private final GroupHistory history;
 
     public GroupExpenseService(JdbcClient jdbc, GroupService groups, LedgerCommands ledger, LedgerClient ledgerReads,
-                               dev.payledger.core.notify.Inbox inbox) {
+                               dev.payledger.core.notify.Inbox inbox, GroupHistory history) {
+        this.history = history;
         this.jdbc = jdbc;
         this.groups = groups;
         this.ledger = ledger;
@@ -198,6 +200,7 @@ public class GroupExpenseService {
         int ledgerVersion = post(groupId, id, 1, request.fields(), parts) ? 1 : 0;
         jdbc.sql("update group_expenses set ledger_version = :v where id = :id").param("v", ledgerVersion).param("id", id).update();
         tell(user, groupId, parts, "added", request.fields().description(), request.fields().amount());
+        history.record(groupId, user, GroupHistory.Action.EXPENSE_ADDED, snapshot(id));
         return find(groupId, id);
     }
 
@@ -217,6 +220,7 @@ public class GroupExpenseService {
             throw new VersionConflictException("expense");
         }
         Map<UUID, Long[]> parts = resolve(groupId, f);
+        Map<String, Object> was = snapshot(id);
         int next = version + 1;
         if (before.ledgerVersion() > 0) {
             ledger.reverse(Book.group(groupId), key(id, before.ledgerVersion()) + ":reversal", key(id, before.ledgerVersion()),
@@ -233,6 +237,18 @@ public class GroupExpenseService {
         jdbc.sql("delete from group_expense_parts where expense_id = :id").param("id", id).update();
         writeParts(id, parts, f);
         tell(user, groupId, parts, "edited", f.description(), f.amount());
+        Map<String, Object> now = snapshot(id);
+        // What changed, field by field, so the history can say "amount ₹900 → ₹1,200".
+        List<Map<String, Object>> changes = new ArrayList<>();
+        for (String field : List.of("description", "amount", "occurredOn", "category", "split", "paidBy", "shares")) {
+            Object a = was.get(field);
+            Object b = now.get(field);
+            if (!java.util.Objects.equals(String.valueOf(a), String.valueOf(b))) {
+                changes.add(GroupHistory.details("field", field, "before", a, "after", b));
+            }
+        }
+        now.put("changes", changes);
+        history.record(groupId, user, GroupHistory.Action.EXPENSE_EDITED, now);
         return find(groupId, id);
     }
 
@@ -254,6 +270,7 @@ public class GroupExpenseService {
         jdbc.sql("select member_id, paid, share from group_expense_parts where expense_id = :id").param("id", id)
                 .query((rs, i) -> was.put(rs.getObject("member_id", UUID.class), new Long[]{rs.getLong("paid"), rs.getLong("share")})).list();
         long amount = jdbc.sql("select amount from group_expenses where id = :id").param("id", id).query(Long.class).single();
+        history.record(groupId, user, GroupHistory.Action.EXPENSE_DELETED, snapshot(id));
         jdbc.sql("update group_expenses set deleted_at = now(), version = version + 1, updated_at = now() where id = :id")
                 .param("id", id).update();
         tell(user, groupId, was, "deleted", before.description(), amount);
@@ -290,6 +307,9 @@ public class GroupExpenseService {
                         new Leg(MEMBER + request.fromMemberId(), "ASSET", currency, -request.amount()),
                         new Leg(MEMBER + request.toMemberId(), "ASSET", currency, request.amount())));
         tellPayment(user, groupId, request.fromMemberId(), request.toMemberId(), request.amount(), false);
+        history.record(groupId, user, GroupHistory.Action.SETTLEMENT_RECORDED, GroupHistory.details(
+                "from", memberName(request.fromMemberId()), "to", memberName(request.toMemberId()), "amount", request.amount(),
+                "currency", currency, "occurredOn", request.occurredOn().toString(), "note", note));
         return new Settlement(id, request.fromMemberId(), request.toMemberId(), request.amount(), currency, request.occurredOn(), note);
     }
 
@@ -306,6 +326,37 @@ public class GroupExpenseService {
         }
         Paid p = jdbc.sql("select from_member, to_member, amount from group_settlements where id = :id").param("id", id).query(Paid.class).single();
         tellPayment(user, groupId, p.fromMember(), p.toMember(), p.amount(), true);
+        history.record(groupId, user, GroupHistory.Action.SETTLEMENT_UNDONE,
+                GroupHistory.details("from", memberName(p.fromMember()), "to", memberName(p.toMember()), "amount", p.amount()));
+    }
+
+    /** An expense as the history keeps it: what it was, who paid and whose share it was, by name. */
+    private Map<String, Object> snapshot(UUID expenseId) {
+        record Row(String description, long amount, String currency, LocalDate occurredOn, String category, String split) {
+        }
+        Row r = jdbc.sql("select description, amount, currency, occurred_on, category, split from group_expenses where id = :id")
+                .param("id", expenseId).query(Row.class).single();
+        record Part(String name, long paid, long share) {
+        }
+        List<Part> parts = jdbc.sql("""
+                        select m.display_name as name, p.paid, p.share from group_expense_parts p join group_members m on m.id = p.member_id
+                        where p.expense_id = :id order by p.position
+                        """).param("id", expenseId).query(Part.class).list();
+        Map<String, Object> d = GroupHistory.details("expenseId", expenseId.toString(), "description", r.description(), "amount", r.amount(),
+                "currency", r.currency(), "occurredOn", r.occurredOn().toString(), "category", r.category(), "split", r.split());
+        d.put("paidBy", parts.stream().filter(p -> p.paid() > 0).map(p -> GroupHistory.details("member", p.name(), "amount", p.paid())).toList());
+        d.put("shares", parts.stream().filter(p -> p.share() > 0).map(p -> GroupHistory.details("member", p.name(), "amount", p.share())).toList());
+        return d;
+    }
+
+    private String memberName(UUID memberId) {
+        return jdbc.sql("select display_name from group_members where id = :id").param("id", memberId).query(String.class).optional().orElse("Someone");
+    }
+
+    @Transactional(readOnly = true)
+    public List<GroupHistory.Event> history(CurrentUser user, UUID groupId) {
+        groups.member(user, groupId);
+        return history.list(groupId, user.id(), 500);
     }
 
     // ---------------------------------------------------------------- telling people
@@ -346,10 +397,6 @@ public class GroupExpenseService {
 
     private UUID userOf(UUID memberId) {
         return jdbc.sql("select user_id from group_members where id = :id").param("id", memberId).query(UUID.class).optional().orElse(null);
-    }
-
-    private String memberName(UUID memberId) {
-        return jdbc.sql("select display_name from group_members where id = :id").param("id", memberId).query(String.class).optional().orElse("Someone");
     }
 
     private String groupName(UUID groupId) {

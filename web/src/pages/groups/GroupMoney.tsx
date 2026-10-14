@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { ArrowRight, ChevronLeft, ChevronRight, HandCoins, IndianRupee, MessageCircle, Pencil, Plus, Receipt, Search } from 'lucide-react'
 import { MonthCalendar, monthBounds } from '@/components/MonthCalendar'
 import { GroupInsights } from './GroupInsights'
+import { GroupHistoryList } from './GroupHistory'
+import { Segmented } from '@/components/ui/controls'
 import { whatsAppShare } from '@/lib/whatsapp'
 import { upiPayLink } from '@/lib/upi'
 import { useProfile } from '@/state/profile'
@@ -36,6 +38,7 @@ export function GroupMoney({ group, tab, month, onTab }: {
   const [settling, setSettling] = useState<{ from: string; to: string; amount: number } | null>(null)
   const [q, setQ] = useState('')
   const [who, setWho] = useState<string>()
+  const [activityView, setActivityView] = useState<'list' | 'history'>('list')
   const deleteSettlement = useDeleteSettlement(group.id)
   const name = (id: string) => {
     const m = group.members.find((x) => x.id === id)
@@ -125,6 +128,12 @@ export function GroupMoney({ group, tab, month, onTab }: {
       )}
 
       {tab === 'activity' && (
+        <Segmented label="Activity view" value={activityView} onChange={setActivityView} className="self-start"
+          options={[{ value: 'list', label: 'Expenses & payments' }, { value: 'history', label: 'History' }]} />
+      )}
+      {tab === 'activity' && activityView === 'history' && <GroupHistoryList groupId={group.id} currency={group.currency} locale={locale} />}
+
+      {tab === 'activity' && activityView === 'list' && (
         <section aria-label="Activity" className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <label className="relative min-w-0 flex-1 basis-52">
