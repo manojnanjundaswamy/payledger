@@ -135,7 +135,11 @@ const plan = createRoute({
   getParentRoute: () => app,
   path: '/plan',
   // ?open=<commitment id> opens that bill or saving (from the dashboard or the calendar).
-  validateSearch: z.object({ open: z.string().uuid().optional().catch(undefined) }),
+  // ?due=2026-10-21 starts a new bill due that day (from any calendar).
+  validateSearch: z.object({
+    open: z.string().uuid().optional().catch(undefined),
+    due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
+  }),
   component: lazyRouteComponent(() => import('@/pages/money/PlanPage'), 'PlanPage'),
 })
 
@@ -193,6 +197,8 @@ const transactions = createRoute({
     min: z.coerce.number().nonnegative().optional().catch(undefined),
     max: z.coerce.number().nonnegative().optional().catch(undefined),
     tag: z.string().max(40).optional().catch(undefined),
+    view: z.enum(['list', 'calendar']).optional().catch(undefined),
+    month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional().catch(undefined),
   }),
   component: lazyRouteComponent(() => import('@/pages/money/TransactionsPage'), 'TransactionsPage'),
 })

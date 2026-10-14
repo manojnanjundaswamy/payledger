@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { ArrowLeftRight, FileUp, Plus, SearchX } from 'lucide-react'
+import { ArrowLeftRight, CalendarDays, FileUp, List, Plus, SearchX } from 'lucide-react'
+import { Segmented } from '@/components/ui/controls'
+import { TransactionCalendar } from './TransactionCalendar'
 import { Button } from '@/components/ui/button'
 import { Card, Skeleton } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
@@ -18,6 +20,9 @@ export interface TransactionsSearch extends FilterSearch {
   open?: string
   /** The date for a new one (?add=EXPENSE&date=2026-10-21, from the calendar). */
   date?: string
+  view?: 'list' | 'calendar'
+  /** The calendar's month, yyyy-mm. */
+  month?: string
 }
 
 /** Every expense, income and transfer, newest first, grouped by day. */
@@ -69,6 +74,9 @@ export function TransactionsPage() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
       <div className="flex flex-wrap items-center justify-end gap-2">
+        <Segmented label="View" value={search.view ?? 'list'} className="mr-auto"
+          onChange={(v) => void navigate({ search: (s: TransactionsSearch) => ({ ...s, view: v === 'list' ? undefined : v }), replace: true })}
+          options={[{ value: 'list', label: <><List />List</> }, { value: 'calendar', label: <><CalendarDays />Calendar</> }]} />
         <Button asChild variant="ghost"><Link to="/import"><FileUp />Import</Link></Button>
         <Button variant="outline" onClick={() => setAdding('TRANSFER')}><ArrowLeftRight />Transfer</Button>
         <Button variant="primary" onClick={() => setAdding('EXPENSE')}><Plus />Add</Button>
@@ -76,6 +84,12 @@ export function TransactionsPage() {
       <TransactionFilters search={search} accounts={accounts ?? []} categories={categories}
         onChange={(next) => void navigate({ search: (s: TransactionsSearch) => ({ ...s, ...next }), replace: true })} />
 
+      {search.view === 'calendar' && (
+        <TransactionCalendar month={search.month ?? (search.from ?? new Date().toISOString()).slice(0, 7)} filter={toFilter(search)} locale={locale}
+          money={(m, c) => money(m, c)} onOpen={setEditing} />
+      )}
+
+      {search.view !== 'calendar' && <>
       {isError && <Card className="p-pad text-sm text-critical">Couldn't load transactions. Refresh to try again.</Card>}
       {isPending && <div className="flex flex-col gap-2">{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-14" />)}</div>}
 
@@ -132,6 +146,7 @@ export function TransactionsPage() {
           {isFetchingNextPage ? 'Loading…' : 'Show older'}
         </Button>
       )}
+      </>}
 
       <TransactionDialog
         open={!!adding || !!editing}
