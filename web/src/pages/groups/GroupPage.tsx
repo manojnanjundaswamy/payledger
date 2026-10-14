@@ -64,7 +64,7 @@ export function GroupPage() {
         </div>
       </div>
 
-      <Segmented label="Group view" value={tab} onChange={(t) => setTab(t)} className="self-start"
+      <Segmented label="Group view" value={tab} onChange={(t) => setTab(t)} className="self-start max-sm:[&_svg]:hidden"
         options={[
           { value: 'overview', label: <><BarChart3 />Overview</> },
           { value: 'activity', label: <><List />Activity</> },

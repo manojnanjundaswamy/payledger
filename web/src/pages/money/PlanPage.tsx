@@ -166,7 +166,7 @@ function DueThisMonth({ start, end, money, locale, onOpen, onAdd }: {
             const days = daysUntil(x.dueDate)
             return (
               <Fragment key={`${x.commitmentId}/${x.dueDate}`}>
-              <div className="flex items-center gap-3 px-pad py-3" data-testid={`due-${x.name}`}>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-pad py-3" data-testid={`due-${x.name}`}>
                 <DateChip iso={x.dueDate} locale={locale} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{x.name}</span>
@@ -176,7 +176,7 @@ function DueThisMonth({ start, end, money, locale, onOpen, onAdd }: {
                 </span>
                 <span className="tabular shrink-0 text-sm font-medium">{money(x.amount)}</span>
                 {x.paid ? (
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1 max-sm:ml-auto">
                     {/* Paid: the badge opens the payment; unlinking keeps the transaction. */}
                     <Link to="/transactions" search={{ open: x.transactionId! }} aria-label={`Open the payment of ${x.name}`}>
                       <Badge tone="good"><Check className="size-3" />Paid</Badge>
@@ -185,7 +185,8 @@ function DueThisMonth({ start, end, money, locale, onOpen, onAdd }: {
                       onClick={() => unlink.mutate({ id: x.commitmentId, dueDate: x.dueDate })}><Unlink /></Button>
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1">
+                  // On a phone the buttons take their own line, so the name keeps its room.
+                  <span className="flex items-center justify-end gap-1 max-sm:basis-full">
                     <Button size="sm" variant="ghost" onClick={() => setLinking(x)} title="Already paid it? Pick the transaction">Link</Button>
                     <Button size="sm" variant="outline" onClick={() => markPaid(x)} disabled={pay.isPending}>Mark paid</Button>
                   </span>
