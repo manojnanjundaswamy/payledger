@@ -7,7 +7,8 @@ import {
 import { formatMoney } from '@/lib/money'
 import { cn } from '@/lib/cn'
 import { useProfile } from '@/state/profile'
-import type { AccountKind, Category, TxnKind } from '@/state/money'
+import { categoryLabel, categoryTree, type AccountKind, type Category, type TxnKind } from '@/state/money'
+import type { SearchOption } from '@/components/ui/search-select'
 
 /**
  * Icons a category can have, by lucide name (what core-service stores). The first row are the
@@ -115,4 +116,26 @@ export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLS
       {...props}
     />
   )
+}
+
+/**
+ * Categories as options for a searchable dropdown: parents with their subcategories indented beneath, each with its
+ * icon; a subcategory also matches its parent's name.
+ */
+export function categoryOptions(choices: Category[], all: Category[], opts: { group?: boolean } = {}): SearchOption[] {
+  return categoryTree(choices).flatMap(({ category, children }) => [category, ...children]).map((c) => ({
+    value: c.id,
+    label: categoryLabel(c, all),
+    icon: <CategoryIcon category={c} className="size-5 bg-transparent" />,
+    indent: !!c.parentId && choices.some((p) => p.id === c.parentId),
+    group: opts.group ? (c.kind === 'EXPENSE' ? 'Spending' : 'Income') : undefined,
+  }))
+}
+
+/** Accounts as options, each with its kind's icon. */
+export function accountOptions(accounts: { id: string; name: string; kind: AccountKind; archived?: boolean }[]): SearchOption[] {
+  return accounts.map((a) => {
+    const Icon = ACCOUNT_KINDS[a.kind].icon
+    return { value: a.id, label: a.name + (a.archived ? ' (archived)' : ''), icon: <Icon className="text-muted" />, keywords: ACCOUNT_KINDS[a.kind].label }
+  })
 }

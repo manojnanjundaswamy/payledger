@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { SearchSelect } from '@/components/ui/search-select'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { BarChart3, Download, FileSpreadsheet, Printer, Search, X } from 'lucide-react'
@@ -12,10 +13,10 @@ import { cn } from '@/lib/cn'
 import { formatMoneyShort, formatMoneyWhole } from '@/lib/money'
 import { PERIOD_KEYS, financialYear, monthsIn, reportPeriod, type Period, type PeriodKey } from '@/lib/periods'
 import {
-  exportUrl, filterParams, useAccounts, useBudgetMonths, useCategories, useSpaceId, type Category, type TransactionFilter,
+  exportUrl, filterParams, type Account, useAccounts, useBudgetMonths, useCategories, useSpaceId, type Category, type TransactionFilter,
 } from '@/state/money'
 import { useProfile } from '@/state/profile'
-import { CategoryIcon, Select } from './parts'
+import { CategoryIcon, Select, accountOptions, categoryOptions } from './parts'
 
 const PERIOD_LABELS: Record<PeriodKey, string> = {
   'this-month': 'This month', 'last-month': 'Last month', 'this-fy': 'This financial year', 'last-fy': 'Last financial year',
@@ -172,7 +173,7 @@ export function ReportsPage() {
 
 /** Account, category, tag and words: the same filters as the transactions list. */
 function ReportFilters({ search, set, categories, accounts }: {
-  search: ReportsSearch; set: (s: Partial<ReportsSearch>) => void; categories: Category[]; accounts: { id: string; name: string; archived?: boolean }[]
+  search: ReportsSearch; set: (s: Partial<ReportsSearch>) => void; categories: Category[]; accounts: Account[]
 }) {
   const [text, setText] = useState(search.q ?? '')
   useEffect(() => setText(search.q ?? ''), [search.q])
@@ -191,19 +192,11 @@ function ReportFilters({ search, set, categories, accounts }: {
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle" />
         <Input type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder="Words or an amount" className="pl-9" />
       </label>
-      <Select aria-label="Account" value={search.account ?? ''} className="w-auto min-w-36 flex-none" onChange={(e) => set({ account: e.target.value || undefined })}>
-        <option value="">All accounts</option>
-        {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}{a.archived ? ' (archived)' : ''}</option>)}
-      </Select>
-      <Select aria-label="Category" value={search.category ?? ''} className="w-auto min-w-40 flex-none" onChange={(e) => set({ category: e.target.value || undefined })}>
-        <option value="">All categories</option>
-        {(['EXPENSE', 'INCOME'] as const).map((kind) => (
-          <optgroup key={kind} label={kind === 'EXPENSE' ? 'Spending' : 'Income'}>
-            {parents.filter((p) => p.kind === kind).flatMap((p) => [p, ...categories.filter((c) => c.parentId === p.id)])
-              .map((c) => <option key={c.id} value={c.id}>{c.parentId ? `  ${c.name}` : c.name}</option>)}
-          </optgroup>
-        ))}
-      </Select>
+      <SearchSelect aria-label="Account" value={search.account ?? ''} className="w-48" onChange={(v) => set({ account: v || undefined })}
+        options={[{ value: '', label: 'All accounts' }, ...accountOptions(accounts)]} />
+      <SearchSelect aria-label="Category" value={search.category ?? ''} className="w-52" onChange={(v) => set({ category: v || undefined })}
+        options={[{ value: '', label: 'All categories' }, ...categoryOptions([...parents.filter((p) => p.kind === 'EXPENSE'), ...parents.filter((p) => p.kind === 'INCOME')]
+          .flatMap((p) => [p, ...categories.filter((c) => c.parentId === p.id)]), categories, { group: true })]} />
       <Input aria-label="Tag" value={search.tag ?? ''} placeholder="Tag" maxLength={40} className="w-28 flex-none"
         onChange={(e) => set({ tag: e.target.value.replace(/^#/, '') || undefined })} />
       {any && (

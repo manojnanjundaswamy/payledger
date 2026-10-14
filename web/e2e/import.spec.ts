@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
-import { signIn } from './helpers'
+import { signIn, pick } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page)
@@ -41,7 +41,7 @@ test('a CSV is checked row by row, new names are mapped, and the import can be u
 
   await page.getByRole('button', { name: 'Import 3 rows' }).click()
   await expect(page).toHaveURL(/\/transactions$/)
-  await page.getByLabel('Filter by account').selectOption({ label: bank })
+  await pick(page, 'Filter by account', bank)
   await expect(page.getByRole('button', { name: 'Edit Vet visit' })).toContainText('-₹1,250.50')
   await expect(page.getByRole('button', { name: 'Edit Vet visit' })).toContainText(`${pets} · ${bank}`)
   await expect(page.getByRole('button', { name: 'Edit October salary' })).toContainText('+₹1,00,000.00')
@@ -58,7 +58,7 @@ test('a CSV is checked row by row, new names are mapped, and the import can be u
   await past.getByRole('button', { name: 'Delete 3' }).click()
   await expect(past).toContainText('Undone')
   await page.goto('/transactions')
-  await page.getByLabel('Filter by account').selectOption({ label: bank })
+  await pick(page, 'Filter by account', bank)
   await expect(page.getByText('Nothing here yet')).toBeVisible()
 
   // The template downloads through the gateway with the session, pre-filled with this user's accounts.

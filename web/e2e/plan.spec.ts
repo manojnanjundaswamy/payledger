@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { signIn } from './helpers'
+import { signIn, pick } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page)
@@ -24,8 +24,8 @@ test('a bill on the plan is due, can be marked paid once, and paying it records 
   dialog = page.getByRole('dialog', { name: 'Add to your plan' })
   await dialog.getByLabel('Name').fill(bill)
   await dialog.getByLabel('Amount').fill('649')
-  await dialog.getByLabel('Paid from').selectOption({ label: bank })
-  await dialog.getByLabel('Category').selectOption({ label: 'Subscriptions' })
+  await pick(dialog, 'Paid from', bank)
+  await pick(dialog, 'Category', 'Subscriptions')
   // "Next due" defaults to today.
   await dialog.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(dialog).toBeHidden()
@@ -47,7 +47,7 @@ test('a bill on the plan is due, can be marked paid once, and paying it records 
 
   // The payment is an ordinary expense from that account.
   await page.goto('/transactions')
-  await page.getByLabel('Filter by account').selectOption({ label: bank })
+  await pick(page, 'Filter by account', bank)
   const row = page.getByRole('button', { name: `Edit ${bill}` })
   await expect(row).toContainText('-₹649.00')
   await expect(row).toContainText(`Subscriptions · ${bank}`)
@@ -84,7 +84,7 @@ test('a yearly cost and a one-off cost are spread into a monthly set-aside', asy
     const dialog = page.getByRole('dialog', { name: 'Add to your plan' })
     await dialog.getByLabel('Name').fill(name!)
     await dialog.getByLabel('Amount').fill(amount!)
-    await dialog.getByLabel('Category').selectOption({ label: 'Insurance' })
+    await pick(dialog, 'Category', 'Insurance')
     await dialog.getByLabel('How often').selectOption({ label: often! })
     await dialog.getByLabel(often === 'Only once' ? 'Due on' : 'Next due').fill(due!)
     if (often === 'Only once') await expect(dialog.getByLabel('Last payment')).toBeHidden()
@@ -130,8 +130,8 @@ test('a steady monthly expense is suggested as a bill and added in one tap', asy
     await page.goto('/transactions?add=EXPENSE')
     const add = page.getByRole('dialog', { name: 'Add expense' })
     await add.getByLabel('Amount').fill('299')
-    await add.getByLabel('Category').selectOption({ label: 'Subscriptions' })
-    await add.getByLabel('Paid from').selectOption({ label: bank })
+    await pick(add, 'Category', 'Subscriptions')
+    await pick(add, 'Paid from', bank)
     await add.getByLabel('Description').fill(name)
     await add.getByLabel('Date').fill(monthsAgo(n))
     await add.getByRole('button', { name: 'Add', exact: true }).click()
@@ -151,7 +151,7 @@ test('a steady monthly expense is suggested as a bill and added in one tap', asy
   await page.getByRole('dialog', { name: `Edit ${name}` }).getByRole('button', { name: 'Remove' }).click()
   await expect(page.getByRole('button', { name: `Edit ${name}` })).toBeHidden()
   await page.goto('/transactions')
-  await page.getByLabel('Filter by account').selectOption({ label: bank })
+  await pick(page, 'Filter by account', bank)
   for (let i = 0; i < 3; i++) {
     await page.getByRole('button', { name: `Edit ${name}` }).first().click()
     await page.getByRole('dialog', { name: 'Edit expense' }).getByRole('button', { name: 'Delete' }).click()

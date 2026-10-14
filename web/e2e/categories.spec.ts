@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { signIn } from './helpers'
+import { signIn, pick } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page)
@@ -31,7 +31,7 @@ test('add a category with a subcategory, use it, hide it, show it and delete bot
   await expect(dialog.getByRole('alert')).toHaveText('You already have a category with that name.')
 
   await dialog.getByLabel('Name').fill(vet)
-  await dialog.getByLabel('Inside').selectOption({ label: pets })
+  await pick(dialog, 'Inside', pets)
   await dialog.getByRole('button', { name: 'Add category' }).click()
   await expect(dialog).toBeHidden()
   await expect(page.getByRole('button', { name: `Edit ${vet}` })).toBeVisible()
@@ -39,7 +39,11 @@ test('add a category with a subcategory, use it, hide it, show it and delete bot
   // The transaction form offers it with its parent's name.
   await page.goto('/transactions?add=EXPENSE')
   const add = page.getByRole('dialog', { name: 'Add expense' })
-  await expect(add.getByLabel('Category').getByRole('option', { name: `${pets} › ${vet}` })).toBeAttached()
+  // The picker is searchable: typing the subcategory finds it.
+  await add.getByLabel('Category', { exact: true }).click()
+  await page.getByRole('textbox', { name: 'Search the list' }).fill(vet)
+  await expect(page.getByRole('option', { name: `${pets} › ${vet}` })).toBeVisible()
+  await page.keyboard.press('Escape')
   await add.getByRole('button', { name: 'Cancel' }).click()
 
   // Hiding the parent hides the subcategory too.
@@ -50,7 +54,10 @@ test('add a category with a subcategory, use it, hide it, show it and delete bot
   await expect(hidden.getByRole('button', { name: `Edit ${pets}` })).toBeVisible()
   await expect(hidden.getByRole('button', { name: `Edit ${vet}` })).toBeVisible()
   await page.goto('/transactions?add=EXPENSE')
-  await expect(page.getByRole('dialog', { name: 'Add expense' }).getByLabel('Category').getByRole('option', { name: `${pets} › ${vet}` })).not.toBeAttached()
+  await page.getByRole('dialog', { name: 'Add expense' }).getByLabel('Category', { exact: true }).click()
+  await page.getByRole('textbox', { name: 'Search the list' }).fill(vet)
+  await expect(page.getByRole('option', { name: `${pets} › ${vet}` })).toHaveCount(0)
+  await page.keyboard.press('Escape')
 
   await page.goto('/categories')
   await page.getByRole('button', { name: `Edit ${pets}` }).click()
@@ -97,8 +104,8 @@ test('merging a category moves its transactions to the other one and hides it', 
   await page.goto('/transactions?add=EXPENSE')
   const add = page.getByRole('dialog', { name: 'Add expense' })
   await add.getByLabel('Amount').fill('75')
-  await add.getByLabel('Category').selectOption({ label: old })
-  await add.getByLabel('Paid from').selectOption({ label: bank })
+  await pick(add, 'Category', old)
+  await pick(add, 'Paid from', bank)
   await add.getByLabel('Description').fill('Merge me')
   await add.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(add).toBeHidden()
@@ -106,13 +113,13 @@ test('merging a category moves its transactions to the other one and hides it', 
   await page.goto('/categories')
   await page.getByRole('button', { name: `Edit ${old}` }).click()
   dialog = page.getByRole('dialog', { name: `Edit ${old}` })
-  await dialog.getByLabel('Merge into another category').selectOption({ label: 'Groceries' })
+  await pick(dialog, 'Merge into another category', 'Groceries')
   await dialog.getByRole('button', { name: 'Merge', exact: true }).click()
   await expect(dialog).toBeHidden()
   await expect(page.getByRole('region', { name: 'Hidden' }).getByRole('button', { name: `Edit ${old}` })).toBeVisible()
 
   await page.goto('/transactions')
-  await page.getByLabel('Filter by account').selectOption({ label: bank })
+  await pick(page, 'Filter by account', bank)
   const row = page.getByRole('button', { name: 'Edit Merge me' })
   await expect(row).toContainText(`Groceries · ${bank}`)
 

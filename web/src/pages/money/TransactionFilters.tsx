@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { SearchSelect } from '@/components/ui/search-select'
 import { Download, Search, SlidersHorizontal, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -7,7 +8,7 @@ import { cn } from '@/lib/cn'
 import { PERIOD_KEYS, reportPeriod, type PeriodKey } from '@/lib/periods'
 import { exportUrl, useSpaceId, useTransactionSummary, type Account, type Category, type TransactionFilter, type TxnKind } from '@/state/money'
 import { useProfile } from '@/state/profile'
-import { Select, dayLabel, useMoneyFormat } from './parts'
+import { Select, dayLabel, useMoneyFormat, accountOptions, categoryOptions } from './parts'
 
 /** The list's search, as it sits in the URL (amounts in rupees, so a link reads naturally). */
 export interface FilterSearch {
@@ -100,11 +101,8 @@ export function TransactionFilters({ search, onChange, accounts, categories }: {
           <Input type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder="Search: Swiggy, rent, 450…"
             className="pl-9" maxLength={100} data-testid="txn-search" />
         </label>
-        <Select aria-label="Filter by account" value={search.account ?? ''} className="w-auto max-w-56 min-w-40 flex-none"
-          onChange={(e) => onChange({ account: e.target.value || undefined })}>
-          <option value="">All accounts</option>
-          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </Select>
+        <SearchSelect aria-label="Filter by account" value={search.account ?? ''} className="w-56 max-w-full"
+          onChange={(v) => onChange({ account: v || undefined })} options={[{ value: '', label: 'All accounts' }, ...accountOptions(accounts)]} />
         <Button variant={open || chips.length > 0 ? 'outline' : 'ghost'} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls="txn-filters">
           <SlidersHorizontal />Filters{chips.length > 0 && <span className="rounded-full bg-accent-soft px-1.5 text-xs tabular">{chips.length}</span>}
         </Button>
@@ -119,15 +117,8 @@ export function TransactionFilters({ search, onChange, accounts, categories }: {
               options={[{ value: 'ALL', label: 'All' }, { value: 'EXPENSE', label: 'Expenses' }, { value: 'INCOME', label: 'Income' }, { value: 'TRANSFER', label: 'Transfers' }]} />
           </div>
           <label className="flex flex-col gap-1.5 text-sm font-medium">Category
-            <Select value={search.category ?? ''} onChange={(e) => onChange({ category: e.target.value || undefined })} disabled={search.kind === 'TRANSFER'}>
-              <option value="">All categories</option>
-              {parents.map((p) => (
-                <optgroup key={p.id} label={p.name}>
-                  <option value={p.id}>{p.name} (all)</option>
-                  {categories.filter((c) => c.parentId === p.id && !c.hidden).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </optgroup>
-              ))}
-            </Select>
+            <SearchSelect aria-label="Category" value={search.category ?? ''} onChange={(v) => onChange({ category: v || undefined })} disabled={search.kind === 'TRANSFER'}
+              options={[{ value: '', label: 'All categories' }, ...categoryOptions(categories.filter((c) => !c.hidden && parents.some((p) => p.id === (c.parentId ?? c.id))), categories, { group: !search.kind })]} />
           </label>
           <label className="flex flex-col gap-1.5 text-sm font-medium">Dates
             <Select value="" onChange={(e) => {

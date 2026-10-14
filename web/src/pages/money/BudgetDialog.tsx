@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { SearchSelect } from '@/components/ui/search-select'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -6,11 +7,11 @@ import { Input, Switch } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/overlay'
 import { formatMoneyWhole, minorToInput, parseMoney } from '@/lib/money'
 import {
-  categoryLabel, categoryTree, shiftMonth, useCategories, useCategoryTotals, useRemoveBudget, useSetBudget,
+  categoryTree, shiftMonth, useCategories, useCategoryTotals, useRemoveBudget, useSetBudget,
   type Budget, type BudgetMonth,
 } from '@/state/money'
 import { useProfile } from '@/state/profile'
-import { Field, Select } from './parts'
+import { Field, categoryOptions } from './parts'
 
 /** Set a monthly limit for a category, change it, or stop budgeting it, from the month on screen onwards. */
 export function BudgetDialog({ open, onOpenChange, month, budget }: {
@@ -88,10 +89,7 @@ export function BudgetDialog({ open, onOpenChange, month, budget }: {
       <form onSubmit={submit} className="flex flex-col gap-4 p-pad" noValidate>
         {!budget && (
           <Field label="Category" htmlFor="budget-category">
-            <Select id="budget-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-              <option value="">Choose…</option>
-              {choices.map((c) => <option key={c.id} value={c.id}>{categoryLabel(c, categories)}</option>)}
-            </Select>
+            <SearchSelect id="budget-category" value={categoryId} onChange={setCategoryId} options={categoryOptions(choices, categories)} />
           </Field>
         )}
         <Field label="Monthly limit" htmlFor="budget-amount"
