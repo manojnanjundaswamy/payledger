@@ -35,7 +35,7 @@ public class ReportService {
     public record Breakdown(long spent, long earned, int count, int days,
                             List<CategoryTotal> byCategory, List<MonthTotal> byMonth, List<AccountTotal> byAccount,
                             List<DayTotal> byDay, List<WeekdayTotal> byWeekday, List<TagTotal> byTag, List<Place> places,
-                            List<Biggest> biggest) {
+                            List<Biggest> biggest, List<Recent> recent) {
         public record CategoryTotal(UUID categoryId, String kind, long amount, int count) {
         }
 
@@ -59,6 +59,10 @@ public class ReportService {
         }
 
         public record Biggest(UUID id, String description, long amount, LocalDate occurredOn, UUID categoryId) {
+        }
+
+        /** The latest few, newest first, of any kind. */
+        public record Recent(UUID id, String kind, String description, long amount, LocalDate occurredOn, UUID categoryId) {
         }
     }
 
@@ -123,7 +127,11 @@ public class ReportService {
                 query("""
                         select t.id, t.description, t.amount, t.occurred_on, t.category_id
                         """ + where + " and t.kind = 'EXPENSE' order by t.amount desc, t.occurred_on desc limit 10", spaceId, filter)
-                        .query(Breakdown.Biggest.class).list());
+                        .query(Breakdown.Biggest.class).list(),
+                query("""
+                        select t.id, t.kind, t.description, t.amount, t.occurred_on, t.category_id
+                        """ + where + " order by t.occurred_on desc, t.created_at desc limit 3", spaceId, filter)
+                        .query(Breakdown.Recent.class).list());
     }
 
     private JdbcClient.StatementSpec query(String sql, UUID spaceId, TransactionFilter filter) {
