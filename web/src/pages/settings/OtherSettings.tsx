@@ -1,8 +1,10 @@
-import { useState } from 'react'
-import { ExternalLink, LogOut, RotateCcw, Trash2 } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { Download, ExternalLink, LogOut, RotateCcw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input, Switch } from '@/components/ui/controls'
+import { Dialog } from '@/components/ui/overlay'
+import { ApiError, api } from '@/lib/api'
 import { budgetPeriod } from '@/dashboard/sample'
 import { formatMoney } from '@/lib/money'
 import { parsePreferences } from '@/state/preferences'
@@ -118,15 +120,20 @@ export function DashboardSettings() {
 export function AccountSettings() {
   const { data: session } = useSession()
   const { data: profile } = useProfile()
+  const [deleting, setDeleting] = useState(false)
   return (
     <Section title="Account" description="Sign-in and security are handled by our identity provider.">
       <Field label="Signed in as"><span className="text-sm text-muted">{profile?.email}</span></Field>
       <Field label="Password & security" hint="Change your password or email, see your active sessions.">
         {session?.accountUrl && <Button variant="outline" asChild><a href={session.accountUrl} target="_blank" rel="noopener noreferrer">Open account security<ExternalLink /></a></Button>}
       </Field>
-      <Field label="Your data" hint="Download everything, or delete your account. Coming in Phase 6.">
-        <div className="flex gap-2"><Button disabled>Export data</Button><Button disabled variant="danger">Delete account</Button></div>
+      <Field label="Your data" hint="Everything we keep about you, as one file: accounts, transactions, budgets, bills, goals, groups and notifications.">
+        <Button variant="outline" asChild><a href="/api/core/me/export" download><Download />Download all my data</a></Button>
       </Field>
+      <Field label="Delete account" hint="Your data and your sign-in go for good. Groups you share keep their history, with you as a name only.">
+        <Button variant="danger" onClick={() => setDeleting(true)}><Trash2 />Delete my account</Button>
+      </Field>
+      <DeleteAccountDialog open={deleting} onOpenChange={setDeleting} email={profile?.email ?? ''} />
       <Field label="Sign out" hint="Signs you out on this device and at the identity provider.">
         <Button variant="outline" onClick={() => void signOut()}><LogOut />Sign out</Button>
       </Field>
@@ -138,4 +145,43 @@ function ordinal(n: number) {
   const s = ['th', 'st', 'nd', 'rd']
   const v = n % 100
   return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]!)
+}
+
+/** Deleting is final, so the email is typed back first; then the session ends. */
+function DeleteAccountDialog({ open, onOpenChange, email }: { open: boolean; onOpenChange: (o: boolean) => void; email: string }) {
+  const [typed, setTyped] = useState('')
+  const [error, setError] = useState<string>()
+  const [busy, setBusy] = useState(false)
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setError(undefined)
+    setBusy(true)
+    try {
+      await api<void>('/api/core/me/delete', { method: 'POST', json: { confirm: typed } })
+      await signOut()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not delete it. Try again.')
+      setBusy(false)
+    }
+  }
+  return (
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) { setTyped(''); setError(undefined) } }} title="Delete your account?"
+      description="This can't be undone. Download your data first if you want a copy.">
+      <form onSubmit={submit} className="flex flex-col gap-4 p-pad" noValidate>
+        <ul className="list-disc pl-5 text-sm text-muted">
+          <li>Your accounts, transactions, budgets, bills, goals and settings are deleted.</li>
+          <li>In groups you share, the history stays for the others, with you as a name only.</li>
+          <li>You're signed out, and this email can sign up again as a new account.</li>
+        </ul>
+        <label className="flex flex-col gap-1.5 text-sm font-medium">Type your email to confirm
+          <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={email} autoComplete="off" />
+        </label>
+        {error && <p className="rounded-control bg-critical/10 px-3 py-2 text-sm text-critical" role="alert">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="submit" variant="danger" disabled={busy || typed.trim().toLowerCase() !== email.toLowerCase()}>Delete for good</Button>
+        </div>
+      </form>
+    </Dialog>
+  )
 }

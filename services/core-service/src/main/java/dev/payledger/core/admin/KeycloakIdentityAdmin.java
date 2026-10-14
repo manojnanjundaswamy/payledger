@@ -112,6 +112,12 @@ class KeycloakIdentityAdmin implements IdentityAdmin {
                 .headers(h -> h.setBearerAuth(token())).retrieve().toBodilessEntity());
     }
 
+    @Override
+    public void delete(String subject) {
+        run("delete the account", () -> http.delete().uri("/admin/realms/{realm}/users/{id}", props.realm(), subject)
+                .headers(h -> h.setBearerAuth(token())).retrieve().toBodilessEntity());
+    }
+
     private void executeActions(String subject, List<String> actions) {
         run("send the email", () -> http.put()
                 .uri(u -> u.path("/admin/realms/{realm}/users/{id}/execute-actions-email")
