@@ -12,7 +12,7 @@ import { formatMoneyWhole, parseMoney } from '@/lib/money'
 import { usePlan, useStartTrial } from '@/state/plan'
 import { useSpaceId, type AccountKind } from '@/state/money'
 import { useProfile } from '@/state/profile'
-import { ACCOUNT_KINDS, Field, Select } from './parts'
+import { ACCOUNT_KINDS, Field, Select, NEW_ACCOUNT_KINDS } from './parts'
 
 interface AccountRow { kind: AccountKind; name: string; balance: string }
 interface PaymentRow { key: string; on: boolean; kind: 'BILL' | 'SAVING'; name: string; amount: string; day: string; category: string; everyMonths: number; account: number }
@@ -158,7 +158,7 @@ export function SetupPage() {
                 <Field label={i === 0 ? 'Kind' : ''} htmlFor={`acc-kind-${i}`}>
                   <Select id={`acc-kind-${i}`} aria-label={`Account ${i + 1} kind`} value={a.kind}
                     onChange={(e) => setAccounts(accounts.map((x, j) => (j === i ? { ...x, kind: e.target.value as AccountKind } : x)))}>
-                    {(Object.keys(ACCOUNT_KINDS) as AccountKind[]).map((k) => <option key={k} value={k}>{ACCOUNT_KINDS[k].label}</option>)}
+                    {NEW_ACCOUNT_KINDS.map((k) => <option key={k} value={k}>{ACCOUNT_KINDS[k].label}</option>)}
                   </Select>
                 </Field>
                 <Field label={i === 0 ? 'Name' : ''} htmlFor={`acc-name-${i}`}>

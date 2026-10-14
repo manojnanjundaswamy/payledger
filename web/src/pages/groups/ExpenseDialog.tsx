@@ -1,7 +1,7 @@
 import { uuid7 } from '@/lib/uuid'
 import { SearchSelect } from '@/components/ui/search-select'
-import { categoryTree, useCategories } from '@/state/money'
-import { CategoryIcon } from '@/pages/money/parts'
+import { categoryTree, useAccounts, useCategories, useGroupBudget } from '@/state/money'
+import { CategoryIcon, accountOptions } from '@/pages/money/parts'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -44,6 +44,10 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
   const [payer, setPayer] = useState(you)
   const [paid, setPaid] = useState<Record<string, string>>({})
   const [error, setError] = useState<string>()
+  const [fromAccount, setFromAccount] = useState('')
+  const { data: bookSettings } = useGroupBudget()
+  const { data: myAccounts } = useAccounts()
+  const payable = (myAccounts ?? []).filter((a) => a.kind !== 'OWED' && !a.archived)
 
   useEffect(() => {
     if (!open) return
@@ -78,7 +82,7 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
 
   const total = parseMoney(amount)
   // The category: one of your own spending categories, or a label this group already uses, or a new one. It's
-  // stored by name, so each member's share lands in their own category of that name (or Shared expenses).
+  // stored by name, so each member's share lands in their own category of that name (or Other).
   const { data: myCategories = [] } = useCategories()
   const { data: activity } = useActivity(groupId)
   const labelOptions = useMemo(() => {
@@ -118,6 +122,8 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
     setValues(Object.fromEntries(members.filter((m) => paidOf(m.id) > 0).map((m) => [m.id, minorToInput(paidOf(m.id), 'INR')])))
   }
 
+  const youPaid = severalPayers ? (parseMoney(paid[you] ?? '') ?? 0) > 0 : payer === you
+
   async function submit(e: FormEvent) {
     e.preventDefault()
     setError(undefined)
@@ -133,6 +139,7 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
     const fields = {
       description: description.trim(), amount: total, occurredOn: date, category: category.trim() || null, paidBy, split,
       shares: split === 'EQUAL' ? chosen.map((m) => ({ memberId: m.id })) : parts,
+      paidFromAccountId: youPaid && fromAccount ? fromAccount : null,
     }
     try {
       if (expense) await update.mutateAsync({ expenseId: expense.id, version: expense.version, fields })
@@ -170,6 +177,13 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
               placeholder="Food, Travel, Stay…" />
           </Field>
         </div>
+
+        {youPaid && bookSettings?.enabled && payable.length > 0 && (
+          <Field label="You paid from" htmlFor="gexp-from" hint="Your share counts in your budget; the rest waits in Friends & groups until they pay you back.">
+            <SearchSelect id="gexp-from" value={fromAccount} onChange={setFromAccount}
+              options={[{ value: '', label: 'My usual account' }, ...accountOptions(payable)]} />
+          </Field>
+        )}
 
         <fieldset className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">

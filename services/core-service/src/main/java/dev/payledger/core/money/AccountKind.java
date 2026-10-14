@@ -5,7 +5,9 @@ package dev.payledger.core.money;
  * negative when you owe money (amounts are signed, positive = debit).
  */
 public enum AccountKind {
-    BANK, CASH, CARD, WALLET;
+    BANK, CASH, CARD, WALLET,
+    /** "Friends owe me": what groups owe you (negative: what you owe). Made by the app when your share is booked. */
+    OWED;
 
     public String ledgerType() {
         return this == CARD ? "LIABILITY" : "ASSET";

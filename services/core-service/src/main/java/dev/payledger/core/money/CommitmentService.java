@@ -170,6 +170,8 @@ public class CommitmentService {
                         from transactions
                         where space_id = :spaceId and kind = 'EXPENSE' and deleted_at is null
                           and occurred_on > :since
+                          -- Your share of a group's costs is settled in the group, not paid as a bill.
+                          and group_link is null
                         group by account_id, category_id, lower(description)
                         having count(distinct date_trunc('month', occurred_on)) >= :minMonths
                            -- Steady: every amount within 10% of the median, every day within a week of each other.
@@ -178,6 +180,9 @@ public class CommitmentService {
                            and max(extract(day from occurred_on)) - min(extract(day from occurred_on)) <= 7
                            -- Still going: paid within the last ~6 weeks.
                            and max(occurred_on) >= :recent
+                           -- Before the limit, so what's already planned doesn't take the places.
+                           and lower((array_agg(description order by occurred_on desc))[1]) not in
+                               (select lower(name) from commitments where space_id = :spaceId)
                         order by months desc, amount desc
                         limit 10
                         """)

@@ -40,10 +40,12 @@ public class GroupExpenseService {
     private final LedgerCommands ledger;
     private final LedgerClient ledgerReads;
     private final GroupHistory history;
+    private final GroupBooking booking;
 
     public GroupExpenseService(JdbcClient jdbc, GroupService groups, LedgerCommands ledger, LedgerClient ledgerReads,
-                               dev.payledger.core.notify.Inbox inbox, GroupHistory history) {
+                               dev.payledger.core.notify.Inbox inbox, GroupHistory history, GroupBooking booking) {
         this.history = history;
+        this.booking = booking;
         this.jdbc = jdbc;
         this.groups = groups;
         this.ledger = ledger;
@@ -201,6 +203,8 @@ public class GroupExpenseService {
         jdbc.sql("update group_expenses set ledger_version = :v where id = :id").param("v", ledgerVersion).param("id", id).update();
         tell(user, groupId, parts, "added", request.fields().description(), request.fields().amount());
         history.record(groupId, user, GroupHistory.Action.EXPENSE_ADDED, snapshot(id));
+        booking.remember(id, user, request.fields().paidFromAccountId());
+        booking.syncExpense(id, null);
         return find(groupId, id);
     }
 
@@ -249,6 +253,8 @@ public class GroupExpenseService {
         }
         now.put("changes", changes);
         history.record(groupId, user, GroupHistory.Action.EXPENSE_EDITED, now);
+        booking.remember(id, user, f.paidFromAccountId());
+        booking.syncExpense(id, null);
         return find(groupId, id);
     }
 
@@ -274,6 +280,7 @@ public class GroupExpenseService {
         jdbc.sql("update group_expenses set deleted_at = now(), version = version + 1, updated_at = now() where id = :id")
                 .param("id", id).update();
         tell(user, groupId, was, "deleted", before.description(), amount);
+        booking.syncExpense(id, null);
         if (before.ledgerVersion() > 0) {
             ledger.reverse(Book.group(groupId), key(id, before.ledgerVersion()) + ":reversal", key(id, before.ledgerVersion()),
                     "Deleted: " + before.description());
@@ -310,6 +317,8 @@ public class GroupExpenseService {
         history.record(groupId, user, GroupHistory.Action.SETTLEMENT_RECORDED, GroupHistory.details(
                 "from", memberName(request.fromMemberId()), "to", memberName(request.toMemberId()), "amount", request.amount(),
                 "currency", currency, "occurredOn", request.occurredOn().toString(), "note", note));
+        booking.remember(id, user, request.accountId());
+        booking.syncSettlement(id, null);
         return new Settlement(id, request.fromMemberId(), request.toMemberId(), request.amount(), currency, request.occurredOn(), note);
     }
 
@@ -326,6 +335,7 @@ public class GroupExpenseService {
         }
         Paid p = jdbc.sql("select from_member, to_member, amount from group_settlements where id = :id").param("id", id).query(Paid.class).single();
         tellPayment(user, groupId, p.fromMember(), p.toMember(), p.amount(), true);
+        booking.syncSettlement(id, null);
         history.record(groupId, user, GroupHistory.Action.SETTLEMENT_UNDONE,
                 GroupHistory.details("from", memberName(p.fromMember()), "to", memberName(p.toMember()), "amount", p.amount()));
     }

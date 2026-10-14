@@ -4,7 +4,8 @@ import { useProfile } from './profile'
 
 /** core-service's money API (README "API"). Amounts are paise. */
 
-export type AccountKind = 'BANK' | 'CASH' | 'CARD' | 'WALLET'
+/** OWED is "Friends owe me": kept by the app for your share of group expenses, never made by hand. */
+export type AccountKind = 'BANK' | 'CASH' | 'CARD' | 'WALLET' | 'OWED'
 export type TxnKind = 'EXPENSE' | 'INCOME' | 'TRANSFER'
 
 export interface Account {
@@ -688,4 +689,19 @@ export function ruleWords(description: string): string {
   const d = description.trim().toLowerCase().replace(/\s+/g, ' ')
   const first = d.split(/[\s*/#:-]+/)[0] ?? ''
   return (first.length >= 3 ? first : d).slice(0, 60)
+}
+
+/** Whether your share of group expenses is booked in your budget, and the account group payments usually come from. */
+export interface GroupBudget { enabled: boolean; accountId: string | null; owedAccountId: string | null }
+
+export function useGroupBudget() {
+  return useQuery({ queryKey: ['group-budget'], queryFn: () => api<GroupBudget>('/api/core/me/group-budget') })
+}
+
+export function useSetGroupBudget() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { enabled: boolean; accountId: string | null }) => api<GroupBudget>('/api/core/me/group-budget', { method: 'PUT', json: body }),
+    onSettled: () => { void client.invalidateQueries({ queryKey: ['group-budget'] }); void client.invalidateQueries({ queryKey: ['money'] }) },
+  })
 }

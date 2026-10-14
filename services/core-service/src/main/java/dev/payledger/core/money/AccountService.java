@@ -75,6 +75,9 @@ public class AccountService {
     @Transactional
     public MoneyAccount create(CurrentUser user, UUID spaceId, AccountRequests.Create request) {
         Space space = access.write(user, spaceId);
+        if (request.kind() == AccountKind.OWED) {
+            throw new dev.payledger.core.common.InvalidRequestException("invalid-kind", "the app keeps \"Friends owe me\" itself");
+        }
         plans.check(spaceId, PlanService.Limit.ACCOUNTS);
         UUID id = Uuid7.next();
         long opening = Objects.requireNonNullElse(request.openingBalance(), 0L);

@@ -14,7 +14,9 @@ import { Input } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/overlay'
 import { cn } from '@/lib/cn'
 import { formatMoney, formatMoneyShort, minorToInput, parseMoney } from '@/lib/money'
-import { Field, Select, dayLabel, today } from '@/pages/money/parts'
+import { Field, Select, accountOptions, dayLabel, today } from '@/pages/money/parts'
+import { useAccounts, useGroupBudget } from '@/state/money'
+import { SearchSelect } from '@/components/ui/search-select'
 import { useActivity, useBalances, useDeleteSettlement, useSettle, type Group, type GroupActivity, type GroupExpense } from '@/state/groups'
 import { ExpenseDialog } from './ExpenseDialog'
 
@@ -190,7 +192,7 @@ export function GroupMoney({ group, tab, month, onTab }: {
 
       <ExpenseDialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)} groupId={group.id} initialDate={newDate}
         members={group.members} you={group.you} expense={editing === 'new' || editing === null ? undefined : editing} />
-      <SettleDialog payment={settling} onClose={() => setSettling(null)} groupId={group.id} name={name} />
+      <SettleDialog payment={settling} onClose={() => setSettling(null)} groupId={group.id} name={name} you={group.you} />
     </div>
   )
 }
@@ -244,10 +246,15 @@ function YourPart({ expense, you }: { expense: GroupExpense; you: string }) {
     : <span className="block text-xs text-critical">you borrowed {formatMoney(-net)}</span>
 }
 
-function SettleDialog({ payment, onClose, groupId, name }: {
-  payment: { from: string; to: string; amount: number } | null; onClose: () => void; groupId: string; name: (id: string) => string
+function SettleDialog({ payment, onClose, groupId, name, you }: {
+  payment: { from: string; to: string; amount: number } | null; onClose: () => void; groupId: string; name: (id: string) => string; you: string
 }) {
   const settle = useSettle(groupId)
+  const [account, setAccount] = useState('')
+  const { data: bookSettings } = useGroupBudget()
+  const { data: myAccounts } = useAccounts()
+  const payable = (myAccounts ?? []).filter((a) => a.kind !== 'OWED' && !a.archived)
+  const mine = payment !== null && (payment.from === you || payment.to === you)
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [error, setError] = useState<string>()
@@ -258,7 +265,7 @@ function SettleDialog({ payment, onClose, groupId, name }: {
     if (!payment) return
     const value = parseMoney(amount || minorToInput(payment.amount, 'INR'))
     if (value === null || value <= 0) return setError('Enter the amount paid.')
-    await settle.mutateAsync({ fromMemberId: payment.from, toMemberId: payment.to, amount: value, occurredOn: today(), note: note.trim() || undefined })
+    await settle.mutateAsync({ fromMemberId: payment.from, toMemberId: payment.to, amount: value, occurredOn: today(), note: note.trim() || undefined, accountId: mine && account ? account : null })
     toast.success('Payment recorded', { description: `${name(payment.from)} paid ${name(payment.to)} ${formatMoney(value)}.` })
     setAmount('')
     setNote('')
@@ -273,6 +280,12 @@ function SettleDialog({ payment, onClose, groupId, name }: {
           <Input id="settle-amount" inputMode="decimal" className="tabular" placeholder={payment ? minorToInput(payment.amount, 'INR') : ''}
             value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>
+        {mine && bookSettings?.enabled && payable.length > 0 && (
+          <Field label={payment?.from === you ? 'Paid from' : 'Received in'} htmlFor="settle-account">
+            <SearchSelect id="settle-account" value={account} onChange={setAccount}
+              options={[{ value: '', label: 'My usual account' }, ...accountOptions(payable)]} />
+          </Field>
+        )}
         <Field label="Note (optional)" htmlFor="settle-note"><Input id="settle-note" maxLength={120} placeholder="UPI" value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         {error && <p className="rounded-control bg-critical/10 px-3 py-2 text-sm text-critical" role="alert">{error}</p>}
         <div className="flex justify-end gap-2">

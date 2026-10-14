@@ -107,6 +107,10 @@ public class DataRightsService {
             }
         }
 
+        // Group bookings: which of your accounts you paid from.
+        jdbc.sql("delete from group_entry_accounts where user_id = :u").param("u", u).update();
+        jdbc.sql("update users set group_account_id = null where id = :u").param("u", u).update();
+
         // Your own spaces and everything in them.
         List<UUID> spaces = jdbc.sql("select id from spaces where created_by = :u").param("u", u).query(UUID.class).list();
         for (UUID s : spaces) {

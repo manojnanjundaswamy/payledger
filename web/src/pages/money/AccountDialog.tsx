@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/overlay'
 import { minorToInput, parseMoney } from '@/lib/money'
 import { useCreateAccount, useUpdateAccount, type Account, type AccountKind } from '@/state/money'
-import { ACCOUNT_KINDS, Field, today } from './parts'
+import { ACCOUNT_KINDS, Field, today, NEW_ACCOUNT_KINDS } from './parts'
 
 /** Add an account, or rename it, change its opening balance, archive it. */
 export function AccountDialog({ open, onOpenChange, account }: {
@@ -67,7 +67,7 @@ export function AccountDialog({ open, onOpenChange, account }: {
         {!account && (
           <fieldset className="grid grid-cols-2 gap-2">
             <legend className="mb-1.5 text-sm font-medium">Type</legend>
-            {(Object.keys(ACCOUNT_KINDS) as AccountKind[]).map((k) => {
+            {NEW_ACCOUNT_KINDS.map((k) => {
               const { label, icon: Icon, hint } = ACCOUNT_KINDS[k]
               return (
                 <label key={k} className="flex cursor-pointer items-start gap-2.5 rounded-control border border-border p-3 has-[:checked]:border-accent has-[:checked]:bg-accent-soft">

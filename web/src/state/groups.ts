@@ -126,6 +126,8 @@ export interface ExpenseFields {
   paidBy: { memberId: string; value: number }[]
   split: SplitType
   shares: { memberId: string; value?: number }[]
+  /** Which of your own accounts you paid from, for your book (else your usual one). */
+  paidFromAccountId?: string | null
 }
 
 export function useActivity(id: string) {
@@ -143,6 +145,8 @@ function useMoneyWrite<V, R>(id: string, write: (vars: V) => Promise<R>) {
     mutationFn: write,
     onSettled: () => {
       void client.invalidateQueries({ queryKey: ['groups', id] })
+      // Your share and payments are booked in your own accounts too.
+      void client.invalidateQueries({ queryKey: ['money'] })
       for (const delay of [800, 2500]) {
         setTimeout(() => void client.invalidateQueries({ queryKey: ['groups', id, 'balances'] }), delay)
       }
@@ -166,7 +170,7 @@ export function useDeleteExpense(id: string) {
 }
 
 export function useSettle(id: string) {
-  return useMoneyWrite(id, (body: { fromMemberId: string; toMemberId: string; amount: number; occurredOn: string; note?: string }) =>
+  return useMoneyWrite(id, (body: { fromMemberId: string; toMemberId: string; amount: number; occurredOn: string; note?: string; accountId?: string | null }) =>
     api<Settlement>(`/api/core/groups/${id}/settlements`, { method: 'POST', json: body }))
 }
 

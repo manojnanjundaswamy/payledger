@@ -11,7 +11,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-final class TransactionRequests {
+public final class TransactionRequests {
 
     private TransactionRequests() {
     }
@@ -28,7 +28,7 @@ final class TransactionRequests {
      * @param toAccountId TRANSFER only
      * @param categoryId  EXPENSE and INCOME only
      */
-    record Create(
+    public record Create(
             UUID id,
             @NotNull @Pattern(regexp = "EXPENSE|INCOME|TRANSFER") String kind,
             @NotNull @Min(1) @Max(AccountRequests.MAX_AMOUNT) Long amount,
