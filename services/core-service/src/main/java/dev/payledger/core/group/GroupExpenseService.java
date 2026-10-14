@@ -134,7 +134,7 @@ public class GroupExpenseService {
     public Activity activity(CurrentUser user, UUID groupId) {
         groups.member(user, groupId);
         List<Settlement> settlements = jdbc.sql("""
-                        select id, from_member, to_member, amount, currency, occurred_on, note from group_settlements
+                        select id, from_member as from_member_id, to_member as to_member_id, amount, currency, occurred_on, note from group_settlements
                         where group_id = :groupId and deleted_at is null order by occurred_on desc, created_at desc, id desc limit 200
                         """)
                 .param("groupId", groupId).query(Settlement.class).list();

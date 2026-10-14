@@ -111,7 +111,8 @@ test('a shared expense shows who lent what, in charts, on the calendar and in th
   await page.getByRole('dialog', { name: 'Record a payment' }).getByRole('button', { name: 'Record payment' }).click()
   await expect(page.getByTestId('my-balance')).toHaveText('All settled', { timeout: 15_000 })
   await page.getByRole('radio', { name: 'Activity' }).click()
-  await expect(page.getByText('Amit paid You')).toBeVisible()
+  // In the list itself (a toast says the same, which once hid that the list failed to load).
+  await expect(page.getByRole('region', { name: 'Activity' }).getByText('Amit paid You')).toBeVisible()
 
   await page.getByRole('radio', { name: 'People' }).click()
   await page.getByRole('button', { name: 'Archive group' }).click()
