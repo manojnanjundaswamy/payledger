@@ -381,6 +381,8 @@ export interface CommitmentFields {
   endsOn: string | null
   /** A saving made for this goal: each payment counts towards it. */
   goalId?: string | null
+  /** Recorded by itself on each due date (from the day it was turned on). */
+  auto?: boolean
 }
 
 export interface Commitment extends CommitmentFields {

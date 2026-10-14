@@ -3,7 +3,7 @@ import { SearchSelect } from '@/components/ui/search-select'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Input, Segmented } from '@/components/ui/controls'
+import { Input, Segmented, Switch } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/overlay'
 import { ApiError } from '@/lib/api'
 import { minorToInput, parseMoney } from '@/lib/money'
@@ -33,6 +33,7 @@ interface Draft {
   everyMonths: number
   firstDue: string
   endsOn: string
+  auto: boolean
 }
 
 /** Add or change a bill (EMI, rent, insurance, subscription) or a saving (SIP, RD) that repeats. */
@@ -61,6 +62,7 @@ export function CommitmentDialog({ open, onOpenChange, commitment, initialDue, p
       accountId: commitment.accountId, categoryId: commitment.categoryId ?? '', toAccountId: commitment.toAccountId ?? '',
       everyMonths: commitment.endsOn === commitment.firstDue ? ONCE : commitment.everyMonths,
       firstDue: commitment.firstDue, endsOn: commitment.endsOn === commitment.firstDue ? '' : commitment.endsOn ?? '',
+      auto: commitment.auto ?? false,
     } : {
       ...empty(), ...(initialDue ? { firstDue: initialDue } : {}),
       ...(prefill ? {
@@ -95,6 +97,7 @@ export function CommitmentDialog({ open, onOpenChange, commitment, initialDue, p
       everyMonths: once ? 12 : d.everyMonths, firstDue: d.firstDue, endsOn: once ? d.firstDue : d.endsOn || null,
       // A saving made for a goal stays for it when edited.
       goalId: commitment ? commitment.goalId ?? null : prefill?.goalId ?? null,
+      auto: d.auto,
     }
     try {
       if (commitment) {
@@ -165,6 +168,11 @@ export function CommitmentDialog({ open, onOpenChange, commitment, initialDue, p
             </Field>
           )}
         </div>
+        <label className="flex items-start gap-3 rounded-control bg-surface-2 px-3 py-2.5 text-sm">
+          <Switch checked={d.auto} onCheckedChange={(v) => set('auto', v)} label="Record it automatically" />
+          <span><span className="font-medium">Record it automatically</span>
+            <span className="block text-xs text-muted">On each due date, from today: for what always goes out, like an EMI or SIP. If you entered it yourself, that entry is used instead.</span></span>
+        </label>
         {error && <p className="rounded-control bg-critical/10 px-3 py-2 text-sm text-critical" role="alert">{error}</p>}
         <div className="flex items-center gap-2">
           {commitment && <Button variant="ghost" onClick={deleteIt} disabled={remove.isPending}><Trash2 />Remove</Button>}
@@ -178,5 +186,5 @@ export function CommitmentDialog({ open, onOpenChange, commitment, initialDue, p
 }
 
 function empty(): Draft {
-  return { kind: 'BILL', name: '', amount: '', accountId: '', categoryId: '', toAccountId: '', everyMonths: 1, firstDue: today(), endsOn: '' }
+  return { kind: 'BILL', name: '', amount: '', accountId: '', categoryId: '', toAccountId: '', everyMonths: 1, firstDue: today(), endsOn: '', auto: false }
 }

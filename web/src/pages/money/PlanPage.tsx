@@ -93,7 +93,7 @@ export function PlanPage() {
                   <span className="block text-xs text-subtle">
                     {c.endsOn === c.firstDue
                       ? `Once, on ${dateLabel(c.firstDue, locale)}`
-                      : <>{everyLabel(c.everyMonths)} on day {Number(c.firstDue.slice(8))}{c.endsOn && ` · until ${dateLabel(c.endsOn, locale)}`}</>}
+                      : <>{everyLabel(c.everyMonths)} on day {Number(c.firstDue.slice(8))}{c.endsOn && ` · until ${dateLabel(c.endsOn, locale)}`}{c.auto && ' · records itself'}</>}
                   </span>
                 </span>
                 <span className="tabular shrink-0 font-medium">{money(c.amount)}</span>
