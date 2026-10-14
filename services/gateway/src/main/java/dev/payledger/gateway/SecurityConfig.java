@@ -39,6 +39,8 @@ class SecurityConfig {
                         .requestMatchers("/api/session").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .requestMatchers("/oauth2/authorization/**", "/login/oauth2/code/**", "/logout").permitAll()
+                        // Bank alerts from our Cloudflare Email Worker: no user, core-service checks its shared secret.
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/inbound/email").permitAll()
                         .anyRequest().denyAll())
                 .oauth2Login(login -> login
                         .authorizationEndpoint(endpoint -> endpoint.authorizationRequestResolver(authorizationRequests(clients)))
@@ -46,7 +48,7 @@ class SecurityConfig {
                         .failureUrl(props.frontendUrl() + "?loginError"))
                 .logout(logout -> logout.logoutSuccessHandler(keycloakLogout(props)))
                 // SPA mode: the token is in a readable XSRF-TOKEN cookie, the app echoes it in X-XSRF-TOKEN.
-                .csrf(csrf -> csrf.spa())
+                .csrf(csrf -> csrf.spa().ignoringRequestMatchers("/inbound/email"))
                 // An API call without a session gets 401 (the app shows "sign in"), not a redirect to a login page.
                 .exceptionHandling(e -> e.defaultAuthenticationEntryPointFor(
                         new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED), pathPattern("/api/**")))

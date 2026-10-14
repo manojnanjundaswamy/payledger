@@ -41,6 +41,17 @@ class Routes {
                 .build();
     }
 
+    /** The Email Worker's door to core-service: no session and no token to relay; the shared secret is checked there. */
+    @Bean
+    RouterFunction<ServerResponse> inboundEmail(GatewayProperties props) {
+        return route("inbound-email")
+                .route(path("/inbound/email"), http())
+                .before(uri(props.coreServiceUrl()))
+                .before(removeRequestHeader("Cookie"))
+                .onError(ResourceAccessException.class, Routes::coreServiceUnavailable)
+                .build();
+    }
+
     /**
      * core-service is down or too slow (timeouts: spring.http.clients.* in application.properties).
      * Answer at once with a problem the web app can show, instead of a hung request or a bare 500.

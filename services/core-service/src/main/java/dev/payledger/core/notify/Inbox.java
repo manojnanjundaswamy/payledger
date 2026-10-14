@@ -24,6 +24,8 @@ public class Inbox {
         LOAN_DUE(Notifications.Kind.BILL_REMINDERS),
         /** A bill or saving recorded by itself on its due date. In the app only. */
         AUTO_PAID(null),
+        /** Bank alerts forwarded or Gmail's forwarding code arrived (Auto-capture). In the app only. */
+        CAPTURED(null),
         /** Monday's look back at the week. */
         RECAP(Notifications.Kind.WEEKLY_RECAP),
         /** Security: a sign-in. In the app only; an email for every sign-in would be noise. */
