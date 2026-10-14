@@ -77,6 +77,7 @@ Prerequisites: Java 21 and Docker. Everything below works with no configuration;
 docker compose --profile app up -d --build   # infrastructure + gateway, core-service, ledger-service, notification-service
 scripts/login-smoke-test.sh                   # sign-in, sign-up + email verification, token relay, CSRF, logout
 scripts/keycloak-sync.sh                      # once, on an older local Keycloak volume: adds realm clients added since (admin console)
+scripts/clean-test-data.sh                    # local only: keep the demo user (admin), remove every other user and the tests' "E2E …" data
 scripts/smoke-test.sh                         # ledger: entries, reversal, totals, outbox -> Kafka
 scripts/money-smoke-test.sh                   # money: account + expense via gateway -> core -> Kafka -> ledger, edit, delete, balances
 docker compose --profile tools up -d          # optional: Kafka UI on http://localhost:8085
