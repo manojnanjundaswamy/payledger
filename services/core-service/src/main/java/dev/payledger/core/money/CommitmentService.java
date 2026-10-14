@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 public class CommitmentService {
 
     private static final String COLUMNS = """
-            id, kind, name, amount, currency, account_id, category_id, to_account_id, every_months, first_due, ends_on, version, goal_id
+            id, kind, name, amount, currency, account_id, category_id, to_account_id, every_months, first_due, ends_on, version, goal_id, auto
             """;
 
     private final JdbcClient jdbc;
@@ -95,11 +95,12 @@ public class CommitmentService {
         UUID id = Uuid7.next();
         jdbc.sql("""
                         insert into commitments (id, space_id, kind, name, amount, currency, account_id, category_id, to_account_id,
-                                                 every_months, first_due, ends_on, created_by, goal_id)
+                                                 every_months, first_due, ends_on, created_by, goal_id, auto, auto_since)
                         values (:id, :spaceId, :kind, :name, :amount, :currency, :accountId, :categoryId, :toAccountId,
-                                :everyMonths, :firstDue, :endsOn, :userId, :goalId)
+                                :everyMonths, :firstDue, :endsOn, :userId, :goalId, :auto, case when :auto then cast(:today as date) end)
                         """)
                 .param("id", id).param("spaceId", spaceId).params(params(f)).param("currency", currency).param("userId", user.id())
+                .param("today", accounts.today(user))
                 .update();
         return find(spaceId, id);
     }
@@ -119,10 +120,11 @@ public class CommitmentService {
                         update commitments set kind = :kind, name = :name, amount = :amount, currency = :currency,
                             account_id = :accountId, category_id = :categoryId, to_account_id = :toAccountId,
                             every_months = :everyMonths, first_due = :firstDue, ends_on = :endsOn, goal_id = :goalId,
+                            auto_since = case when not :auto then null when auto then auto_since else cast(:today as date) end, auto = :auto,
                             version = version + 1, updated_at = now()
                         where id = :id and version = :version
                         """)
-                .param("id", id).param("version", version).params(params(f)).param("currency", currency)
+                .param("id", id).param("version", version).params(params(f)).param("currency", currency).param("today", accounts.today(user))
                 .update();
         if (updated == 0) {
             throw new VersionConflictException("commitment");
@@ -475,6 +477,7 @@ public class CommitmentService {
         p.put("firstDue", f.firstDue());
         p.put("endsOn", f.endsOn());
         p.put("goalId", f.goalId());
+        p.put("auto", Boolean.TRUE.equals(f.auto()));
         return p;
     }
 

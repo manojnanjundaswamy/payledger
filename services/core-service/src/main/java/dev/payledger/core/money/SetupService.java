@@ -125,7 +125,7 @@ public class SetupService {
                 toAccountId = savings.id();
             }
             planned.add(commitments.create(user, spaceId, new CommitmentRequests.Fields(p.kind(), p.name().strip(), p.amount(),
-                    from.id(), categoryId, toAccountId, p.everyMonths(), nextDue(today, p.day()), p.endsOn(), null)));
+                    from.id(), categoryId, toAccountId, p.everyMonths(), nextDue(today, p.day()), p.endsOn(), null, null)));
         }
 
         for (BudgetIn b : r.budgets()) {

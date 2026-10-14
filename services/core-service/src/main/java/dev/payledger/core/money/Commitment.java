@@ -11,12 +11,12 @@ import java.util.UUID;
  */
 public record Commitment(UUID id, String kind, String name, long amount, String currency, UUID accountId,
                          UUID categoryId, UUID toAccountId, int everyMonths, LocalDate firstDue, LocalDate endsOn,
-                         int version, UUID goalId) {
+                         int version, UUID goalId, boolean auto) {
 
-    /** Without a goal (older callers and tests). */
+    /** Without a goal or automatic recording (older callers and tests). */
     public Commitment(UUID id, String kind, String name, long amount, String currency, UUID accountId, UUID categoryId,
                       UUID toAccountId, int everyMonths, LocalDate firstDue, LocalDate endsOn, int version) {
-        this(id, kind, name, amount, currency, accountId, categoryId, toAccountId, everyMonths, firstDue, endsOn, version, null);
+        this(id, kind, name, amount, currency, accountId, categoryId, toAccountId, everyMonths, firstDue, endsOn, version, null, false);
     }
 
     /** Due dates between the two dates (inclusive), oldest first. */
