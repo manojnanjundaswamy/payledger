@@ -6,7 +6,7 @@ import { api } from '@/lib/api'
 export interface GroupSummary { id: string; name: string; emoji: string | null; currency: string; role: 'OWNER' | 'MEMBER'; members: number; archived: boolean; you: string }
 
 /** A person in a group: joined (has an account) or a placeholder, maybe invited by email. */
-export interface GroupMember { id: string; name: string; email: string | null; role: 'OWNER' | 'MEMBER'; joined: boolean; you: boolean }
+export interface GroupMember { id: string; name: string; email: string | null; role: 'OWNER' | 'MEMBER'; joined: boolean; you: boolean; upiId?: string | null }
 
 export interface Group { id: string; name: string; emoji: string | null; currency: string; archived: boolean; you: string; members: GroupMember[] }
 

@@ -17,14 +17,14 @@ export interface Profile {
   id: string
   email: string
   displayName: string
-  settings: { locale: string; timeZone: string; currency: string; budgetStartDay: number }
+  settings: { locale: string; timeZone: string; currency: string; budgetStartDay: number; upiId?: string | null }
   preferences: Record<string, unknown>
   spaces: Space[]
   /** PayLedger staff: their admin-console role and what it allows. Absent for customers. */
   staff?: { role: StaffRole; permissions: StaffPermission[] } | null
 }
 
-export type ProfileUpdate = Partial<Pick<Profile, 'displayName'> & Profile['settings']> & { preferences?: unknown }
+export type ProfileUpdate = Partial<Pick<Profile, 'displayName'> & Omit<Profile['settings'], 'upiId'>> & { preferences?: unknown; upiId?: string }
 
 export const profileQuery = queryOptions({
   queryKey: ['profile'],

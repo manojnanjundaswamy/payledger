@@ -9,6 +9,7 @@ import { parsePreferences } from '@/state/preferences'
 import { usePreferences, useUndoable } from '@/state/PreferencesProvider'
 import { useProfile, useUpdateProfile, type ProfileUpdate } from '@/state/profile'
 import { signOut, useSession } from '@/state/session'
+import { UPI_ID } from '@/lib/upi'
 import { Field, Section, Select } from './parts'
 
 function useSaveSetting() {
@@ -24,13 +25,24 @@ export function ProfileSettings() {
   const { data: profile } = useProfile()
   const save = useSaveSetting()
   const [name, setName] = useState(profile?.displayName ?? '')
+  const [upi, setUpi] = useState(profile?.settings.upiId ?? '')
   if (!profile) return null
+  const upiOk = upi.trim() === '' || UPI_ID.test(upi.trim())
   return (
     <Section title="Profile" description="How you appear to people you share groups and households with.">
       <Field label="Display name" htmlFor="display-name">
         <form className="flex w-full gap-2 sm:w-auto" onSubmit={(e) => { e.preventDefault(); if (name.trim()) save({ displayName: name.trim() }, 'Name') }}>
           <Input id="display-name" value={name} maxLength={100} onChange={(e) => setName(e.target.value)} className="sm:w-56" />
           <Button type="submit" disabled={!name.trim() || name.trim() === profile.displayName}>Save</Button>
+        </form>
+      </Field>
+      <Field label="UPI ID" htmlFor="upi-id" hint="Friends who owe you in a group get a one-tap Pay button. Only people you share a group with see it.">
+        <form className="flex w-full flex-col gap-1 sm:w-auto" onSubmit={(e) => { e.preventDefault(); if (upiOk) save({ upiId: upi.trim() }, 'UPI ID') }}>
+          <span className="flex gap-2">
+            <Input id="upi-id" value={upi} maxLength={100} placeholder="name@okhdfcbank" onChange={(e) => setUpi(e.target.value)} className="sm:w-56" aria-invalid={!upiOk} />
+            <Button type="submit" disabled={!upiOk || upi.trim() === (profile.settings.upiId ?? '')}>Save</Button>
+          </span>
+          {!upiOk && <span className="text-xs text-critical">That doesn't look like a UPI ID (name@bank).</span>}
         </form>
       </Field>
       <Field label="Email" hint="Your sign-in email. Change it under Account.">

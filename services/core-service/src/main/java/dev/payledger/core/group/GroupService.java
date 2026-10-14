@@ -44,7 +44,8 @@ public class GroupService {
      * @param email shown for placeholders invited by email (the inviter typed it); never for people who joined
      * @param you   this member is the signed-in user
      */
-    public record Member(UUID id, String name, String email, String role, boolean joined, boolean you) {
+    /** @param upiId where this member can be paid (their own setting; only joined members have one) */
+    public record Member(UUID id, String name, String email, String role, boolean joined, boolean you, String upiId) {
     }
 
     public record Group(UUID id, String name, String emoji, String currency, boolean archived, UUID you, List<Member> members) {
@@ -92,10 +93,11 @@ public class GroupService {
         Row g = jdbc.sql("select id, name, emoji, currency, archived_at is not null as archived from groups where id = :id")
                 .param("id", groupId).query(Row.class).single();
         List<Member> members = jdbc.sql("""
-                        select id, display_name as name, case when user_id is null then email end as email, role,
-                               user_id is not null as joined, coalesce(user_id = :userId, false) as you
-                        from group_members where group_id = :groupId and left_at is null
-                        order by role = 'OWNER' desc, created_at
+                        select m.id, m.display_name as name, case when m.user_id is null then m.email end as email, m.role,
+                               m.user_id is not null as joined, coalesce(m.user_id = :userId, false) as you, u.upi_id
+                        from group_members m left join users u on u.id = m.user_id
+                        where m.group_id = :groupId and m.left_at is null
+                        order by m.role = 'OWNER' desc, m.created_at
                         """)
                 .param("groupId", groupId).param("userId", user.id())
                 .query(Member.class).list();

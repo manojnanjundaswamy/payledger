@@ -26,7 +26,10 @@ public record Profile(
     public record Staff(StaffRole role, Set<StaffRole.Permission> permissions) {
     }
 
-    /** @param budgetStartDay day of the month a budget period starts (1-28), e.g. payday */
-    public record Settings(String locale, String timeZone, String currency, int budgetStartDay) {
+    /**
+     * @param budgetStartDay day of the month a budget period starts (1-28), e.g. payday
+     * @param upiId          where friends can pay you (shown only in groups you share)
+     */
+    public record Settings(String locale, String timeZone, String currency, int budgetStartDay, String upiId) {
     }
 }
