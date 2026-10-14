@@ -117,6 +117,7 @@ public class DataRightsService {
             jdbc.sql("delete from commitment_payments where commitment_id in (select id from commitments where space_id = :s)").param("s", s).update();
             jdbc.sql("delete from goal_contributions where goal_id in (select id from goals where space_id = :s)").param("s", s).update();
             jdbc.sql("delete from category_rules where space_id = :s").param("s", s).update();
+            jdbc.sql("delete from tax_mappings where space_id = :s").param("s", s).update();
             jdbc.sql("update transactions set goal_id = null where space_id = :s").param("s", s).update();
             jdbc.sql("update commitments set goal_id = null where space_id = :s").param("s", s).update();
             for (String table : List.of("commitments", "goals", "transactions", "budget_limits", "imports", "money_accounts")) {
