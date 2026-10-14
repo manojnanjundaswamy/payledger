@@ -636,6 +636,8 @@ export interface Breakdown {
   byTag: { tag: string; spent: number; count: number }[]
   places: { name: string; spent: number; count: number }[]
   biggest: { id: string; description: string; amount: number; occurredOn: string; categoryId: string | null }[]
+  /** The latest three, newest first. */
+  recent: { id: string; kind: TxnKind; description: string; amount: number; occurredOn: string; categoryId: string | null }[]
 }
 
 export function useBreakdown(filter: TransactionFilter, enabled = true) {

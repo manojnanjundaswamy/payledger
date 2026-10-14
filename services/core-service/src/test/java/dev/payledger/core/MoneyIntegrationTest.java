@@ -338,6 +338,7 @@ class MoneyIntegrationTest {
                 // "Swiggy" and "SWIGGY " are one place.
                 .andExpect(jsonPath("$.places[0].spent").value(50_000)).andExpect(jsonPath("$.places[0].count").value(2))
                 .andExpect(jsonPath("$.biggest[0].description").value("Swiggy"))
+                .andExpect(jsonPath("$.recent[0].description").value("Card bill")).andExpect(jsonPath("$.recent.length()").value(3))
                 .andReturn().getResponse().getContentAsString();
         assertThat(JsonPath.<List<Object>>read(body, "$.byDay[*].day")).hasSize(3);
 
