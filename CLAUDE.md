@@ -7,6 +7,7 @@ splitting groups by link without an account. Owner: Manoj. Read these before cha
 - Product plan (features, guests, households, roadmap): `docs/plan/product-plan.md`
 - Market scan (Goodbudget, Mint, Monarch, Spendee) and the Free / Premium plans: `docs/plan/market-and-pricing.md`
 - Getting data in without a licence (statements, SMS, forwarding address) and features to borrow: `docs/plan/onboarding-and-features.md`
+- 15 ideas with plans, competitor tiers and the proposed Free / Premium / Family plans (for owner review): `docs/plan/ideas-2026-10.md`
 - Name ideas (undecided, "PayLedger" is the code name): `docs/plan/naming.md`
 - Security, tenant isolation and integrity (read before adding an endpoint): `docs/security.md`
 - Notifications (bell, email outbox, providers and costs, WhatsApp, activity audit): `docs/notifications.md`
