@@ -58,8 +58,8 @@ case "$CMD" in
   deploy)
     # A clean checkout of the branch, next to this one, so what runs is exactly what was merged.
     TREE="$REPO/../payledger-$ENV"
-    git fetch -q origin "$BRANCH"
-    if [ -d "$TREE" ]; then git -C "$TREE" checkout -q --detach "origin/$BRANCH"; else git worktree add -q --detach "$TREE" "origin/$BRANCH"; fi
+    # The local branch (pushing to GitHub is a separate step: git push origin main develop).
+    if [ -d "$TREE" ]; then git -C "$TREE" checkout -q --detach "$BRANCH"; else git worktree add -q --detach "$TREE" "$BRANCH"; fi
     echo "deploying $ENV from $BRANCH at $(git -C "$TREE" log --oneline -1)"
     docker compose -p "$PROJECT" --env-file "$REPO/$ENV_FILE" --project-directory "$TREE" -f "$TREE/docker-compose.yml" --profile web up -d --build
     ready ;;

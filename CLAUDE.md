@@ -64,8 +64,11 @@ Emails (verification, reset) appear in Mailpit http://localhost:8025. Keycloak a
 
 ## Workflow (agreed with the owner)
 
-- Work on a feature branch, open **one PR per piece of work**, keep CI green, and **merge it yourself when green**
-  (merge commit). The owner only decides product questions.
+- Branches and environments: `docs/environments.md`. Feature branches go into **`develop`** (staging,
+  `scripts/env.sh staging …`, http://localhost:5273); a release merges `develop` into **`main`** (production, the live
+  site). Commit locally and test on **staging**, never against production; browser tests, clean-up and sample data
+  run on staging only. Push and open a PR at a checkpoint, not for every piece (owner's request, 2026-10-15); merge it
+  yourself when CI is green. The owner only decides product questions.
 - **Dependabot**: triage it yourself. Merge when CI covers the change; close bumps that contradict decisions
   (Java stays 21, Postgres 17 everywhere) with a short reason. Image bumps in `docker-compose.yml` aren't covered by CI:
   run the stack + `scripts/login-smoke-test.sh` before merging (PR #12 is waiting on exactly that).
