@@ -10,7 +10,9 @@ do $$ begin
   if (select count(*) from keep_user) <> 1 then raise exception 'the user to keep does not exist'; end if;
 end $$;
 
-create temp table gone_users on commit drop as select id from users where id not in (select id from keep_user);
+-- Test users only (…@example.com, what the tests sign up with), unless :'everyone' is 'yes': real sign-ups stay.
+create temp table gone_users on commit drop as select id from users where id not in (select id from keep_user)
+  and (:'everyone' = 'yes' or email ~* '@example\.com$');
 create temp table gone_spaces on commit drop as
   select id from spaces where created_by in (select id from gone_users)
     and id not in (select space_id from space_members where user_id in (select id from keep_user));

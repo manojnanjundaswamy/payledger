@@ -102,6 +102,11 @@
   --accent: #ff6a1a; --accent-fg: #120804; --accent-soft: rgb(255 106 26 / 0.15);
   --ring: rgb(255 106 26 / 0.5);
 }
+/* Yellow is a fill colour, not a text colour on a light page: accent-coloured text and icons use deep gold. */
+:root[data-palette="bumblebee"]:not([data-theme="dark"]) .text-accent { color: #8a6500; }
+
+@keyframes grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
 /* The palette's signature: a thin stripe along the top of the screen. */
 :root[data-palette="bumblebee"] body::before, :root[data-palette="ferrari"] body::before {
   content: ""; position: fixed; inset: 0 0 auto 0; height: 3px; z-index: 70; pointer-events: none;

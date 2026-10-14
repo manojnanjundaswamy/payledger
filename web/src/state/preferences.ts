@@ -8,7 +8,7 @@ import { z } from 'zod'
 
 export const WIDGET_TYPES = [
   'safeToSpend', 'budgets', 'spendingByCategory', 'cashFlow', 'recentTransactions',
-  'upcomingBills', 'groups', 'goals', 'household', 'gettingStarted', 'quickActions', 'note',
+  'upcomingBills', 'groups', 'goals', 'household', 'gettingStarted', 'quickActions', 'note', 'toReview', 'netWorth',
 ] as const
 export type WidgetType = (typeof WIDGET_TYPES)[number]
 
@@ -89,7 +89,7 @@ export function newId(prefix: string): string {
 export const DASHBOARD_TEMPLATES = {
   overview: { name: 'Overview', widgets: [
     ['gettingStarted', 'm'], ['safeToSpend', 'm'], ['budgets', 'm'], ['spendingByCategory', 'm'],
-    ['cashFlow', 'l'], ['upcomingBills', 's'], ['recentTransactions', 'm'], ['groups', 'm'],
+    ['cashFlow', 'l'], ['upcomingBills', 's'], ['recentTransactions', 'm'], ['groups', 'm'], ['netWorth', 'm'], ['toReview', 's'],
   ] },
   household: { name: 'Household', widgets: [
     ['household', 'l'], ['budgets', 's'], ['upcomingBills', 'm'], ['spendingByCategory', 'm'], ['goals', 'm'],

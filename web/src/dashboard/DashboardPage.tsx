@@ -183,8 +183,8 @@ function WidgetGrid({ dashboard, editing, onAdd }: { dashboard: Dashboard; editi
     >
       <SortableContext items={dashboard.widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
         <div className="grid grid-cols-1 gap-gap sm:grid-cols-2 xl:grid-cols-4" data-testid="widget-grid">
-          {dashboard.widgets.map((w) => (
-            <SortableWidget key={w.id} widget={w} dashboardId={dashboard.id} editing={editing} />
+          {dashboard.widgets.map((w, i) => (
+            <SortableWidget key={w.id} widget={w} dashboardId={dashboard.id} editing={editing} index={i} />
           ))}
         </div>
       </SortableContext>
@@ -195,7 +195,7 @@ function WidgetGrid({ dashboard, editing, onAdd }: { dashboard: Dashboard; editi
   )
 }
 
-function SortableWidget({ widget, dashboardId, editing }: { widget: Widget; dashboardId: string; editing: boolean }) {
+function SortableWidget({ widget, dashboardId, editing, index }: { widget: Widget; dashboardId: string; editing: boolean; index: number }) {
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id: widget.id, disabled: !editing })
   return (
     <WidgetCard
@@ -204,6 +204,7 @@ function SortableWidget({ widget, dashboardId, editing }: { widget: Widget; dash
       dashboardId={dashboardId}
       editing={editing}
       dragging={isDragging}
+      index={index}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       handleProps={{ ...attributes, ...listeners }}
       data-widget-id={widget.id}

@@ -56,3 +56,21 @@ fi
 kc update "clients/$gw" -r payledger -s "redirectUris=[$uris]" -s "webOrigins=[$origins]" \
   -s "attributes.\"post.logout.redirect.uris\"=$logout"
 echo "Sign-in returns to: localhost${PUBLIC_URL:+ and $PUBLIC_URL}"
+
+# "Continue with Google" on the sign-in and sign-up pages, once GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are in .env
+# (docs/hosting.md, "Google sign-in"). People who sign in with Google get a PayLedger account with their Google email,
+# already verified; an existing account with that email is linked after they confirm it.
+if [ -n "${GOOGLE_CLIENT_ID:-}" ] && [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then
+  if kc get identity-provider/instances/google -r payledger >/dev/null 2>&1; then
+    kc update identity-provider/instances/google -r payledger -s enabled=true \
+      -s "config.clientId=$GOOGLE_CLIENT_ID" -s "config.clientSecret=$GOOGLE_CLIENT_SECRET" >/dev/null
+  else
+    kc create identity-provider/instances -r payledger -s alias=google -s providerId=google -s enabled=true \
+      -s trustEmail=true -s 'displayName=Google' -s firstBrokerLoginFlowAlias="first broker login" \
+      -s "config.clientId=$GOOGLE_CLIENT_ID" -s "config.clientSecret=$GOOGLE_CLIENT_SECRET" \
+      -s config.defaultScope="openid email profile" -s config.syncMode=IMPORT >/dev/null
+  fi
+  echo "Google sign-in: on"
+else
+  echo "Google sign-in: off (set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env)"
+fi

@@ -27,10 +27,12 @@ interface Props extends HTMLAttributes<HTMLDivElement> {
   overlay?: boolean
   handleProps?: HTMLAttributes<HTMLButtonElement>
   style?: CSSProperties
+  /** Its place on the dashboard: widgets arrive one after another. */
+  index?: number
 }
 
 export const WidgetCard = forwardRef<HTMLDivElement, Props>(function WidgetCard(
-  { widget, dashboardId, editing, dragging, overlay, handleProps, className, style, ...rest }, ref,
+  { widget, dashboardId, editing, dragging, overlay, handleProps, className, style, index = 0, ...rest }, ref,
 ) {
   const meta = WIDGETS[widget.type]
   const env = useWidgetEnv()
@@ -46,7 +48,7 @@ export const WidgetCard = forwardRef<HTMLDivElement, Props>(function WidgetCard(
       <motion.section
         initial={overlay ? false : { opacity: 0, y: 10, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: overlay ? 1.02 : 1 }}
-        transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
+        transition={{ duration: 0.32, ease: [0.2, 0.8, 0.2, 1], delay: Math.min(index, 10) * 0.045 }}
         aria-label={title}
         className={cn(
           '@container group/w flex h-full flex-col rounded-card border bg-surface transition-[box-shadow,border-color] duration-200',
