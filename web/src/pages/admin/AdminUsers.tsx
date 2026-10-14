@@ -15,6 +15,7 @@ import { useProfile } from '@/state/profile'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { ActivityList, type ActivityRow } from './AdminActivity'
+import { ExportButton, dateTime } from './parts'
 
 const FILTERS = [
   { value: 'all', label: 'All' },
@@ -34,7 +35,7 @@ export function AdminUsers() {
   const [search, setSearch] = useState('')
   const { show } = useSearch({ from: '/app/admin' })
   const navigate = useNavigate({ from: '/admin' })
-  const filter: Filter = show ?? 'all'
+  const filter: Filter = show && show !== 'errors' ? show : 'all'
   const setFilter = (f: Filter) => void navigate({ search: (s) => ({ ...s, show: f === 'all' ? undefined : f }), replace: true })
   const [limit, setLimit] = useState(PAGE)
   const [open, setOpen] = useState<string | null>(null)
@@ -62,6 +63,7 @@ export function AdminUsers() {
           <Input aria-label="Search users" placeholder="Search by email or name" value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" />
         </label>
         <Segmented label="Show" value={filter} onChange={(f) => { setFilter(f); setLimit(PAGE) }} options={[...FILTERS]} className="overflow-x-auto" />
+        <ExportButton kind="users" params={{ q: search || undefined }} />
         {canCreate && <Button variant="primary" onClick={() => setAdding(true)}><UserPlus />Add user</Button>}
       </div>
 
@@ -83,8 +85,8 @@ export function AdminUsers() {
                   {u.staffRole && <Badge tone="accent"><ShieldCheck className="size-3" />{u.staffRole.toLowerCase()}</Badge>}
                   {u.disabled && <Badge tone="critical"><Ban className="size-3" />Disabled</Badge>}
                 </span>
-                <span className="w-40 text-xs text-subtle">
-                  Joined {date(u.createdAt, locale)}<br />{u.lastActiveOn ? `Active ${relativeDay(u.lastActiveOn, locale)}` : 'Not active yet'}
+                <span className="w-48 text-xs text-subtle">
+                  Joined {dateTime(u.createdAt, locale)}<br />{u.lastActiveOn ? `Active ${relativeDay(u.lastActiveOn, locale)}` : 'Not active yet'}
                 </span>
               </button>
             ))}
@@ -136,7 +138,7 @@ function UserSheet({ id, onClose }: { id: string | null; onClose: () => void }) 
           </div>
 
           <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-            <Fact label="Joined" value={date(u.createdAt, locale)} />
+            <Fact label="Joined" value={dateTime(u.createdAt, locale)} />
             <Fact label="Last active" value={u.lastActiveOn ? relativeDay(u.lastActiveOn, locale) : 'Not yet'} />
             <Fact label="Active days (30)" value={String(data.usage.activeDays30)} />
             <Fact label="Region" value={`${data.locale} · ${data.currency}`} />
@@ -210,7 +212,7 @@ function UserSheet({ id, onClose }: { id: string | null; onClose: () => void }) 
                   <li key={h.id} className="text-xs">
                     <span className="text-fg">{h.actorEmail}</span> {ACTION_LABEL[h.action] ?? h.action}
                     {typeof h.details.until === 'string' && ` until ${date(h.details.until, locale)}`}
-                    <span className="block text-subtle">{new Date(h.at).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                    <span className="block text-subtle">{dateTime(h.at, locale)}</span>
                   </li>
                 ))}
               </ul>

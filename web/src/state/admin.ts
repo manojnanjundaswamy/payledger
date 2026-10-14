@@ -13,6 +13,8 @@ export interface Overview {
   usage: { transactions: number; groupExpenses: number; imports: number; groups: number }
   /** Weekly sign-up cohorts, oldest first; retained[k] = share active k weeks after signing up. */
   cohorts: { week: string; size: number; retained: number[] }[]
+  /** The last 24 hours. */
+  platform: { requests24h: number; clientErrors24h: number; serverErrors24h: number; p95Ms: number; signIns24h: number; signUps24h: number; emailsPending: number; emailsFailed: number }
 }
 
 export function useOverview(days: number) {
@@ -139,6 +141,11 @@ export const ACTION_LABEL: Record<string, string> = {
   'staff.remove': 'removed a staff role',
   'settings.update': 'changed the settings',
   'reminders.run': 'ran the morning reminders',
+  'export.requests': 'exported the request log',
+  'export.activity': 'exported user activity',
+  'export.audit': 'exported the audit log',
+  'export.emails': 'exported the email log',
+  'export.users': 'exported the user list',
 }
 
 export interface StaffMember {

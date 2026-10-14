@@ -1,16 +1,18 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Activity, BarChart3, Mail, ScrollText, Settings2, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
+import { Activity, BarChart3, Mail, Network, ScrollText, Settings2, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
 import { Badge, Card } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
 import { useProfile, type StaffPermission } from '@/state/profile'
 import { AdminActivity } from './AdminActivity'
 import { AdminAudit } from './AdminAudit'
+import { AdminRequests } from './AdminRequests'
 import { AdminEmails } from './AdminEmails'
 import { AdminOverview } from './AdminOverview'
 import { AdminSettings } from './AdminSettings'
 import { AdminStaff } from './AdminStaff'
 import { AdminUsers } from './AdminUsers'
 import { ADMIN_TABS_KEYS, type AdminTab } from './tabs'
+import { setAdminTimeZone } from './parts'
 
 const TABS: Record<AdminTab, { label: string; icon: typeof BarChart3; needs: StaffPermission; component: () => React.JSX.Element }> = {
   overview: { label: 'Overview', icon: BarChart3, needs: 'ANALYTICS_VIEW', component: AdminOverview },
@@ -19,6 +21,7 @@ const TABS: Record<AdminTab, { label: string; icon: typeof BarChart3; needs: Sta
   settings: { label: 'Settings', icon: Settings2, needs: 'SETTINGS_MANAGE', component: AdminSettings },
   emails: { label: 'Emails', icon: Mail, needs: 'USERS_SUPPORT', component: AdminEmails },
   activity: { label: 'User activity', icon: Activity, needs: 'USERS_VIEW', component: AdminActivity },
+  requests: { label: 'Requests', icon: Network, needs: 'AUDIT_VIEW', component: AdminRequests },
   audit: { label: 'Audit log', icon: ScrollText, needs: 'AUDIT_VIEW', component: AdminAudit },
 }
 
@@ -26,7 +29,9 @@ const ROLE_LABEL = { OWNER: 'Owner', ADMIN: 'Admin', SUPPORT: 'Support', ANALYST
 
 /** The admin console: only staff get here, and each tab only shows when the role allows it. */
 export function AdminPage() {
-  const staff = useProfile().data?.staff
+  const profile = useProfile().data
+  const staff = profile?.staff
+  setAdminTimeZone(profile?.settings.timeZone)
   const { tab } = useSearch({ from: '/app/admin' })
   const navigate = useNavigate()
 
@@ -59,7 +64,8 @@ export function AdminPage() {
             )
           })}
         </nav>
-        <Badge className="ml-auto" data-testid="staff-role">{ROLE_LABEL[staff.role]}</Badge>
+        <span className="ml-auto text-xs text-subtle">Times in {profile?.settings.timeZone}</span>
+        <Badge data-testid="staff-role">{ROLE_LABEL[staff.role]}</Badge>
       </div>
       {Body ? <Body /> : <Card className="p-pad text-sm text-muted">Your role has nothing to show here yet.</Card>}
     </div>

@@ -3,7 +3,8 @@
  * XSRF-TOKEN cookie in the X-XSRF-TOKEN header (Spring Security SPA mode).
  */
 export class ApiError extends Error {
-  constructor(readonly status: number, readonly code: string, message: string) {
+  /** @param requestId the server's id for the request, to quote to support */
+  constructor(readonly status: number, readonly code: string, message: string, readonly requestId?: string) {
     super(message)
   }
 }
@@ -41,7 +42,8 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
   if (response.status === 401 || response.type === 'opaqueredirect') throw new UnauthorizedError()
   if (!response.ok) {
     const problem = await response.json().catch(() => ({}))
-    throw new ApiError(response.status, problem.code ?? String(response.status), problem.detail ?? response.statusText)
+    throw new ApiError(response.status, problem.code ?? String(response.status), problem.detail ?? response.statusText,
+      problem.requestId ?? response.headers?.get('X-Request-Id') ?? undefined)
   }
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T)
 }

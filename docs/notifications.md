@@ -91,12 +91,25 @@ Business Platform (Cloud API)** from Meta.
 
   It plugs in as another channel next to email, using the same events and the same per-kind settings.
 
-## Activity audit (for staff)
+## Audit: what staff can look into
 
-- **Sign-ins:** each Keycloak session is recorded once, with time, browser and IP.
-- **Changes:** every change made through the API is recorded: method, route, ids and outcome (for example
-  `POST /api/core/spaces/{spaceId}/accounts 201`). **Amounts and descriptions are never recorded.**
-- **Where staff see it:** Admin → User activity (everyone; filter by sign-ins, changes or errors), and on each
-  user's page.
-- **Admin actions:** recorded separately, in Admin → Audit log.
-- **Retention:** kept 180 days, then deleted (also the inbox).
+Admin shows every time to the second, in the staff member's time zone. Each log below exports as CSV (ISO 8601 times
+to the millisecond, in IST), and each export is itself recorded in the audit log.
+
+| Log | What it records | Kept | Who sees it |
+|---|---|---|---|
+| **Requests** (`request_log`) | every API request, reads included, even refused ones (401/403): when to the millisecond, request id, user, method, path and route, status, time taken, IP, browser; for a failure, its error code and message | 90 days | audit view |
+| **User activity** (`user_events`) | sign-ups, sign-ins (once per Keycloak session) and every change (route, ids, outcome) | 180 days | users view |
+| **Audit log** (`admin_audit`) | every staff action, with before and after, append-only | for good | audit view |
+| **Emails** (`email_outbox`) | every email: kind, recipient, subject, sent or why not | for good | users support |
+
+- **Never recorded:** request or response bodies, amounts, descriptions or notes.
+- **Every response carries a request id** (`X-Request-Id`). Errors also carry it as `requestId`, and the app
+  shows a short reference on "something went wrong", so a user can quote it and support can find exactly that request.
+- **Unexpected errors** are logged with their stack trace under the request id, and answered as a plain 500
+  that reveals nothing.
+- **Where staff see it:** Admin → Requests (filter by status, time range, or search by reference, email, route,
+  error code or IP; open a row for every detail), Admin → User activity, each user's page, Admin → Audit log,
+  Admin → Emails.
+- **The overview** shows the last 24 hours: requests, errors (ours against refused or invalid ones), 95th-percentile
+  response time, sign-ins and sign-ups, and emails waiting or failed. Each card opens its log.

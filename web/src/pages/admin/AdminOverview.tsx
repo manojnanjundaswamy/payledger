@@ -45,6 +45,17 @@ export function AdminOverview() {
         <Kpi label="Sign-ups in 30 days" value={n(data.users.new30Days)} note={`${n(data.usage.transactions)} transactions added in 30 days`} />
       </div>
 
+      <section aria-label="Platform" className="flex flex-col gap-2">
+        <h3 className="text-sm font-medium text-muted">The last 24 hours</h3>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Health label="Requests" value={n(data.platform.requests24h)} note={`95% answered within ${n(data.platform.p95Ms)} ms`} tab="requests" />
+          <Health label="Errors" value={n(data.platform.serverErrors24h + data.platform.clientErrors24h)} tab="requests" errors
+            note={`${n(data.platform.serverErrors24h)} on our side \u00b7 ${n(data.platform.clientErrors24h)} refused or invalid`} bad={data.platform.serverErrors24h > 0} />
+          <Health label="Sign-ins" value={n(data.platform.signIns24h)} note={`${n(data.platform.signUps24h)} new sign-ups`} tab="activity" />
+          <Health label="Emails" value={n(data.platform.emailsPending)} note={`waiting \u00b7 ${n(data.platform.emailsFailed)} gave up`} tab="emails" bad={data.platform.emailsFailed > 0} />
+        </div>
+      </section>
+
       <Card className="flex flex-col gap-3 p-pad">
         <h3 className="font-medium">Active users and sign-ups per day</h3>
         <DailyChart days={data.days} locale={locale} />
@@ -84,6 +95,18 @@ export function AdminOverview() {
         <Retention cohorts={data.cohorts} locale={locale} />
       </Section>
     </div>
+  )
+}
+
+/** Health over the last day; opens the log behind it. */
+function Health({ label, value, note, tab, errors, bad }: { label: string; value: string; note: string; tab: 'requests' | 'activity' | 'emails'; errors?: boolean; bad?: boolean }) {
+  return (
+    <Link to="/admin" search={{ tab, show: errors ? 'errors' : undefined }} data-testid={`health-${label.toLowerCase()}`}
+      className={cn('flex flex-col gap-1 rounded-card border bg-surface p-pad shadow-card transition-colors hover:bg-surface-2', bad ? 'border-critical/50' : 'border-border hover:border-border-strong')}>
+      <span className="text-sm text-muted">{label}</span>
+      <span className={cn('text-2xl font-semibold tracking-tight tabular', bad && 'text-critical')}>{value}</span>
+      <span className="text-xs text-subtle">{note}</span>
+    </Link>
   )
 }
 
