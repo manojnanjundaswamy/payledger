@@ -116,6 +116,37 @@ public class DataRightsService {
         jdbc.sql("delete from group_entry_accounts where user_id = :u").param("u", u).update();
         jdbc.sql("update users set group_account_id = null where id = :u").param("u", u).update();
 
+        // Households you share with others stay theirs: one you own goes to a partner (else the longest-standing
+        // member), and what you recorded in any shared household is kept under its owner's name.
+        List<UUID> owned = jdbc.sql("""
+                        select s.id from spaces s where s.created_by = :u and s.kind = 'HOUSEHOLD'
+                          and exists (select 1 from space_members m where m.space_id = s.id and m.user_id <> :u)
+                        """).param("u", u).query(UUID.class).list();
+        for (UUID h : owned) {
+            UUID successor = jdbc.sql("""
+                            select user_id from space_members where space_id = :h and user_id <> :u
+                            order by role = 'PARTNER' desc, role = 'MEMBER' desc, joined_at limit 1
+                            """).param("h", h).param("u", u).query(UUID.class).single();
+            jdbc.sql("update spaces set created_by = :s where id = :h").param("s", successor).param("h", h).update();
+            jdbc.sql("update space_members set role = 'OWNER' where space_id = :h and user_id = :s").param("h", h).param("s", successor).update();
+        }
+        List<UUID> shared = jdbc.sql("""
+                        select s.id from space_members m join spaces s on s.id = m.space_id
+                        where m.user_id = :u and s.kind = 'HOUSEHOLD' and s.created_by <> :u
+                        """).param("u", u).query(UUID.class).list();
+        for (UUID h : shared) {
+            for (String table : List.of("money_accounts", "transactions", "commitments", "imports", "goals", "category_rules")) {
+                jdbc.sql("update " + table + " set created_by = (select created_by from spaces where id = :h) where space_id = :h and created_by = :u")
+                        .param("h", h).param("u", u).update();
+            }
+            jdbc.sql("update goal_contributions set created_by = (select created_by from spaces where id = :h) where created_by = :u and goal_id in (select id from goals where space_id = :h)")
+                    .param("h", h).param("u", u).update();
+            jdbc.sql("update budget_limits set updated_by = (select created_by from spaces where id = :h) where space_id = :h and updated_by = :u")
+                    .param("h", h).param("u", u).update();
+        }
+        jdbc.sql("update space_invites set invited_by = (select created_by from spaces where id = space_invites.space_id) where invited_by = :u")
+                .param("u", u).update();
+
         // Your own spaces and everything in them.
         List<UUID> spaces = jdbc.sql("select id from spaces where created_by = :u").param("u", u).query(UUID.class).list();
         for (UUID s : spaces) {
@@ -130,6 +161,7 @@ public class DataRightsService {
             }
             jdbc.sql("update categories set parent_id = null where space_id = :s").param("s", s).update();
             jdbc.sql("delete from categories where space_id = :s").param("s", s).update();
+            jdbc.sql("delete from space_invites where space_id = :s").param("s", s).update();
             jdbc.sql("delete from space_members where space_id = :s").param("s", s).update();
             jdbc.sql("delete from outbox_events where aggregate_id = :s and published_at is not null").param("s", s).update();
             jdbc.sql("delete from spaces where id = :s").param("s", s).update();
