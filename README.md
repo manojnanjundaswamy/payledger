@@ -78,6 +78,7 @@ docker compose --profile app up -d --build   # infrastructure + gateway, core-se
 scripts/login-smoke-test.sh                   # sign-in, sign-up + email verification, token relay, CSRF, logout
 scripts/keycloak-sync.sh                      # once, on an older local Keycloak volume: adds realm clients added since (admin console)
 scripts/clean-test-data.sh                    # local only: keep the demo user (admin), remove every other user and the tests' "E2E …" data
+scripts/seed-sample-data.sh                    # local only: three months of sample data in the demo account (tagged "sample")
 scripts/smoke-test.sh                         # ledger: entries, reversal, totals, outbox -> Kafka
 scripts/money-smoke-test.sh                   # money: account + expense via gateway -> core -> Kafka -> ledger, edit, delete, balances
 docker compose --profile tools up -d          # optional: Kafka UI on http://localhost:8085
