@@ -84,7 +84,7 @@ public class GroupService {
                         from group_members m join groups g on g.id = m.group_id
                         left join lateral (select sum(amount) as spent, count(*) as count, max(occurred_on) as last
                                            from group_expenses where group_id = g.id and deleted_at is null) e on true
-                        where m.user_id = :userId and m.left_at is null
+                        where m.user_id = :userId and m.left_at is null and not g.direct
                         order by g.archived_at is not null, greatest(e.last, g.created_at::date) desc, g.created_at desc
                         """)
                 .param("userId", user.id())

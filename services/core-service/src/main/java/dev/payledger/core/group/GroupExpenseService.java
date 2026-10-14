@@ -56,8 +56,9 @@ public class GroupExpenseService {
     public record Part(UUID memberId, long paid, long share, Long input) {
     }
 
+    /** @param loan money lent rather than shared spending; @param dueOn when a loan should be paid back */
     public record Expense(UUID id, String description, long amount, String currency, LocalDate occurredOn, String category,
-                          Splits.Type split, int version, List<Part> parts) {
+                          Splits.Type split, int version, List<Part> parts, boolean loan, LocalDate dueOn) {
     }
 
     public record Settlement(UUID id, UUID fromMemberId, UUID toMemberId, long amount, String currency, LocalDate occurredOn, String note) {
@@ -148,7 +149,7 @@ public class GroupExpenseService {
     /** The group's live expenses, newest first (or just one), with their parts. */
     private List<Expense> expenses(UUID groupId, UUID only) {
         List<Expense> expenses = jdbc.sql("""
-                        select id, description, amount, currency, occurred_on, category, split, version
+                        select id, description, amount, currency, occurred_on, category, split, version, loan, due_on
                         from group_expenses where group_id = :groupId and deleted_at is null
                           and (cast(:only as uuid) is null or id = :only)
                         order by occurred_on desc, created_at desc, id desc limit 200
@@ -156,7 +157,8 @@ public class GroupExpenseService {
                 .param("groupId", groupId).param("only", only)
                 .query((rs, n) -> new Expense(rs.getObject("id", UUID.class), rs.getString("description"), rs.getLong("amount"),
                         rs.getString("currency"), rs.getObject("occurred_on", LocalDate.class), rs.getString("category"),
-                        Splits.Type.valueOf(rs.getString("split")), rs.getInt("version"), List.of()))
+                        Splits.Type.valueOf(rs.getString("split")), rs.getInt("version"), List.of(), rs.getBoolean("loan"),
+                        rs.getObject("due_on", LocalDate.class)))
                 .list();
         if (expenses.isEmpty()) {
             return expenses;
@@ -169,7 +171,7 @@ public class GroupExpenseService {
                                 (Long) rs.getObject("input"))))
                 .list();
         return expenses.stream().map(e -> new Expense(e.id(), e.description(), e.amount(), e.currency(), e.occurredOn(),
-                e.category(), e.split(), e.version(), parts.getOrDefault(e.id(), List.of()))).toList();
+                e.category(), e.split(), e.version(), parts.getOrDefault(e.id(), List.of()), e.loan(), e.dueOn())).toList();
     }
 
     /** A retry with the same client id returns the first. */
@@ -187,8 +189,8 @@ public class GroupExpenseService {
         }
         Map<UUID, Long[]> parts = resolve(groupId, request.fields());
         int inserted = jdbc.sql("""
-                        insert into group_expenses (id, group_id, description, amount, currency, occurred_on, category, split, created_by)
-                        values (:id, :groupId, :description, :amount, :currency, :occurredOn, :category, :split, :userId)
+                        insert into group_expenses (id, group_id, description, amount, currency, occurred_on, category, split, loan, due_on, created_by)
+                        values (:id, :groupId, :description, :amount, :currency, :occurredOn, :category, :split, :loan, :dueOn, :userId)
                         on conflict (id) do nothing
                         """)
                 .param("id", id).param("groupId", groupId).params(fields(request.fields())).param("currency", currency)
@@ -233,7 +235,8 @@ public class GroupExpenseService {
         boolean posted = post(groupId, id, next, f, parts);
         jdbc.sql("""
                         update group_expenses set description = :description, amount = :amount, occurred_on = :occurredOn,
-                            category = :category, split = :split, version = :version, ledger_version = :ledgerVersion, updated_at = now()
+                            category = :category, split = :split, loan = :loan, due_on = :dueOn, version = :version,
+                            ledger_version = :ledgerVersion, updated_at = now()
                         where id = :id
                         """)
                 .param("id", id).params(fields(f)).param("version", next).param("ledgerVersion", posted ? next : 0)
@@ -525,6 +528,8 @@ public class GroupExpenseService {
         p.put("occurredOn", f.occurredOn());
         p.put("category", f.category() == null || f.category().isBlank() ? null : f.category().strip());
         p.put("split", f.split().name());
+        p.put("loan", Boolean.TRUE.equals(f.loan()));
+        p.put("dueOn", Boolean.TRUE.equals(f.loan()) ? f.dueOn() : null);
         return p;
     }
 }

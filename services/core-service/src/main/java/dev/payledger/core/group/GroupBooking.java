@@ -123,10 +123,12 @@ public class GroupBooking {
 
     /** Every member's book for this expense; {@code only} limits it to one user. */
     void syncExpense(UUID expenseId, UUID only) {
-        record Expense(UUID groupId, String description, String currency, LocalDate occurredOn, String category, boolean deleted, String groupName) {
+        record Expense(UUID groupId, String description, String currency, LocalDate occurredOn, String category, boolean deleted, String groupName,
+                       boolean loan) {
         }
         Expense e = jdbc.sql("""
-                        select e.group_id, e.description, e.currency, e.occurred_on, e.category, e.deleted_at is not null as deleted, g.name as group_name
+                        select e.group_id, e.description, e.currency, e.occurred_on, e.category, e.deleted_at is not null as deleted, g.name as group_name,
+                               e.loan
                         from group_expenses e join groups g on g.id = e.group_id where e.id = :id
                         """).param("id", expenseId).query(Expense.class).single();
         record Part(UUID userId, long paid, long share) {
@@ -144,13 +146,20 @@ public class GroupBooking {
             if (p != null && m.enabled() && sameCurrency(m, e.currency())) {
                 UUID owed = owedAccount(m);
                 String label = e.description() + " · " + e.groupName();
-                if (p.share() > 0) {
+                if (p.share() > 0 && e.loan()) {
+                    // A loan you took is money in, owed back: never spending.
+                    UUID into = accountFor(expenseId, m);
+                    if (into != null) {
+                        wanted.add(new Wanted("gexp:" + expenseId + ":share", "TRANSFER", p.share(), owed, into, null, e.occurredOn(), "Borrowed: " + label));
+                    }
+                } else if (p.share() > 0) {
                     wanted.add(new Wanted("gexp:" + expenseId + ":share", "EXPENSE", p.share(), owed, null, category(m, e.category()), e.occurredOn(), label));
                 }
                 if (p.paid() > 0) {
                     UUID from = accountFor(expenseId, m);
                     if (from != null) {
-                        wanted.add(new Wanted("gexp:" + expenseId + ":paid", "TRANSFER", p.paid(), from, owed, null, e.occurredOn(), "Paid for " + label));
+                        wanted.add(new Wanted("gexp:" + expenseId + ":paid", "TRANSFER", p.paid(), from, owed, null, e.occurredOn(),
+                                (e.loan() ? "Lent: " : "Paid for ") + label));
                     }
                 }
             }

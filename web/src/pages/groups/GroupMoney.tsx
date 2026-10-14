@@ -166,7 +166,7 @@ export function GroupMoney({ group, tab, month, onTab }: {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{r.expense.description}</span>
                     <span className="block truncate text-xs text-subtle">
-                      {dayLabel(r.date)}{r.expense.category && ` · ${r.expense.category}`} · {r.expense.parts.filter((p) => p.paid > 0).map((p) => name(p.memberId)).join(' & ')} paid
+                      {dayLabel(r.date)}{r.expense.loan ? ' · Loan' : r.expense.category && ` · ${r.expense.category}`}{r.expense.loan && r.expense.dueOn && ` · pay back by ${dayLabel(r.expense.dueOn)}`} · {r.expense.parts.filter((p) => p.paid > 0).map((p) => name(p.memberId)).join(' & ')} {r.expense.loan ? 'lent it' : 'paid'}
                     </span>
                   </span>
                   <span className="text-right">

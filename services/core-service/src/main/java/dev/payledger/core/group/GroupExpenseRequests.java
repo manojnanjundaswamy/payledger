@@ -29,21 +29,25 @@ final class GroupExpenseRequests {
      * @param paidBy   who paid, and how much each (adding up to the amount)
      * @param shares   who it is for, with the split's values
      */
-    /** @param paidFromAccountId optional: which of your own accounts you paid from, for your book */
+    /**
+     * @param paidFromAccountId optional: which of your own accounts you paid from (or, for a loan you took, received into)
+     * @param loan              money lent, not shared spending: for whoever's share it is, it's money in, owed back
+     * @param dueOn             optional, for a loan: when it should be paid back
+     */
     record Fields(@NotBlank @Size(max = 120) String description, @NotNull @Min(1) @Max(MAX_AMOUNT) Long amount,
                   @NotNull LocalDate occurredOn, @Size(max = 40) String category,
                   @NotEmpty @Size(max = 50) List<@Valid PartIn> paidBy, @NotNull Splits.Type split,
-                  @NotEmpty @Size(max = 50) List<@Valid PartIn> shares, UUID paidFromAccountId) {
+                  @NotEmpty @Size(max = 50) List<@Valid PartIn> shares, UUID paidFromAccountId, Boolean loan, LocalDate dueOn) {
     }
 
     /** @param id optional, chosen by the client so a retry adds the expense once */
     record Create(UUID id, @NotBlank @Size(max = 120) String description, @NotNull @Min(1) @Max(MAX_AMOUNT) Long amount,
                   @NotNull LocalDate occurredOn, @Size(max = 40) String category,
                   @NotEmpty @Size(max = 50) List<@Valid PartIn> paidBy, @NotNull Splits.Type split,
-                  @NotEmpty @Size(max = 50) List<@Valid PartIn> shares, UUID paidFromAccountId) {
+                  @NotEmpty @Size(max = 50) List<@Valid PartIn> shares, UUID paidFromAccountId, Boolean loan, LocalDate dueOn) {
 
         Fields fields() {
-            return new Fields(description, amount, occurredOn, category, paidBy, split, shares, paidFromAccountId);
+            return new Fields(description, amount, occurredOn, category, paidBy, split, shares, paidFromAccountId, loan, dueOn);
         }
     }
 
