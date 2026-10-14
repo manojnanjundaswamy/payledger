@@ -23,7 +23,7 @@ type Method = 'email' | 'paste' | 'share'
 export function CapturePage() {
   const search = useSearch({ from: '/app/capture' })
   const navigate = useNavigate()
-  const [method, setMethod] = useState<Method>('email')
+  const [method, setMethod] = useState<Method>(search.method ?? 'email')
   const waiting = useRef(false)
   const { data, isPending } = useCapture(waiting.current)
   const paste = usePaste()

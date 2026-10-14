@@ -181,7 +181,10 @@ const capture = createRoute({
   getParentRoute: () => app,
   path: '/capture',
   // Android's share sheet opens /capture?title=…&text=… (the manifest's share_target).
-  validateSearch: z.object({ text: z.string().max(20_000).optional().catch(undefined), title: z.string().max(500).optional().catch(undefined) }),
+  validateSearch: z.object({
+    text: z.string().max(20_000).optional().catch(undefined), title: z.string().max(500).optional().catch(undefined),
+    method: z.enum(['email', 'paste', 'share']).optional().catch(undefined),
+  }),
   component: lazyRouteComponent(() => import('@/pages/capture/CapturePage'), 'CapturePage'),
 })
 

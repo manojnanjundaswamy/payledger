@@ -66,6 +66,49 @@
   --ring: color-mix(in oklch, var(--accent) 55%, transparent);
 }
 
+/*
+ * Palettes (Settings > Appearance): whole colour sets, not just an accent. Each tints page, cards and borders in
+ * light and dark. Also on nested [data-theme] elements, so the settings preview shows both modes. A colour the
+ * user picks still wins (the engine writes --accent inline).
+ */
+:root[data-palette="bumblebee"], :root[data-palette="bumblebee"] [data-theme="light"] {
+  --bg: #fffcf0; --surface: #ffffff; --surface-2: #fff6d6; --surface-3: #ffedb0;
+  --border: #f0e2a8; --border-strong: #e2cc72;
+  --fg: #14120b; --fg-muted: #5e5530; --fg-subtle: #8c8150;
+  --accent: #ffc800; --accent-fg: #14120b; --accent-soft: #fff0b3;
+  --ring: rgb(230 175 0 / 0.6);
+  --palette-stripe: repeating-linear-gradient(-45deg, #ffc800 0 12px, #14120b 12px 24px);
+}
+:root[data-palette="bumblebee"][data-theme="dark"], :root[data-palette="bumblebee"] [data-theme="dark"] {
+  --bg: #0c0b07; --surface: #15130b; --surface-2: #1d1a0e; --surface-3: #272311;
+  --border: #2e2912; --border-strong: #403916;
+  --fg: #fff8e1; --fg-muted: #cfc394; --fg-subtle: #8f8664;
+  --accent: #ffd000; --accent-fg: #14120b; --accent-soft: rgb(255 208 0 / 0.14);
+  --ring: rgb(255 208 0 / 0.55);
+}
+:root[data-palette="ferrari"], :root[data-palette="ferrari"] [data-theme="light"] {
+  --bg: #fff8f4; --surface: #ffffff; --surface-2: #ffede3; --surface-3: #ffdfcf;
+  --border: #f6d5c4; --border-strong: #ebb89d;
+  --fg: #1a0e09; --fg-muted: #6b4a3d; --fg-subtle: #9a7465;
+  --accent: #ea5000; --accent-fg: #ffffff; --accent-soft: #ffe4d4;
+  --ring: rgb(234 80 0 / 0.5);
+  --palette-stripe: linear-gradient(90deg, #ff8a1f, #ea5000 45%, #d40000);
+}
+:root[data-palette="ferrari"][data-theme="dark"], :root[data-palette="ferrari"] [data-theme="dark"] {
+  /* Carbon: near-black with a warm cast. */
+  --bg: #0b0807; --surface: #141010; --surface-2: #1c1513; --surface-3: #261c18;
+  --border: #2f221d; --border-strong: #45302a;
+  --fg: #fff3ec; --fg-muted: #d2b4a7; --fg-subtle: #957a6f;
+  --accent: #ff6a1a; --accent-fg: #120804; --accent-soft: rgb(255 106 26 / 0.15);
+  --ring: rgb(255 106 26 / 0.5);
+}
+/* The palette's signature: a thin stripe along the top of the screen. */
+:root[data-palette="bumblebee"] body::before, :root[data-palette="ferrari"] body::before {
+  content: ""; position: fixed; inset: 0 0 auto 0; height: 3px; z-index: 70; pointer-events: none;
+  background: var(--palette-stripe);
+}
+@media print { :root[data-palette] body::before { display: none; } }
+
 @theme inline {
   --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
   --color-bg: var(--bg);

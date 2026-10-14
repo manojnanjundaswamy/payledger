@@ -27,12 +27,24 @@ export const ACCENT_PRESETS = [
   { name: 'Sky', value: '#0284c7' },
 ] as const
 
+/**
+ * Whole palettes, beyond an accent: they tint the page, cards and borders too, in light and dark (styles.css,
+ * [data-palette]). Classic is the black-and-white default.
+ */
+export const PALETTES = [
+  { id: 'classic', name: 'Classic', description: 'Black and white', swatches: ['#ffffff', '#f6f6f5', '#0a0a0a'] },
+  { id: 'bumblebee', name: 'Bumblebee yellow', description: 'Warm yellow and black, with a hazard stripe', swatches: ['#fffcf0', '#ffc800', '#14120b'] },
+  { id: 'ferrari', name: 'Ferrari orange', description: 'Race orange on carbon, with a racing stripe', swatches: ['#fff8f4', '#ea5000', '#1a0e09'] },
+] as const
+export type PaletteId = (typeof PALETTES)[number]['id']
+
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/).transform((s) => s.toLowerCase())
 
 export const ThemeSchema = z.object({
   mode: z.enum(['system', 'light', 'dark']).catch('system'),
-  /** null = monochrome (black on white / white on black) */
+  /** null = monochrome (black on white / white on black), or the palette's own accent */
   accent: hex.nullable().catch(null),
+  palette: z.enum(['classic', 'bumblebee', 'ferrari']).catch('classic'),
   radius: z.enum(['sharp', 'soft', 'round']).catch('soft'),
   density: z.enum(['comfortable', 'compact']).catch('comfortable'),
   textSize: z.enum(['sm', 'md', 'lg']).catch('md'),
@@ -65,7 +77,7 @@ export const DashboardSchema = z.object({
 export type Dashboard = z.infer<typeof DashboardSchema>
 
 export function defaultTheme(): Theme {
-  return { mode: 'system', accent: null, radius: 'soft', density: 'comfortable', textSize: 'md', motion: 'system', width: 'comfortable' }
+  return { mode: 'system', accent: null, palette: 'classic', radius: 'soft', density: 'comfortable', textSize: 'md', motion: 'system', width: 'comfortable' }
 }
 
 let counter = 0

@@ -4,11 +4,16 @@ import { parsePreferences } from './preferences'
 describe('parsePreferences', () => {
   it('gives a new user a monochrome theme and the overview dashboard', () => {
     const prefs = parsePreferences({})
-    expect(prefs.theme).toEqual({ mode: 'system', accent: null, radius: 'soft', density: 'comfortable', textSize: 'md', motion: 'system', width: 'comfortable' })
+    expect(prefs.theme).toEqual({ mode: 'system', accent: null, palette: 'classic', radius: 'soft', density: 'comfortable', textSize: 'md', motion: 'system', width: 'comfortable' })
     expect(prefs.dashboards).toHaveLength(1)
     expect(prefs.dashboards[0]!.name).toBe('Overview')
     expect(prefs.activeDashboard).toBe(prefs.dashboards[0]!.id)
     expect(prefs.sampleData).toBe(true)
+  })
+
+  it('keeps a known palette and falls back to classic for anything else', () => {
+    expect(parsePreferences({ theme: { palette: 'ferrari' } }).theme.palette).toBe('ferrari')
+    expect(parsePreferences({ theme: { palette: 'lamborghini' } }).theme.palette).toBe('classic')
   })
 
   it('keeps what is valid and repairs what is not, field by field', () => {
