@@ -156,6 +156,11 @@ const reports = createRoute({
     period: z.enum(['this-month', 'last-month', 'this-fy', 'last-fy', 'last-12', 'custom']).optional().catch(undefined),
     from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
     to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
+    // The same filters as the transactions list.
+    account: z.string().uuid().optional().catch(undefined),
+    category: z.string().uuid().optional().catch(undefined),
+    tag: z.string().max(40).optional().catch(undefined),
+    q: z.string().max(100).optional().catch(undefined),
   }),
   component: lazyRouteComponent(() => import('@/pages/money/ReportsPage'), 'ReportsPage'),
 })
