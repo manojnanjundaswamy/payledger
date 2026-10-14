@@ -1,0 +1,157 @@
+package dev.payledger.core.user;
+
+import dev.payledger.core.admin.IdentityAdmin;
+import dev.payledger.core.common.ApiException;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * Your data, your control (DPDP Act 2023: the right to access and to erasure). Download everything PayLedger keeps
+ * about you as one file, or delete your account: your own data goes, and so does your sign-in. In groups you share,
+ * you become a named placeholder so the others' balances stay right; a group nobody else joined goes with you.
+ * <p>
+ * The ledger keeps its entries for your book (they carry no name or email); purging closed books is for later.
+ */
+@Service
+public class DataRightsService {
+
+    private final JdbcClient jdbc;
+    private final IdentityAdmin identity;
+
+    public DataRightsService(JdbcClient jdbc, IdentityAdmin identity) {
+        this.jdbc = jdbc;
+        this.identity = identity;
+    }
+
+    /** One section of the export: rows as JSON, straight from Postgres so every column is there. */
+    private String rows(String sql, UUID userId) {
+        return jdbc.sql("select coalesce(json_agg(r), '[]'::json)::text from (" + sql + ") r").param("u", userId).query(String.class).single();
+    }
+
+    private static final String MY_SPACES = "select space_id from space_members where user_id = :u";
+    private static final String MY_GROUPS = "select group_id from group_members where user_id = :u";
+
+    /** Everything about you, as a JSON document (each section is raw JSON text, assembled by the caller). */
+    @Transactional(readOnly = true)
+    public Map<String, String> export(CurrentUser user) {
+        UUID u = user.id();
+        Map<String, String> out = new LinkedHashMap<>();
+        out.put("profile", rows("select id, email, display_name, locale, time_zone, currency, budget_start_day, upi_id, preferences, email_prefs, created_at from users where id = :u", u));
+        out.put("spaces", rows("select * from spaces where id in (" + MY_SPACES + ")", u));
+        out.put("accounts", rows("select * from money_accounts where space_id in (" + MY_SPACES + ") order by created_at", u));
+        out.put("categories", rows("select * from categories where space_id in (" + MY_SPACES + ") order by kind, name", u));
+        out.put("transactions", rows("select * from transactions where space_id in (" + MY_SPACES + ") and deleted_at is null order by occurred_on, created_at", u));
+        out.put("budgets", rows("select * from budget_limits where space_id in (" + MY_SPACES + ") order by effective_month", u));
+        out.put("billsAndSavings", rows("select * from commitments where space_id in (" + MY_SPACES + ") order by created_at", u));
+        out.put("billPayments", rows("select p.* from commitment_payments p join commitments c on c.id = p.commitment_id where c.space_id in (" + MY_SPACES + ")", u));
+        out.put("goals", rows("select * from goals where space_id in (" + MY_SPACES + ") order by created_at", u));
+        out.put("goalContributions", rows("select c.* from goal_contributions c join goals g on g.id = c.goal_id where g.space_id in (" + MY_SPACES + ")", u));
+        out.put("categoryRules", rows("select * from category_rules where space_id in (" + MY_SPACES + ") order by match", u));
+        out.put("imports", rows("select * from imports where space_id in (" + MY_SPACES + ") order by created_at", u));
+        out.put("groups", rows("select * from groups where id in (" + MY_GROUPS + ")", u));
+        out.put("groupMembers", rows("select id, group_id, display_name, role, user_id = :u as you, left_at from group_members where group_id in (" + MY_GROUPS + ")", u));
+        out.put("groupExpenses", rows("select * from group_expenses where group_id in (" + MY_GROUPS + ") and deleted_at is null order by occurred_on", u));
+        out.put("groupExpenseParts", rows("select p.* from group_expense_parts p join group_expenses e on e.id = p.expense_id where e.group_id in (" + MY_GROUPS + ") and e.deleted_at is null", u));
+        out.put("groupSettlements", rows("select * from group_settlements where group_id in (" + MY_GROUPS + ") and deleted_at is null order by occurred_on", u));
+        out.put("notifications", rows("select kind, title, body, link, created_at, read_at from inbox where user_id = :u order by created_at", u));
+        out.put("emailsSent", rows("select kind, to_email, subject, created_at, sent_at from email_outbox where user_id = :u order by created_at", u));
+        out.put("activity", rows("select type, action, status, target, ip, user_agent, at from user_events where user_id = :u order by at", u));
+        return out;
+    }
+
+    /**
+     * Deletes the account. {@code confirm} must be the account's email, so it can't happen by accident. Refused for
+     * the last staff owner, who would lock everyone out of the admin console.
+     */
+    @Transactional
+    public void delete(CurrentUser user, String confirm) {
+        if (confirm == null || !confirm.strip().equalsIgnoreCase(user.email())) {
+            throw new Refused("confirm-email", "type your email address to confirm");
+        }
+        UUID u = user.id();
+        boolean lastOwner = jdbc.sql("""
+                        select exists (select 1 from staff_roles where user_id = :u and role = 'OWNER')
+                           and not exists (select 1 from staff_roles where role = 'OWNER' and user_id <> :u)
+                        """).param("u", u).query(Boolean.class).single();
+        if (lastOwner) {
+            throw new Refused("last-owner", "you're the only owner of the admin console: make someone else an owner first");
+        }
+
+        // Groups: one only you joined goes; elsewhere you become a placeholder under your name, and what you created
+        // is credited to another member who joined.
+        List<UUID> groups = jdbc.sql("select group_id from group_members where user_id = :u").param("u", u).query(UUID.class).list();
+        for (UUID g : groups) {
+            UUID successor = jdbc.sql("select user_id from group_members where group_id = :g and user_id is not null and user_id <> :u order by created_at limit 1")
+                    .param("g", g).param("u", u).query(UUID.class).optional().orElse(null);
+            if (successor == null) {
+                jdbc.sql("delete from group_expense_parts where expense_id in (select id from group_expenses where group_id = :g)").param("g", g).update();
+                for (String table : List.of("group_settlements", "group_expenses", "group_links", "group_members")) {
+                    jdbc.sql("delete from " + table + " where group_id = :g").param("g", g).update();
+                }
+                jdbc.sql("delete from groups where id = :g").param("g", g).update();
+            } else {
+                for (String table : List.of("group_expenses", "group_settlements", "group_links")) {
+                    jdbc.sql("update " + table + " set created_by = :s where group_id = :g and created_by = :u").param("s", successor).param("g", g).param("u", u).update();
+                }
+                jdbc.sql("update group_members set added_by = :s where group_id = :g and added_by = :u").param("s", successor).param("g", g).param("u", u).update();
+                jdbc.sql("update groups set created_by = :s where id = :g and created_by = :u").param("s", successor).param("g", g).param("u", u).update();
+                jdbc.sql("update group_members set user_id = null, email = null where group_id = :g and user_id = :u").param("g", g).param("u", u).update();
+            }
+        }
+
+        // Your own spaces and everything in them.
+        List<UUID> spaces = jdbc.sql("select id from spaces where created_by = :u").param("u", u).query(UUID.class).list();
+        for (UUID s : spaces) {
+            jdbc.sql("delete from commitment_payments where commitment_id in (select id from commitments where space_id = :s)").param("s", s).update();
+            jdbc.sql("delete from goal_contributions where goal_id in (select id from goals where space_id = :s)").param("s", s).update();
+            jdbc.sql("delete from category_rules where space_id = :s").param("s", s).update();
+            jdbc.sql("update transactions set goal_id = null where space_id = :s").param("s", s).update();
+            jdbc.sql("update commitments set goal_id = null where space_id = :s").param("s", s).update();
+            for (String table : List.of("commitments", "goals", "transactions", "budget_limits", "imports", "money_accounts")) {
+                jdbc.sql("delete from " + table + " where space_id = :s").param("s", s).update();
+            }
+            jdbc.sql("update categories set parent_id = null where space_id = :s").param("s", s).update();
+            jdbc.sql("delete from categories where space_id = :s").param("s", s).update();
+            jdbc.sql("delete from space_members where space_id = :s").param("s", s).update();
+            jdbc.sql("delete from outbox_events where aggregate_id = :s and published_at is not null").param("s", s).update();
+            jdbc.sql("delete from spaces where id = :s").param("s", s).update();
+        }
+
+        // Your traces elsewhere.
+        jdbc.sql("delete from space_members where user_id = :u").param("u", u).update();
+        jdbc.sql("delete from inbox where user_id = :u").param("u", u).update();
+        jdbc.sql("update inbox set actor_id = null where actor_id = :u").param("u", u).update();
+        jdbc.sql("delete from email_outbox where user_id = :u").param("u", u).update();
+        jdbc.sql("delete from user_events where user_id = :u").param("u", u).update();
+        jdbc.sql("delete from user_activity_days where user_id = :u").param("u", u).update();
+        jdbc.sql("update request_log set user_id = null where user_id = :u").param("u", u).update();
+        jdbc.sql("update admin_audit set target_user_id = null where target_user_id = :u").param("u", u).update();
+        jdbc.sql("delete from admin_audit where actor_id = :u").param("u", u).update();
+        jdbc.sql("delete from staff_roles where user_id = :u").param("u", u).update();
+        jdbc.sql("update staff_roles set granted_by = null where granted_by = :u").param("u", u).update();
+        jdbc.sql("update app_settings set updated_by = null where updated_by = :u").param("u", u).update();
+        jdbc.sql("delete from users where id = :u").param("u", u).update();
+
+        // Last: if the sign-in can't be removed, nothing above is kept either.
+        identity.delete(user.subject());
+    }
+
+    static class Refused extends ApiException {
+        Refused(String code, String message) {
+            super(HttpStatus.CONFLICT, code, message);
+        }
+    }
+
+    /** When the export was made, for its file name. */
+    public static String stamp() {
+        return Instant.now().toString().substring(0, 10);
+    }
+}

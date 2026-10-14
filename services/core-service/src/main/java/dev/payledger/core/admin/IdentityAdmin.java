@@ -27,6 +27,9 @@ public interface IdentityAdmin {
     /** Ends every session: the user signs in again everywhere. */
     void signOut(String subject);
 
+    /** Removes the sign-in account for good (the user deleted their account). */
+    void delete(String subject);
+
     class IdentityUnavailableException extends ApiException {
         IdentityUnavailableException(String why) {
             super(HttpStatus.SERVICE_UNAVAILABLE, "identity-unavailable", "the sign-in service can't do this right now: " + why);
