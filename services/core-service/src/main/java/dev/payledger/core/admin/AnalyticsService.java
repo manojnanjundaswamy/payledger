@@ -75,8 +75,16 @@ public class AnalyticsService {
     public record Cohort(LocalDate week, long size, List<Double> retained) {
     }
 
+    /**
+     * How the service is doing over the last 24 hours: requests, client errors, server errors, the 95th percentile
+     * response time, sign-ins and sign-ups, and emails waiting or given up on.
+     */
+    public record Platform(long requests24h, long clientErrors24h, long serverErrors24h, long p95Ms, long signIns24h, long signUps24h,
+                           long emailsPending, long emailsFailed) {
+    }
+
     public record Overview(LocalDate today, String zone, Users users, Active active, Plans plans, List<Day> days,
-                           Adoption adoption, Usage usage, List<Cohort> cohorts) {
+                           Adoption adoption, Usage usage, List<Cohort> cohorts, Platform platform) {
     }
 
     @Transactional(readOnly = true)
@@ -85,7 +93,21 @@ public class AnalyticsService {
         LocalDate from = today.minusDays(days - 1L);
         OffsetDateTime startOfToday = today.atStartOfDay(zone).toOffsetDateTime();
         return new Overview(today, zone.getId(), users(startOfToday), active(today), plans(), days(from, today),
-                adoption(), usage(startOfToday.minusDays(29)), cohorts(today));
+                adoption(), usage(startOfToday.minusDays(29)), cohorts(today), platform());
+    }
+
+    private Platform platform() {
+        return jdbc.sql("""
+                        select (select count(*) from request_log where at > now() - interval '1 day') as requests24h,
+                               (select count(*) from request_log where at > now() - interval '1 day' and status between 400 and 499) as client_errors24h,
+                               (select count(*) from request_log where at > now() - interval '1 day' and status >= 500) as server_errors24h,
+                               (select coalesce(cast(percentile_cont(0.95) within group (order by duration_ms) as bigint), 0)
+                                  from request_log where at > now() - interval '1 day') as p95_ms,
+                               (select count(*) from user_events where type = 'SIGN_IN' and at > now() - interval '1 day') as sign_ins24h,
+                               (select count(*) from user_events where type = 'SIGN_UP' and at > now() - interval '1 day') as sign_ups24h,
+                               (select count(*) from email_outbox where sent_at is null and attempts < 6) as emails_pending,
+                               (select count(*) from email_outbox where sent_at is null and attempts >= 6) as emails_failed
+                        """).query(Platform.class).single();
     }
 
     private Users users(OffsetDateTime startOfToday) {

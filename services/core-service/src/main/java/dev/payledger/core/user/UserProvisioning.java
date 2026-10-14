@@ -105,6 +105,8 @@ public class UserProvisioning {
         categories.seedDefaults(spaceId);
         // Groups that invited this (verified) email before the account existed.
         groups.claimInvites(userId, email);
+        jdbc.sql("insert into user_events (id, user_id, type, action) values (:id, :userId, 'SIGN_UP', 'first visit after verifying the email')")
+                .param("id", Uuid7.next()).param("userId", userId).update();
         notifications.toUser(userId, null, "welcome:" + userId, dev.payledger.core.notify.Email.titled("Welcome to PayLedger")
                 .heading("Welcome, " + name)
                 .para("Your budget can be ready in two minutes: tell us your payday, your accounts and what goes out every month, "

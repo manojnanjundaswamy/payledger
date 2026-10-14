@@ -6,6 +6,7 @@ import { Card, Skeleton } from '@/components/ui/card'
 import { api, ApiError } from '@/lib/api'
 import { useCan } from '@/state/admin'
 import { useProfile } from '@/state/profile'
+import { ExportButton, dateTime } from './parts'
 
 interface Row { id: string; kind: string; to_email: string; subject: string; created_at: string; sent_at: string | null; attempts: number; last_error: string | null }
 interface Emails { counts: { pending: number; failed: number; sent24h: number }; emails: Row[] }
@@ -38,6 +39,7 @@ export function AdminEmails() {
           <Card className="p-pad"><div className="text-sm text-muted">Gave up</div><div className="text-2xl font-semibold tabular">{data.counts.failed}</div></Card>
         </div>
         {canRun && <Button variant="outline" onClick={() => run.mutate()} disabled={run.isPending}><BellRing />Run morning reminders now</Button>}
+        <ExportButton kind="emails" />
       </div>
       <p className="text-xs text-subtle">Reminders run every morning at 8:00 IST; running them again never sends the same email twice.</p>
       <Card className="divide-y divide-border p-0" data-testid="admin-emails">
@@ -50,7 +52,7 @@ export function AdminEmails() {
               <span className="block truncate">{e.subject}</span>
               <span className="block truncate text-xs text-subtle">{e.to_email} · {e.kind.toLowerCase().replace(/_/g, ' ')}{e.last_error && !e.sent_at ? ` \u00b7 ${e.last_error}` : ''}</span>
             </span>
-            <span className="shrink-0 text-xs text-subtle tabular">{new Date(e.created_at).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })}</span>
+            <span className="shrink-0 text-xs text-subtle tabular">{dateTime(e.created_at, locale)}{e.sent_at && ` \u2192 sent ${dateTime(e.sent_at, locale).split(', ').pop()}`}</span>
           </div>
         ))}
       </Card>

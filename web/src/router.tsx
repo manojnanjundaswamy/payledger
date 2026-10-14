@@ -197,7 +197,7 @@ const admin = createRoute({
   validateSearch: z.object({
     tab: z.enum(ADMIN_TABS_KEYS).optional().catch(undefined),
     // Users tab filter, so the dashboard's numbers open the people behind them.
-    show: z.enum(['all', 'PREMIUM', 'TRIAL', 'GRANTED', 'FREE', 'DISABLED']).optional().catch(undefined),
+    show: z.enum(['all', 'PREMIUM', 'TRIAL', 'GRANTED', 'FREE', 'DISABLED', 'errors']).optional().catch(undefined),
   }),
   component: lazyRouteComponent(() => import('@/pages/admin/AdminPage'), 'AdminPage'),
 })

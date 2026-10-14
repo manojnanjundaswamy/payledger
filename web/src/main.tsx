@@ -28,6 +28,13 @@ function onError(error: Error) {
     })
     return
   }
+  // Our side failed: say so, with the reference support needs to find exactly this request.
+  if (error instanceof ApiError && error.status >= 500 && !(error instanceof UnauthorizedError)) {
+    toast.error('Something went wrong on our side', {
+      description: error.requestId ? `Try again in a moment. If it keeps happening, quote reference ${error.requestId.slice(0, 8)} to support.` : 'Try again in a moment.',
+    })
+    return
+  }
   if (error instanceof UnauthorizedError) {
     // The session expired (or was ended elsewhere): go back to sign in, once.
     queryClient.clear()

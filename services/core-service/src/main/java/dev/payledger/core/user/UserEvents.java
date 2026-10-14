@@ -42,6 +42,7 @@ public class UserEvents implements HandlerInterceptor {
     void seen(CurrentUser user, String sessionId, HttpServletRequest request) {
         if (request != null) {
             request.setAttribute(USER_ATTRIBUTE, user.id());
+            request.setAttribute(dev.payledger.core.common.RequestLog.USER, user.id());
         }
         if (sessionId == null || !seenSessions.add(user.id() + ":" + sessionId)) {
             return;
