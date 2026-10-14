@@ -131,6 +131,12 @@ const budgets = createRoute({
   component: lazyRouteComponent(() => import('@/pages/money/BudgetsPage'), 'BudgetsPage'),
 })
 
+const goals = createRoute({
+  getParentRoute: () => app,
+  path: '/goals',
+  component: lazyRouteComponent(() => import('@/pages/money/GoalsPage'), 'GoalsPage'),
+})
+
 const plan = createRoute({
   getParentRoute: () => app,
   path: '/plan',
@@ -240,7 +246,7 @@ const utilities = createRoute({
 const comingSoon = (Object.keys(COMING) as (keyof typeof COMING)[]).map((page) =>
   createRoute({ getParentRoute: () => app, path: `/${page}`, component: () => <ComingSoon page={page} /> }))
 
-const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, categories, budgets, plan, importPage, reports, groups, group, join, transactions, admin, welcome, utilities, ...comingSoon])])
+const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, categories, budgets, plan, goals, importPage, reports, groups, group, join, transactions, admin, welcome, utilities, ...comingSoon])])
 
 export function createAppRouter(queryClient: QueryClient) {
   return createRouter({

@@ -110,6 +110,7 @@ public class AppSettings {
         m.put("bills", 5);
         m.put("big-costs", 1);
         m.put("imports", 3);
+        m.put("goals", 1);
         return java.util.Collections.unmodifiableMap(m);
     }
 }

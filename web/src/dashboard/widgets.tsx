@@ -1,3 +1,4 @@
+import { useGoals } from '@/state/goals'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQueries } from '@tanstack/react-query'
@@ -455,8 +456,9 @@ function Groups() {
 }
 
 function Goals({ widget }: WidgetProps) {
-  const { sample: on, money } = useWidgetEnv()
-  if (!on) return <Empty phase="Phase 6">Savings goals with a target and a date.</Empty>
+  const { sample: on, real, money } = useWidgetEnv()
+  if (real) return <RealGoals widget={widget} />
+  if (!on) return <Empty>Savings goals with a target and a date.</Empty>
   const rows = widget.size === 's' ? sample.goals.slice(0, 2) : sample.goals
   return (
     <ul className="flex flex-col gap-4">
@@ -623,3 +625,35 @@ function relativeDay(daysAgo: number) {
 function inDaysDateObj(days: number) { const d = new Date(); d.setDate(d.getDate() + days); return d }
 function inDaysMonth(days: number) { return inDaysDateObj(days).toLocaleDateString('en-IN', { month: 'short' }) }
 function inDaysDate(days: number) { return inDaysDateObj(days).getDate() }
+
+/** Your goals, nearest date first: how far along, and what each needs this month. Each opens the Goals page. */
+function RealGoals({ widget }: Pick<WidgetProps, 'widget'>) {
+  const { data: goals, isPending } = useGoals()
+  const { money } = useWidgetEnv()
+  if (isPending) return <div className="h-28 animate-pulse rounded-control bg-surface-2" />
+  const rows = (goals ?? []).slice(0, widget.size === 's' ? 2 : 4)
+  if (rows.length === 0) return <NothingYet>No goals yet. <Link to="/goals" className="underline">Add one</Link>: a trip, a phone, an emergency fund.</NothingYet>
+  return (
+    <ul className="flex flex-col gap-4">
+      {rows.map((g) => {
+        const pct = g.saved === null ? 0 : Math.min(1, g.saved / g.target)
+        return (
+          <li key={g.id}>
+            <Link to="/goals" className="-m-1 block rounded-control p-1 hover:bg-surface-2" aria-label={`${g.name}: ${Math.round(pct * 100)}%`}>
+              <div className="mb-1.5 flex items-baseline justify-between gap-2 text-[0.8125rem]">
+                <span className="truncate font-medium">{g.emoji ?? '🎯'} {g.name}</span>
+                <span className="tabular shrink-0 text-muted">{Math.round(pct * 100)}%</span>
+              </div>
+              <Progress value={pct} color={g.status === 'BEHIND' ? 'var(--warning)' : 'var(--flow-in)'} label={`${g.name} progress`} />
+              <div className="mt-1 text-xs text-subtle">
+                {g.saved === null ? '—' : money(g.saved, { compact: true })} of {money(g.target, { compact: true })}
+                {g.perMonth !== null && g.status !== 'REACHED' && ` · ${money(g.perMonth, { compact: true })} a month`}
+                {g.status === 'BEHIND' && ' · behind'}
+              </div>
+            </Link>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}

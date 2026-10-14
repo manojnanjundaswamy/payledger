@@ -34,7 +34,8 @@ public class PlanService {
         BUDGETS("budgets"),
         BILLS("bills and savings on your plan"),
         BIG_COSTS("big yearly or one-off costs"),
-        IMPORTS("imports a month");
+        IMPORTS("imports a month"),
+        GOALS("savings goals");
 
         final String what;
 
@@ -157,6 +158,7 @@ public class PlanService {
                     select count(*) from commitments where space_id = :spaceId and (ends_on is null or ends_on >= current_date)
                       and kind = 'BILL' and (every_months >= 6 or coalesce(ends_on = first_due, false))
                     """;
+            case GOALS -> "select count(*) from goals where space_id = :spaceId and archived_at is null";
             case IMPORTS -> """
                     select count(*) from imports where space_id = :spaceId and undone_at is null
                       and created_at >= date_trunc('month', now())

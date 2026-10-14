@@ -10,7 +10,7 @@ import { usePlan, useStartTrial } from '@/state/plan'
 import { useProfile } from '@/state/profile'
 
 /** Where each limited thing lives, so a limit opens its page. */
-const LIMIT_PAGES: Record<string, string> = { accounts: '/accounts', budgets: '/budgets', bills: '/plan', 'big-costs': '/plan', imports: '/import' }
+const LIMIT_PAGES: Record<string, string> = { accounts: '/accounts', budgets: '/budgets', bills: '/plan', 'big-costs': '/plan', imports: '/import', goals: '/goals' }
 
 /** Your plan, what Free's limits leave, the trial, and what Premium adds. */
 export function PlanSettings() {

@@ -177,7 +177,7 @@ export function useStaffChange() {
 export interface Announcement { message: string; tone: 'INFO' | 'WARNING'; until: string | null }
 
 export interface AppSettings {
-  freeLimits: { accounts: number; budgets: number; bills: number; bigCosts: number; imports: number }
+  freeLimits: { accounts: number; budgets: number; bills: number; bigCosts: number; imports: number; goals: number }
   trialDays: number
   announcement: Announcement | null
 }

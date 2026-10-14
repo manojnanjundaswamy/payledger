@@ -41,7 +41,9 @@ class AdminSettingsController {
 
     record FreeLimits(@NotNull @Min(0) @Max(1000) Integer accounts, @NotNull @Min(0) @Max(1000) Integer budgets,
                       @NotNull @Min(0) @Max(1000) Integer bills, @NotNull @Min(0) @Max(1000) Integer bigCosts,
-                      @NotNull @Min(0) @Max(1000) Integer imports) {
+                      @NotNull @Min(0) @Max(1000) Integer imports,
+                      // Optional so an older admin page that doesn't know it still saves; null keeps the current value.
+                      @Min(0) @Max(1000) Integer goals) {
 
         Map<String, Integer> asMap() {
             Map<String, Integer> m = new LinkedHashMap<>();
@@ -50,11 +52,14 @@ class AdminSettingsController {
             m.put("bills", bills);
             m.put("big-costs", bigCosts);
             m.put("imports", imports);
+            if (goals != null) {
+                m.put("goals", goals);
+            }
             return m;
         }
 
         static FreeLimits of(Map<String, Integer> m) {
-            return new FreeLimits(m.get("accounts"), m.get("budgets"), m.get("bills"), m.get("big-costs"), m.get("imports"));
+            return new FreeLimits(m.get("accounts"), m.get("budgets"), m.get("bills"), m.get("big-costs"), m.get("imports"), m.get("goals"));
         }
     }
 
