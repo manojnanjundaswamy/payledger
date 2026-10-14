@@ -20,7 +20,7 @@ public class Notifications {
 
     /** What people can turn off. Account emails (welcome, sign-in, invites to people without an account) always go. */
     public enum Kind {
-        BILL_REMINDERS(true), BUDGET_ALERTS(true), GROUP_ACTIVITY(true), PRODUCT_NEWS(false);
+        BILL_REMINDERS(true), BUDGET_ALERTS(true), GROUP_ACTIVITY(true), WEEKLY_RECAP(true), PRODUCT_NEWS(false);
 
         final boolean onByDefault;
 

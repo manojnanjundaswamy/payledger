@@ -2,6 +2,7 @@ package dev.payledger.core.admin;
 
 import dev.payledger.core.admin.StaffRole.Permission;
 import dev.payledger.core.notify.Reminders;
+import dev.payledger.core.notify.WeeklyRecap;
 import dev.payledger.core.user.CurrentUser;
 import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -21,9 +22,11 @@ class AdminEmailController {
     private final StaffService staff;
     private final JdbcClient jdbc;
     private final Reminders reminders;
+    private final WeeklyRecap recap;
     private final AuditLog audit;
 
-    AdminEmailController(StaffService staff, JdbcClient jdbc, Reminders reminders, AuditLog audit) {
+    AdminEmailController(StaffService staff, JdbcClient jdbc, Reminders reminders, WeeklyRecap recap, AuditLog audit) {
+        this.recap = recap;
         this.staff = staff;
         this.jdbc = jdbc;
         this.reminders = reminders;
@@ -53,6 +56,15 @@ class AdminEmailController {
         staff.require(user, Permission.SETTINGS_MANAGE);
         Reminders.Run run = reminders.runAll();
         audit.record(user.id(), "reminders.run", null, Map.of("users", run.users(), "bills", run.billEmails(), "budgets", run.budgetEmails()));
+        return run;
+    }
+
+    @PostMapping("/run-recap")
+    @Operation(summary = "Staff (settings manage): send this week's recap now (safe to repeat: one per user per week)")
+    WeeklyRecap.Run recap(CurrentUser user) {
+        staff.require(user, Permission.SETTINGS_MANAGE);
+        WeeklyRecap.Run run = recap.runAll();
+        audit.record(user.id(), "recap.run", null, Map.of("users", run.users(), "recaps", run.recaps()));
         return run;
     }
 }

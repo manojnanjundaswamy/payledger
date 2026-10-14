@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
-export type EmailKind = 'BILL_REMINDERS' | 'BUDGET_ALERTS' | 'GROUP_ACTIVITY' | 'PRODUCT_NEWS'
+export type EmailKind = 'BILL_REMINDERS' | 'BUDGET_ALERTS' | 'GROUP_ACTIVITY' | 'WEEKLY_RECAP' | 'PRODUCT_NEWS'
 export type EmailPrefs = Record<EmailKind, boolean>
 
 export interface SentEmail { kind: string; subject: string; created_at: string; sent_at: string | null; attempts: number; last_error: string | null }
