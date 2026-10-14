@@ -14,6 +14,7 @@
         var dark = t && t.mode === 'dark' || (!t || t.mode === 'system') && matchMedia('(prefers-color-scheme: dark)').matches
         document.documentElement.dataset.theme = dark ? 'dark' : 'light'
         if (t && t.vars) for (var k in t.vars) document.documentElement.style.setProperty(k, t.vars[k])
+        if (t && t.width) document.documentElement.dataset.width = t.width
       } catch (e) {}
     </script>
   </head>

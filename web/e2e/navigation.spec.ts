@@ -13,3 +13,17 @@ test('a page reached from the sidebar is rendered once, not replaced a moment la
   await page.waitForTimeout(600)
   expect(await first!.evaluate((el) => el.isConnected)).toBe(true)
 })
+
+test('pages can be made wide and back in one click', async ({ page }) => {
+  await page.goto('/transactions')
+  const html = page.locator('html')
+  const start = await html.getAttribute('data-width')
+  const before = (await page.locator('main > div > .mx-auto').first().boundingBox())!.width
+  await page.getByRole('button', { name: start === 'wide' ? 'Narrower pages' : 'Wider pages' }).click()
+  await expect(html).toHaveAttribute('data-width', start === 'wide' ? 'comfortable' : 'wide')
+  const after = (await page.locator('main > div > .mx-auto').first().boundingBox())!.width
+  expect(start === 'wide' ? after < before : after > before).toBe(true)
+  // Back to how it was: the demo user's own choice stays theirs.
+  await page.getByRole('button', { name: /pages$/ }).click()
+  await expect(html).toHaveAttribute('data-width', start ?? 'comfortable')
+})
