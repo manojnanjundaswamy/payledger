@@ -1,6 +1,5 @@
 package dev.payledger.core.money;
 
-import dev.payledger.core.common.InvalidRequestException;
 import dev.payledger.core.space.SpaceAccess;
 import dev.payledger.core.user.CurrentUser;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -43,12 +42,9 @@ public class ExportService {
     }
 
     @Transactional(readOnly = true)
-    public List<Line> lines(CurrentUser user, UUID spaceId, LocalDate from, LocalDate to) {
+    public List<Line> lines(CurrentUser user, UUID spaceId, TransactionFilter filter) {
         access.read(user, spaceId);
-        if (from != null && to != null && to.isBefore(from)) {
-            throw new InvalidRequestException("invalid-range", "to is before from");
-        }
-        return jdbc.sql("""
+        return filter.bind(jdbc.sql("""
                         select t.id, t.external_id, t.occurred_on, t.amount, t.currency, t.kind, t.description, t.note,
                                array_to_string(t.tags, ';') as tags,
                                a.name as account, ta.name as to_account,
@@ -59,11 +55,10 @@ public class ExportService {
                         left join categories c on c.id = t.category_id
                         left join categories p on p.id = c.parent_id
                         where t.space_id = :spaceId and t.deleted_at is null
-                          and (cast(:from as date) is null or t.occurred_on >= :from)
-                          and (cast(:to as date) is null or t.occurred_on <= :to)
+                        """ + TransactionFilter.WHERE + """
                         order by t.occurred_on, t.created_at
-                        """)
-                .param("spaceId", spaceId).param("from", from).param("to", to)
+                        """))
+                .param("spaceId", spaceId)
                 .query((rs, n) -> new Line(
                         rs.getObject("occurred_on", LocalDate.class),
                         BigDecimal.valueOf(rs.getLong("amount"), 2),

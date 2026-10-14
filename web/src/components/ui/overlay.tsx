@@ -45,11 +45,13 @@ export function Dialog({ open, onOpenChange, title, description, children, side 
 export const Menu = DropdownMenu.Root
 export const MenuTrigger = DropdownMenu.Trigger
 
-export function MenuContent({ children, align = 'end' }: { children: ReactNode; align?: 'start' | 'end' | 'center' }) {
+/** @param returnFocus false when an item opens a dialog: focus must stay in the dialog, not jump back to the trigger. */
+export function MenuContent({ children, align = 'end', returnFocus = true }: { children: ReactNode; align?: 'start' | 'end' | 'center'; returnFocus?: boolean }) {
   return (
     <DropdownMenu.Portal>
       <DropdownMenu.Content
         align={align}
+        onCloseAutoFocus={returnFocus ? undefined : (e) => e.preventDefault()}
         sideOffset={6}
         className="z-50 min-w-48 rounded-control border border-border bg-surface p-1 shadow-lift data-[state=open]:animate-[pop-in_120ms_ease-out]"
       >

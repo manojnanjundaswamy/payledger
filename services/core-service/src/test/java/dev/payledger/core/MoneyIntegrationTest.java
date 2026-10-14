@@ -254,6 +254,77 @@ class MoneyIntegrationTest {
     }
 
     @Test
+    void searchFindsByWordsAmountKindAndTagAndTotalsWhatItFound() throws Exception {
+        String bank = createAccount("BANK", "HDFC savings", 0);
+        String wallet = createAccount("CASH", "Wallet", 0);
+        createTransaction(fields("EXPENSE", 45_000, bank, null, groceries, "BigBasket order", "2026-10-02"));
+        createTransaction(fields("EXPENSE", 12_050, wallet, null, groceries, "Vegetables 50%", "2026-10-03"));
+        createTransaction(fields("INCOME", 9_000_000, bank, null, salary, "October salary", "2026-10-01"));
+        createTransaction(fields("TRANSFER", 200_000, bank, wallet, null, "ATM", "2026-10-04"));
+
+        // Words match the description, the category and the account, ignoring case.
+        assertThat(descriptions("q", "bigbasket")).containsExactly("BigBasket order");
+        assertThat(descriptions("q", "GROCERIES")).containsExactly("Vegetables 50%", "BigBasket order");
+        assertThat(descriptions("q", "wallet")).containsExactly("ATM", "Vegetables 50%");
+        // % and _ are literal characters, not wildcards.
+        assertThat(descriptions("q", "50%")).containsExactly("Vegetables 50%");
+        assertThat(descriptions("q", "_")).isEmpty();
+        // A number finds that exact amount, written as people write it.
+        assertThat(descriptions("q", "₹90,000")).containsExactly("October salary");
+        assertThat(descriptions("q", "120.50")).containsExactly("Vegetables 50%");
+
+        assertThat(descriptions("kind", "income")).containsExactly("October salary");
+        assertThat(descriptions("minAmount", "12050", "maxAmount", "45000")).containsExactly("Vegetables 50%", "BigBasket order");
+        assertThat(descriptions("tag", "test")).hasSize(4);
+        assertThat(descriptions("tag", "tes")).isEmpty();
+        assertThat(descriptions("kind", "EXPENSE", "accountId", bank)).containsExactly("BigBasket order");
+
+        mvc.perform(get(path("/transactions/summary")).with(me).param("from", "2026-10-01").param("to", "2026-10-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totals[0].currency").value("INR"))
+                .andExpect(jsonPath("$.totals[0].count").value(4))
+                .andExpect(jsonPath("$.totals[0].spent").value(57_050))
+                .andExpect(jsonPath("$.totals[0].earned").value(9_000_000))
+                .andExpect(jsonPath("$.totals[0].moved").value(200_000));
+        mvc.perform(get(path("/transactions/summary")).with(me).param("q", "nothing like this"))
+                .andExpect(jsonPath("$.totals.length()").value(0));
+
+        // The export holds exactly what the filter found.
+        String csv = mvc.perform(get(path("/exports/transactions.csv")).with(me).param("kind", "EXPENSE").param("q", "veg"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(csv.lines()).hasSize(2).last().asString().contains("Vegetables 50%");
+
+        mvc.perform(get(path("/transactions")).with(me).param("kind", "REFUND"))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("invalid-kind"));
+        mvc.perform(get(path("/transactions")).with(me).param("minAmount", "500").param("maxAmount", "100"))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("invalid-range"));
+        mvc.perform(get(path("/transactions/summary")).with(me).param("q", "x".repeat(101)))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("invalid-search"));
+    }
+
+    @Test
+    void withinADayTheOneAddedLastComesFirstWhateverItsId() throws Exception {
+        String bank = createAccount("BANK", "HDFC", 0);
+        createTransaction(withId("ffffffff-ffff-4fff-bfff-ffffffffffff".replace('f', 'e'), fields("EXPENSE", 100, bank, null, groceries, "First", "2026-10-07")));
+        createTransaction(withId("00000000-0000-4000-8000-000000000001", fields("EXPENSE", 100, bank, null, groceries, "Second", "2026-10-07")));
+        createTransaction(withId("77777777-7777-4777-8777-777777777777", fields("EXPENSE", 100, bank, null, groceries, "Third", "2026-10-07")));
+        assertThat(descriptions()).containsExactly("Third", "Second", "First");
+        // And pages still join up without gaps.
+        String page = mvc.perform(get(path("/transactions")).with(me).param("limit", "2")).andReturn().getResponse().getContentAsString();
+        String next = mvc.perform(get(path("/transactions")).with(me).param("limit", "2").param("cursor", JsonPath.<String>read(page, "$.nextCursor")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(JsonPath.<List<String>>read(next, "$.items[*].description")).containsExactly("First");
+    }
+
+    private List<String> descriptions(String... params) throws Exception {
+        var request = get(path("/transactions")).with(me);
+        for (int i = 0; i < params.length; i += 2) {
+            request.param(params[i], params[i + 1]);
+        }
+        return JsonPath.read(mvc.perform(request).andExpect(status().isOk()).andReturn().getResponse().getContentAsString(), "$.items[*].description");
+    }
+
+    @Test
     void commandsArePublishedToKafkaKeyedBySpace() throws Exception {
         String bank = createAccount("BANK", "HDFC", 7_700);
 

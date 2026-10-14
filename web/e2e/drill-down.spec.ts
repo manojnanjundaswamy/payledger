@@ -47,7 +47,7 @@ test('accounts, categories, budgets, dashboard rows and charts open what is behi
   dialog = page.getByRole('dialog', { name: 'Edit expense' })
   await dialog.getByRole('navigation', { name: 'Related' }).getByRole('link', { name: `All ${cat}` }).click()
   await expect(page).toHaveURL(/category=/)
-  await expect(page.getByTestId('filter-chip')).toContainText(cat)
+  await expect(page.getByTestId('filter-chip').filter({ hasText: cat })).toBeVisible()
 
   // A category opens its transactions.
   await page.goto('/categories')

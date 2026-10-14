@@ -59,8 +59,8 @@ export function ReportsPage() {
         )}
         {spaceId && (
           <div className="ml-auto flex items-center gap-1 pb-1">
-            <Button asChild variant="ghost" size="sm"><a href={exportUrl(spaceId, 'xlsx', period.from, period.to)} download><Download />Excel</a></Button>
-            <Button asChild variant="ghost" size="sm"><a href={exportUrl(spaceId, 'csv', period.from, period.to)} download><Download />CSV</a></Button>
+            <Button asChild variant="ghost" size="sm"><a href={exportUrl(spaceId, 'xlsx', { from: period.from, to: period.to })} download><Download />Excel</a></Button>
+            <Button asChild variant="ghost" size="sm"><a href={exportUrl(spaceId, 'csv', { from: period.from, to: period.to })} download><Download />CSV</a></Button>
           </div>
         )}
         <p className="pb-2 text-sm text-muted" data-testid="report-range">

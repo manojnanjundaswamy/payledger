@@ -22,7 +22,7 @@ export function AddMenu({ compact, trigger }: { compact?: boolean; trigger?: Rea
           </Button>
         )}
       </MenuTrigger>
-      <MenuContent align="start">
+      <MenuContent align="start" returnFocus={false}>
         <MenuLabel>Record</MenuLabel>
         <MenuItem icon={<ArrowUpRight />} onSelect={() => add('EXPENSE')}>Expense</MenuItem>
         <MenuItem icon={<ArrowDownLeft />} onSelect={() => add('INCOME')}>Income</MenuItem>

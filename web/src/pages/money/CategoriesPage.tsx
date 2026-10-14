@@ -1,9 +1,9 @@
 import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, Skeleton } from '@/components/ui/card'
-import { Segmented } from '@/components/ui/controls'
+import { Input, Segmented } from '@/components/ui/controls'
 import { cn } from '@/lib/cn'
 import { categoryTree, useCategories, type Category } from '@/state/money'
 import { CategoryDialog } from './CategoryDialog'
@@ -17,18 +17,30 @@ export function CategoriesPage() {
   const [kind, setKind] = useState<Kind>('EXPENSE')
   const [editing, setEditing] = useState<Category | 'new' | null>(null)
 
+  const [q, setQ] = useState('')
   const ofKind = categories.filter((c) => c.kind === kind)
-  const shown = categoryTree(ofKind.filter((c) => !c.hidden))
+  // A search keeps a parent when it or any of its subcategories match, so the tree still reads.
+  const needle = q.trim().toLowerCase()
+  const hits = (c: Category) => c.name.toLowerCase().includes(needle)
+  const matches = (list: ReturnType<typeof categoryTree>) => !needle ? list
+    : list.filter((n) => hits(n.category) || n.children.some(hits)).map((n) => ({ ...n, children: hits(n.category) ? n.children : n.children.filter(hits) }))
+  const shown = matches(categoryTree(ofKind.filter((c) => !c.hidden)))
   // A hidden parent carries its (also hidden) subcategories; a hidden subcategory of a shown parent stands alone.
-  const hidden = categoryTree(ofKind.filter((c) => c.hidden))
+  const hidden = matches(categoryTree(ofKind.filter((c) => c.hidden)))
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <Segmented label="Kind" value={kind} onChange={setKind}
           options={[{ value: 'EXPENSE', label: 'Spending' }, { value: 'INCOME', label: 'Income' }]} />
+        <label className="relative min-w-0 flex-1 basis-40">
+          <span className="sr-only">Search categories</span>
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle" />
+          <Input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search categories" className="pl-9" />
+        </label>
         <Button variant="primary" onClick={() => setEditing('new')}><Plus />Add category</Button>
       </div>
+      {needle && shown.length === 0 && hidden.length === 0 && <Card className="p-pad text-sm text-muted">No {kind === 'EXPENSE' ? 'spending' : 'income'} category matches "{q.trim()}".</Card>}
 
       {isError && <Card className="p-pad text-sm text-critical">Couldn't load your categories. Refresh to try again.</Card>}
       {isPending && <Skeleton className="h-64" />}

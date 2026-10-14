@@ -124,15 +124,17 @@ class MoneyController {
     // ---------------------------------------------------------------- transactions
 
     @GetMapping("/transactions")
-    @Operation(summary = "Newest first, filtered by date range, account or category; pass nextCursor to get more")
-    TransactionService.Page transactions(CurrentUser user, @PathVariable UUID spaceId,
-                                         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-                                         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-                                         @RequestParam(required = false) UUID accountId,
-                                         @RequestParam(required = false) UUID categoryId,
+    @Operation(summary = "Newest first, filtered by dates, account, category, kind, amount, tag or words (q); pass nextCursor to get more")
+    TransactionService.Page transactions(CurrentUser user, @PathVariable UUID spaceId, TransactionFilter filter,
                                          @RequestParam(required = false) String cursor,
                                          @RequestParam(defaultValue = "50") @Min(1) @Max(TransactionService.MAX_PAGE) int limit) {
-        return transactions.list(user, spaceId, new TransactionService.Filter(from, to, accountId, categoryId), cursor, limit);
+        return transactions.list(user, spaceId, filter, cursor, limit);
+    }
+
+    @GetMapping("/transactions/summary")
+    @Operation(summary = "How many transactions a filter matches, and their money out, in and moved, per currency")
+    TransactionService.Summary transactionSummary(CurrentUser user, @PathVariable UUID spaceId, TransactionFilter filter) {
+        return transactions.summary(user, spaceId, filter);
     }
 
     @GetMapping("/transactions/{id}")
