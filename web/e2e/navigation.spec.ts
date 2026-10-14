@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { signIn } from './helpers'
+import { signIn, waitForSave } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page)
@@ -26,4 +26,6 @@ test('pages can be made wide and back in one click', async ({ page }) => {
   // Back to how it was: the demo user's own choice stays theirs.
   await page.getByRole('button', { name: /pages$/ }).click()
   await expect(html).toHaveAttribute('data-width', start ?? 'comfortable')
+  // Saved a moment later: wait, or the demo user is left with the other width.
+  await waitForSave(page)
 })

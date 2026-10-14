@@ -8,8 +8,8 @@ import { defineConfig, devices } from '@playwright/test'
 const executablePath = process.env.PW_CHROMIUM_PATH
 export default defineConfig({
   testDir: './e2e',
-  // Not a test: scripts/clean-test-data.sh runs it on purpose.
-  testIgnore: process.env.CLEANUP ? [] : ['**/cleanup.spec.ts'],
+  // Not tests: scripts/clean-test-data.sh and scripts/seed-sample-data.sh run these on purpose.
+  testIgnore: [...(process.env.CLEANUP ? [] : ['**/cleanup.spec.ts']), ...(process.env.SEED ? [] : ['**/seed.spec.ts'])],
   fullyParallel: false,
   workers: 1,
   retries: 0,
