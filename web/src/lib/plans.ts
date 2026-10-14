@@ -24,4 +24,5 @@ export const LIMIT_LABELS: Record<string, string> = {
   bills: 'Bills and savings on your plan',
   'big-costs': 'Big yearly costs',
   imports: 'Imports this month',
+  goals: 'Savings goals',
 }

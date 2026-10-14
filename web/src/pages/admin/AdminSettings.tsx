@@ -13,6 +13,7 @@ const LIMITS: { key: keyof AppSettings['freeLimits']; label: string }[] = [
   { key: 'bills', label: 'Bills and savings' },
   { key: 'bigCosts', label: 'Big yearly costs' },
   { key: 'imports', label: 'Imports a month' },
+  { key: 'goals', label: 'Savings goals' },
 ]
 
 /** Free's limits, the trial length, and a message for everyone. */

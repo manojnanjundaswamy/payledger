@@ -77,6 +77,11 @@ class TenantIsolationIntegrationTest {
         a.put("categoryId", category);
         a.put("transaction", id(post("/api/core/spaces/" + space + "/transactions", alice, txn(account, category))));
         a.put("commitment", id(post("/api/core/spaces/" + space + "/commitments", alice, bill(account, category))));
+        a.put("rule", id(post("/api/core/spaces/" + space + "/category-rules", alice, "{\"match\":\"" + secret.toLowerCase() + "\",\"categoryId\":\"" + category + "\"}")));
+        a.put("goal", id(post("/api/core/spaces/" + space + "/goals", alice, "{\"name\":\"" + secret + " goal\",\"target\":100000}")));
+        post("/api/core/spaces/" + space + "/goals/" + a.get("goal") + "/contributions", alice, "{\"amount\":5000,\"note\":\"" + secret + "\"}");
+        a.put("contributionId", JsonPath.<List<String>>read(mvc.perform(get("/api/core/spaces/" + space + "/goals/" + a.get("goal") + "/contributions").with(alice))
+                .andReturn().getResponse().getContentAsString(), "$[*].id").getFirst());
         mvc.perform(request(HttpMethod.PUT, "/api/core/spaces/" + space + "/budgets/" + category).with(alice)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"amount\":500000,\"rollover\":false}")).andExpect(status().isOk());
         String imported = post("/api/core/spaces/" + space + "/imports", alice, importBody(account, category));
@@ -173,7 +178,8 @@ class TenantIsolationIntegrationTest {
             String value = switch (name) {
                 case "spaceId" -> own ? bobSpace : a.get("spaceId");
                 case "groupId" -> own ? bobGroup : a.get("groupId");
-                case "id" -> pattern.contains("/commitments/") ? a.get("commitment") : a.get("transaction");
+                case "id" -> pattern.contains("/commitments/") ? a.get("commitment") : pattern.contains("/category-rules/") ? a.get("rule")
+                        : pattern.contains("/goals/") ? a.get("goal") : a.get("transaction");
                 default -> a.get(name);
             };
             if (value == null) {
@@ -259,7 +265,7 @@ class TenantIsolationIntegrationTest {
     /** Rows of B's that point at anything of A's: an account, a category, a group member. */
     private List<String> bobsDataNamingAlice() {
         List<String> found = new ArrayList<>();
-        for (String table : List.of("money_accounts", "categories", "transactions", "commitments", "budget_limits", "imports")) {
+        for (String table : List.of("money_accounts", "categories", "transactions", "commitments", "budget_limits", "imports", "category_rules", "goals")) {
             String rows = jdbc.sql("select coalesce(string_agg(t::text, '|'), '') from " + table + " t where space_id = cast(:s as uuid)")
                     .param("s", bobSpace).query(String.class).single();
             a.forEach((k, v) -> {
@@ -289,9 +295,11 @@ class TenantIsolationIntegrationTest {
         String space = a.get("spaceId");
         String group = a.get("groupId");
         StringBuilder sb = new StringBuilder();
-        for (String table : List.of("money_accounts", "categories", "transactions", "commitments", "commitment_payments", "budget_limits", "imports")) {
+        for (String table : List.of("money_accounts", "categories", "transactions", "commitments", "commitment_payments", "budget_limits", "imports",
+                "category_rules", "goals", "goal_contributions")) {
             String where = table.equals("commitment_payments")
                     ? "commitment_id in (select id from commitments where space_id = cast(:s as uuid))"
+                    : table.equals("goal_contributions") ? "goal_id in (select id from goals where space_id = cast(:s as uuid))"
                     : "space_id = cast(:s as uuid)";
             sb.append(table).append('=').append(jdbc.sql("select coalesce(md5(string_agg(t::text, '|' order by t::text)), '-') from " + table + " t where " + where)
                     .param("s", space).query(String.class).single()).append('\n');
