@@ -47,16 +47,18 @@ public class ImportService {
     private final AccountService accounts;
     private final CategoryService categories;
     private final TransactionService transactions;
+    private final CategoryRuleService rules;
     private final PlanService plans;
 
     public ImportService(JdbcClient jdbc, SpaceAccess access, AccountService accounts, CategoryService categories,
-                         TransactionService transactions, PlanService plans) {
+                         TransactionService transactions, PlanService plans, CategoryRuleService rules) {
         this.jdbc = jdbc;
         this.access = access;
         this.accounts = accounts;
         this.categories = categories;
         this.transactions = transactions;
         this.plans = plans;
+        this.rules = rules;
     }
 
     public enum Status { READY, DUPLICATE, ERROR }
@@ -502,6 +504,16 @@ public class ImportService {
             String name = line.get("category");
             String sub = line.get("subcategory");
             Category parent;
+            // No category in the file: your rules, or what you chose before for this description.
+            if (name.isEmpty() && sub.isEmpty() && !"TRANSFER".equals(r.kind)) {
+                var guess = rules.guess(space.id(), r.kind, line.get("description"), false);
+                Category guessed = guess == null ? null : categoriesByKey.values().stream().filter(c -> c.id().equals(guess.categoryId())).findFirst().orElse(null);
+                if (guessed != null) {
+                    r.categoryId = guessed.id();
+                    r.categoryName = guessed.name();
+                    return;
+                }
+            }
             if (name.isEmpty()) {
                 parent = categoriesByKey.values().stream()
                         .filter(c -> c.kind().equals(r.kind) && c.name().equals("Other") && c.parentId() == null)

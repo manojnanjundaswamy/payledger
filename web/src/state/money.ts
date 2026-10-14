@@ -611,3 +611,43 @@ export function useBreakdown(filter: TransactionFilter, enabled = true) {
   })
 }
 
+
+/** A category guessed from a description: one of your rules, or what you chose before. */
+export interface CategoryGuess { categoryId: string; source: 'RULE' | 'HISTORY' | 'SIMILAR'; ruleId: string | null; match: string | null; times: number }
+
+/** The guess for a description, or null (204) when there is none. */
+export async function fetchCategoryGuess(spaceId: string, kind: 'EXPENSE' | 'INCOME', description: string, signal?: AbortSignal): Promise<CategoryGuess | null> {
+  const res = await api<CategoryGuess | undefined>(`${base(spaceId)}/categories/guess?${new URLSearchParams({ kind, description })}`, { signal })
+  return res ?? null
+}
+
+export interface CategoryRule { id: string; match: string; categoryId: string; used: number; createdAt: string }
+
+export function useCategoryRules() {
+  const spaceId = useSpaceId()
+  return useQuery({
+    queryKey: ['money', spaceId, 'category-rules'],
+    queryFn: () => api<CategoryRule[]>(`${base(spaceId!)}/category-rules`),
+    enabled: !!spaceId,
+  })
+}
+
+export function useSaveCategoryRule() {
+  return useMoneyMutation((spaceId, body: { match: string; categoryId: string }) =>
+    api<CategoryRule>(`${base(spaceId)}/category-rules`, { method: 'POST', json: body }))
+}
+
+export function useDeleteCategoryRule() {
+  return useMoneyMutation((spaceId, id: string) => api<void>(`${base(spaceId)}/category-rules/${id}`, { method: 'DELETE' }))
+}
+
+export function useApplyCategoryRule() {
+  return useMoneyMutation((spaceId, id: string) => api<{ applied: number }>(`${base(spaceId)}/category-rules/${id}/apply`, { method: 'POST' }))
+}
+
+/** The words a rule should match for a description: its first word, unless that's too short to mean anything. */
+export function ruleWords(description: string): string {
+  const d = description.trim().toLowerCase().replace(/\s+/g, ' ')
+  const first = d.split(/[\s*/#:-]+/)[0] ?? ''
+  return (first.length >= 3 ? first : d).slice(0, 60)
+}
