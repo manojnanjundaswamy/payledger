@@ -77,6 +77,53 @@ class GoalIntegrationTest {
         create("{\"name\":\" \",\"target\":5000}").andExpect(status().isBadRequest());
     }
 
+    @Test
+    void transfersIncomeAndThePlansSavingCountTowardsAGoalAndExpensesShowAsSpentOnIt() throws Exception {
+        String bank = account("HDFC");
+        String savings = account("Goa savings pot");
+        String categories = mvc.perform(get(path("/categories")).with(me)).andReturn().getResponse().getContentAsString();
+        String travel = JsonPath.<List<String>>read(categories, "$[?(@.name == 'Travel')].id").getFirst();
+        String goal = id(create("{\"name\":\"Goa\",\"target\":5000000}").andExpect(status().isCreated()));
+        LocalDate today = LocalDate.now();
+
+        // A transfer marked for the goal counts as saved; an expense marked for it, as spent on it.
+        txn("{\"kind\":\"TRANSFER\",\"amount\":1000000,\"accountId\":\"" + bank + "\",\"toAccountId\":\"" + savings
+                + "\",\"occurredOn\":\"" + today + "\",\"description\":\"To Goa pot\",\"goalId\":\"" + goal + "\"}")
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.goalId").value(goal));
+        txn("{\"kind\":\"EXPENSE\",\"amount\":300000,\"accountId\":\"" + bank + "\",\"categoryId\":\"" + travel
+                + "\",\"occurredOn\":\"" + today + "\",\"description\":\"Flights\",\"goalId\":\"" + goal + "\"}").andExpect(status().isCreated());
+        mvc.perform(get(path("/goals")).with(me))
+                .andExpect(jsonPath("$[0].saved").value(1_000_000)).andExpect(jsonPath("$[0].fromEntries").value(1_000_000))
+                .andExpect(jsonPath("$[0].spent").value(300_000)).andExpect(jsonPath("$[0].planned").value(false));
+        mvc.perform(get(path("/transactions")).with(me).param("goalId", goal)).andExpect(jsonPath("$.items.length()").value(2));
+
+        // A saving on the plan made for the goal: paying it marks the transfer for the goal.
+        String plan = id(mvc.perform(post(path("/commitments")).with(me).contentType(MediaType.APPLICATION_JSON).content("""
+                {"kind":"SAVING","name":"Goa saving","amount":500000,"accountId":"%s","toAccountId":"%s","everyMonths":1,"firstDue":"%s","goalId":"%s"}
+                """.formatted(bank, savings, today, goal))).andExpect(status().isCreated()));
+        mvc.perform(post(path("/commitments/" + plan + "/payments")).with(me).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"dueDate\":\"" + today + "\"}")).andExpect(status().isCreated());
+        mvc.perform(get(path("/goals")).with(me))
+                .andExpect(jsonPath("$[0].saved").value(1_500_000)).andExpect(jsonPath("$[0].planned").value(true));
+
+        // Someone else's goal can't be named; deleting the goal keeps its entries.
+        txn("{\"kind\":\"EXPENSE\",\"amount\":100,\"accountId\":\"" + bank + "\",\"categoryId\":\"" + travel
+                + "\",\"occurredOn\":\"" + today + "\",\"description\":\"x\",\"goalId\":\"" + UUID.randomUUID() + "\"}")
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("goal-not-found"));
+        mvc.perform(delete(path("/goals/" + goal)).with(me)).andExpect(status().isNoContent());
+        mvc.perform(get(path("/transactions")).with(me)).andExpect(jsonPath("$.items.length()").value(3))
+                .andExpect(jsonPath("$.items[0].goalId").doesNotExist());
+    }
+
+    private String account(String name) throws Exception {
+        return id(mvc.perform(post(path("/accounts")).with(me).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"kind\":\"BANK\",\"name\":\"" + name + "\",\"openingBalance\":0,\"openingDate\":\"2026-01-01\"}")));
+    }
+
+    private ResultActions txn(String body) throws Exception {
+        return mvc.perform(post(path("/transactions")).with(me).contentType(MediaType.APPLICATION_JSON).content(body));
+    }
+
     private ResultActions create(String body) throws Exception {
         return mvc.perform(post(path("/goals")).with(me).contentType(MediaType.APPLICATION_JSON).content(body));
     }

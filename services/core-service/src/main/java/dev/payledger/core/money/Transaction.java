@@ -13,7 +13,7 @@ import java.util.UUID;
  */
 public record Transaction(UUID id, String kind, long amount, String currency, UUID accountId, UUID toAccountId,
                           UUID categoryId, LocalDate occurredOn, String description, String note, List<String> tags,
-                          int version, Instant createdAt, Instant updatedAt) {
+                          int version, Instant createdAt, Instant updatedAt, UUID goalId) {
 
     public String ledgerRef() {
         return ledgerRef(id);

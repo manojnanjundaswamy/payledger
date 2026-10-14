@@ -33,7 +33,9 @@ final class CommitmentRequests {
             UUID toAccountId,
             @NotNull Integer everyMonths,
             @NotNull LocalDate firstDue,
-            LocalDate endsOn) {
+            LocalDate endsOn,
+            // Optional: a saving made for this goal; each payment counts towards it.
+            UUID goalId) {
 
         @AssertTrue(message = "everyMonths must be 1, 2, 3, 4, 6 or 12")
         boolean isEveryMonthsValid() {

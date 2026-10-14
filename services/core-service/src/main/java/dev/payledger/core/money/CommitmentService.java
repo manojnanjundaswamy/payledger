@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 public class CommitmentService {
 
     private static final String COLUMNS = """
-            id, kind, name, amount, currency, account_id, category_id, to_account_id, every_months, first_due, ends_on, version
+            id, kind, name, amount, currency, account_id, category_id, to_account_id, every_months, first_due, ends_on, version, goal_id
             """;
 
     private final JdbcClient jdbc;
@@ -95,9 +95,9 @@ public class CommitmentService {
         UUID id = Uuid7.next();
         jdbc.sql("""
                         insert into commitments (id, space_id, kind, name, amount, currency, account_id, category_id, to_account_id,
-                                                 every_months, first_due, ends_on, created_by)
+                                                 every_months, first_due, ends_on, created_by, goal_id)
                         values (:id, :spaceId, :kind, :name, :amount, :currency, :accountId, :categoryId, :toAccountId,
-                                :everyMonths, :firstDue, :endsOn, :userId)
+                                :everyMonths, :firstDue, :endsOn, :userId, :goalId)
                         """)
                 .param("id", id).param("spaceId", spaceId).params(params(f)).param("currency", currency).param("userId", user.id())
                 .update();
@@ -118,7 +118,7 @@ public class CommitmentService {
         int updated = jdbc.sql("""
                         update commitments set kind = :kind, name = :name, amount = :amount, currency = :currency,
                             account_id = :accountId, category_id = :categoryId, to_account_id = :toAccountId,
-                            every_months = :everyMonths, first_due = :firstDue, ends_on = :endsOn,
+                            every_months = :everyMonths, first_due = :firstDue, ends_on = :endsOn, goal_id = :goalId,
                             version = version + 1, updated_at = now()
                         where id = :id and version = :version
                         """)
@@ -399,9 +399,13 @@ public class CommitmentService {
         boolean bill = c.kind().equals("BILL");
         long amount = Objects.requireNonNullElse(request.amount(), c.amount());
         LocalDate on = Objects.requireNonNullElse(request.occurredOn(), request.dueDate());
+        UUID goal = jdbc.sql("select goal_id from commitments where id = :id").param("id", id).query(UUID.class).optional().orElse(null);
+        if (goal != null && !jdbc.sql("select exists (select 1 from goals where id = :g and archived_at is null)").param("g", goal).query(Boolean.class).single()) {
+            goal = null;
+        }
         Transaction t = transactions.create(user, spaceId, new TransactionRequests.Create(
                 null, bill ? "EXPENSE" : "TRANSFER", amount, c.accountId(), bill ? null : c.toAccountId(),
-                bill ? c.categoryId() : null, on, c.name(), null, List.of())).transaction();
+                bill ? c.categoryId() : null, on, c.name(), null, List.of(), goal)).transaction();
         jdbc.sql("""
                         insert into commitment_payments (commitment_id, due_date, transaction_id) values (:id, :dueDate, :txn)
                         on conflict (commitment_id, due_date) do update set transaction_id = excluded.transaction_id, created_at = now()
@@ -439,6 +443,10 @@ public class CommitmentService {
                 throw new InvalidRequestException("currency-mismatch", "both accounts need the same currency");
             }
         }
+        if (f.goalId() != null && !jdbc.sql("select exists (select 1 from goals where id = :id and space_id = :spaceId)")
+                .param("id", f.goalId()).param("spaceId", space.id()).query(Boolean.class).single()) {
+            throw new NotFoundException("goal");
+        }
         if (f.endsOn() != null && f.endsOn().isBefore(f.firstDue())) {
             throw new InvalidRequestException("invalid-commitment", "endsOn is before firstDue");
         }
@@ -461,6 +469,7 @@ public class CommitmentService {
         p.put("everyMonths", f.everyMonths());
         p.put("firstDue", f.firstDue());
         p.put("endsOn", f.endsOn());
+        p.put("goalId", f.goalId());
         return p;
     }
 

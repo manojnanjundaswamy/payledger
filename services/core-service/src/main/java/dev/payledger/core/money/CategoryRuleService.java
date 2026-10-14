@@ -108,7 +108,7 @@ public class CategoryRuleService {
         for (UUID txnId : ids) {
             Transaction t = transactions.get(user, spaceId, txnId);
             transactions.replace(user, spaceId, txnId, new TransactionRequests.Replace(t.version(), t.kind(), t.amount(), t.accountId(),
-                    t.toAccountId(), rule.categoryId(), t.occurredOn(), t.description(), t.note(), t.tags()));
+                    t.toAccountId(), rule.categoryId(), t.occurredOn(), t.description(), t.note(), t.tags(), t.goalId()));
         }
         return new Applied(ids.size());
     }

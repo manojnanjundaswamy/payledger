@@ -18,7 +18,7 @@ final class TransactionRequests {
 
     /** What a transaction says, validated; the same for create and replace. */
     record Fields(String kind, long amount, UUID accountId, UUID toAccountId, UUID categoryId, LocalDate occurredOn,
-                  String description, String note, List<String> tags) {
+                  String description, String note, List<String> tags, UUID goalId) {
     }
 
     /**
@@ -38,10 +38,12 @@ final class TransactionRequests {
             @NotNull LocalDate occurredOn,
             @NotBlank @Size(max = 120) String description,
             @Size(max = 1000) String note,
-            @Size(max = 10) List<@NotBlank @Size(max = 30) String> tags) {
+            @Size(max = 10) List<@NotBlank @Size(max = 30) String> tags,
+            // Optional: the savings goal this is for.
+            UUID goalId) {
 
         Fields fields() {
-            return new Fields(kind, amount, accountId, toAccountId, categoryId, occurredOn, description, note, tags);
+            return new Fields(kind, amount, accountId, toAccountId, categoryId, occurredOn, description, note, tags, goalId);
         }
     }
 
@@ -56,10 +58,12 @@ final class TransactionRequests {
             @NotNull LocalDate occurredOn,
             @NotBlank @Size(max = 120) String description,
             @Size(max = 1000) String note,
-            @Size(max = 10) List<@NotBlank @Size(max = 30) String> tags) {
+            @Size(max = 10) List<@NotBlank @Size(max = 30) String> tags,
+            // Optional: the savings goal this is for.
+            UUID goalId) {
 
         Fields fields() {
-            return new Fields(kind, amount, accountId, toAccountId, categoryId, occurredOn, description, note, tags);
+            return new Fields(kind, amount, accountId, toAccountId, categoryId, occurredOn, description, note, tags, goalId);
         }
     }
 }

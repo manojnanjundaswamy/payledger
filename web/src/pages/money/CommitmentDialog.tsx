@@ -43,7 +43,7 @@ export function CommitmentDialog({ open, onOpenChange, commitment, initialDue, p
   /** A new one's first due date (a day clicked on the calendar). */
   initialDue?: string
   /** A new one filled in, e.g. a loan's EMI from the calculator; the category is matched by name. */
-  prefill?: { kind?: CommitmentKind; name?: string; amount?: string; everyMonths?: number; endsOn?: string; categoryName?: string }
+  prefill?: { kind?: CommitmentKind; name?: string; amount?: string; everyMonths?: number; endsOn?: string; categoryName?: string; goalId?: string; toAccountId?: string }
 }) {
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
@@ -66,6 +66,7 @@ export function CommitmentDialog({ open, onOpenChange, commitment, initialDue, p
       ...(prefill ? {
         kind: prefill.kind ?? 'BILL', name: prefill.name ?? '', amount: prefill.amount ?? '', everyMonths: prefill.everyMonths ?? 1, endsOn: prefill.endsOn ?? '',
         categoryId: categories.find((c) => c.kind === 'EXPENSE' && c.name.toLowerCase() === prefill.categoryName?.toLowerCase())?.id ?? '',
+        toAccountId: prefill.toAccountId ?? '',
       } : {}),
     })
     setError(undefined)
@@ -92,6 +93,8 @@ export function CommitmentDialog({ open, onOpenChange, commitment, initialDue, p
       kind: d.kind, name: d.name.trim(), amount, accountId,
       categoryId: bill ? d.categoryId : null, toAccountId: bill ? null : d.toAccountId,
       everyMonths: once ? 12 : d.everyMonths, firstDue: d.firstDue, endsOn: once ? d.firstDue : d.endsOn || null,
+      // A saving made for a goal stays for it when edited.
+      goalId: commitment ? commitment.goalId ?? null : prefill?.goalId ?? null,
     }
     try {
       if (commitment) {

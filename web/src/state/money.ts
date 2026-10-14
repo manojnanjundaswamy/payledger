@@ -43,6 +43,8 @@ export interface Transaction {
   note: string | null
   tags: string[]
   version: number
+  /** The savings goal it's for, if any. */
+  goalId?: string | null
 }
 
 export interface TransactionFields {
@@ -55,6 +57,7 @@ export interface TransactionFields {
   description: string
   note?: string | null
   tags?: string[]
+  goalId?: string | null
 }
 
 /** What to find (all optional): the same filter for the list, its totals and exports. Amounts are paise. */
@@ -69,6 +72,7 @@ export interface TransactionFilter {
   minAmount?: number
   maxAmount?: number
   tag?: string
+  goalId?: string
 }
 
 /** A filter as query parameters, leaving out what isn't set. */
@@ -374,6 +378,8 @@ export interface CommitmentFields {
   everyMonths: number
   firstDue: string
   endsOn: string | null
+  /** A saving made for this goal: each payment counts towards it. */
+  goalId?: string | null
 }
 
 export interface Commitment extends CommitmentFields {

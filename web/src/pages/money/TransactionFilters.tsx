@@ -7,6 +7,7 @@ import { Input, Segmented } from '@/components/ui/controls'
 import { cn } from '@/lib/cn'
 import { PERIOD_KEYS, reportPeriod, type PeriodKey } from '@/lib/periods'
 import { exportUrl, useSpaceId, useTransactionSummary, type Account, type Category, type TransactionFilter, type TxnKind } from '@/state/money'
+import { useGoals } from '@/state/goals'
 import { useProfile } from '@/state/profile'
 import { Select, dayLabel, useMoneyFormat, accountOptions, categoryOptions } from './parts'
 
@@ -21,14 +22,16 @@ export interface FilterSearch {
   min?: number
   max?: number
   tag?: string
+  /** A savings goal's entries. */
+  goal?: string
 }
 
-export const FILTER_KEYS = ['q', 'kind', 'account', 'category', 'from', 'to', 'min', 'max', 'tag'] as const
+export const FILTER_KEYS = ['q', 'kind', 'account', 'category', 'from', 'to', 'min', 'max', 'tag', 'goal'] as const
 
 /** The URL's search as the API's filter. */
 export function toFilter(s: FilterSearch): TransactionFilter {
   return {
-    q: s.q, kind: s.kind, accountId: s.account, categoryId: s.category, from: s.from, to: s.to, tag: s.tag,
+    q: s.q, kind: s.kind, accountId: s.account, categoryId: s.category, from: s.from, to: s.to, tag: s.tag, goalId: s.goal,
     minAmount: s.min === undefined ? undefined : Math.round(s.min * 100),
     maxAmount: s.max === undefined ? undefined : Math.round(s.max * 100),
   }
@@ -53,6 +56,7 @@ export function TransactionFilters({ search, onChange, accounts, categories }: {
   const startDay = useProfile().data?.settings.budgetStartDay ?? 1
   const money = useMoneyFormat()
   const spaceId = useSpaceId()
+  const { data: goals = [] } = useGoals(true)
   const [text, setText] = useState(search.q ?? '')
   const active = FILTER_KEYS.filter((k) => search[k] !== undefined && search[k] !== '')
   const [open, setOpen] = useState(false)
@@ -84,6 +88,10 @@ export function TransactionFilters({ search, onChange, accounts, categories }: {
     chips.push({ key: ['min', 'max'], label: search.min !== undefined && search.max !== undefined ? `${rupees(search.min)} – ${rupees(search.max)}` : search.min !== undefined ? `${rupees(search.min)} or more` : `Up to ${rupees(search.max!)}` })
   }
   if (search.tag) chips.push({ key: ['tag'], label: `#${search.tag}` })
+  if (search.goal) {
+    const g = goals.find((x) => x.id === search.goal)
+    chips.push({ key: ['goal'], label: g ? `For ${g.emoji ?? '🎯'} ${g.name}` : 'For a goal' })
+  }
   const clearAll = () => {
     setText('')
     onChange(Object.fromEntries(FILTER_KEYS.map((k) => [k, undefined])))

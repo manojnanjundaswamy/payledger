@@ -21,9 +21,9 @@ import java.util.UUID;
  */
 public record TransactionFilter(@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                 @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to, UUID accountId, UUID categoryId, String kind, String q,
-                                Long minAmount, Long maxAmount, String tag) {
+                                Long minAmount, Long maxAmount, String tag, UUID goalId) {
 
-    public static final TransactionFilter NONE = new TransactionFilter(null, null, null, null, null, null, null, null, null);
+    public static final TransactionFilter NONE = new TransactionFilter(null, null, null, null, null, null, null, null, null, null);
 
     // Only tidies: Spring builds this from query parameters, and an exception here would surface as a 500.
     public TransactionFilter {
@@ -61,6 +61,7 @@ public record TransactionFilter(@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) L
               and (cast(:minAmount as bigint) is null or t.amount >= :minAmount)
               and (cast(:maxAmount as bigint) is null or t.amount <= :maxAmount)
               and (cast(:tag as text) is null or :tag = any (t.tags))
+              and (cast(:goalId as uuid) is null or t.goal_id = :goalId)
               and (cast(:q as text) is null
                    or t.description ilike :q escape '\\' or t.note ilike :q escape '\\'
                    or array_to_string(t.tags, ' ') ilike :q escape '\\'
@@ -73,7 +74,7 @@ public record TransactionFilter(@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) L
         checked();
         return spec.param("from", from).param("to", to)
                 .param("accountId", accountId).param("categoryId", categoryId)
-                .param("kind", kind).param("minAmount", minAmount).param("maxAmount", maxAmount).param("tag", tag)
+                .param("kind", kind).param("minAmount", minAmount).param("maxAmount", maxAmount).param("tag", tag).param("goalId", goalId)
                 .param("q", q == null ? null : "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%")
                 .param("qAmount", q == null ? null : amountIn(q));
     }
