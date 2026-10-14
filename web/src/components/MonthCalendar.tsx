@@ -28,7 +28,7 @@ export interface DayAction {
  * optional note (a total, say). Clicking a chip opens it; clicking the rest of the day opens a menu of what can be done
  * on that date, like a Confluence calendar. The Plan page's bills, transactions and group expenses all use it.
  */
-export function MonthCalendar({ start, end, locale, chips, note, actions, heat, maxChips = 3, label }: {
+export function MonthCalendar({ start, end, locale, chips, note, actions, heat, flows, formatFlow, maxChips = 3, label }: {
   start: string
   end: string
   locale: string
@@ -39,6 +39,12 @@ export function MonthCalendar({ start, end, locale, chips, note, actions, heat, 
   actions: (day: string, past: boolean) => DayAction[]
   /** 0–1: shades the day, for a spending heat map. */
   heat?: (day: string) => number
+  /**
+   * Money in and out on a day: shown as +in (green) and −out (blue) under the date, and the day is tinted by its
+   * net, green when more came in, blue when more went out. A legend explains the colours.
+   */
+  flows?: (day: string) => { in: number; out: number }
+  formatFlow?: (minor: number) => string
   maxChips?: number
   label?: string
 }) {
@@ -49,8 +55,10 @@ export function MonthCalendar({ start, end, locale, chips, note, actions, heat, 
   const lead = (first.getDay() + 6) % 7
   const weekdays = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(locale, { weekday: 'short' }))
   const today = isoDay(new Date())
+  const maxFlow = flows ? Math.max(1, ...days.map((d) => { const f = flows(isoDay(d)); return Math.abs(f.in - f.out) })) : 1
 
   return (
+    <div className="flex flex-col gap-2">
     <div className="overflow-x-auto rounded-card border border-border bg-surface" role="grid" aria-label={label}>
       <div className="grid min-w-[42rem] grid-cols-7">
         {weekdays.map((w) => <div key={w} className="border-b border-border px-2 py-1.5 text-xs font-medium text-muted">{w}</div>)}
@@ -60,6 +68,8 @@ export function MonthCalendar({ start, end, locale, chips, note, actions, heat, 
           const items = chips(key)
           const shown = items.slice(0, maxChips)
           const h = heat?.(key) ?? 0
+          const f = flows?.(key)
+          const net = f ? f.in - f.out : 0
           const dayName = day.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })
           return (
             <DropdownMenu.Root key={key}>
@@ -68,10 +78,20 @@ export function MonthCalendar({ start, end, locale, chips, note, actions, heat, 
                   className={cn('relative flex min-h-20 cursor-pointer flex-col gap-1 border-b border-l border-border p-1.5 text-left outline-none hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-[var(--accent)] data-[state=open]:bg-surface-2',
                     key === today && 'bg-accent-soft')}>
                   {h > 0 && <span aria-hidden className="pointer-events-none absolute inset-0 bg-critical" style={{ opacity: 0.04 + h * 0.16 }} />}
+                  {f && net !== 0 && (
+                    <span aria-hidden className="pointer-events-none absolute inset-0"
+                      style={{ background: net > 0 ? 'var(--flow-in)' : 'var(--flow-out)', opacity: 0.05 + (Math.abs(net) / maxFlow) * 0.15 }} />
+                  )}
                   <span className={cn('relative flex items-baseline justify-between gap-1 text-xs tabular', key === today ? 'font-semibold text-fg' : 'text-muted')}>
                     {day.getDate() === 1 || key === start ? day.toLocaleDateString(locale, { day: 'numeric', month: 'short' }) : day.getDate()}
                     {note && <span className="truncate text-[0.6875rem] font-medium">{note(key)}</span>}
                   </span>
+                  {f && (f.in > 0 || f.out > 0) && formatFlow && (
+                    <span className="relative flex flex-col items-end text-[0.6875rem] leading-tight font-medium tabular" data-testid={`flow-${key}`}>
+                      {f.in > 0 && <span className="text-[var(--flow-in)]">+{formatFlow(f.in)}</span>}
+                      {f.out > 0 && <span className="text-[var(--flow-out)]">−{formatFlow(f.out)}</span>}
+                    </span>
+                  )}
                   {shown.map((x) => (
                     <button type="button" key={x.id} title={x.title ?? x.label}
                       // A chip opens its item at once; the rest of the day opens the menu.
@@ -107,6 +127,14 @@ export function MonthCalendar({ start, end, locale, chips, note, actions, heat, 
           )
         })}
       </div>
+    </div>
+    {flows && (
+      <p className="flex items-center gap-4 px-1 text-xs text-muted">
+        <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-[var(--flow-in)]" />Money in</span>
+        <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-[var(--flow-out)]" />Money out</span>
+        <span className="text-subtle">A day's colour shows which was more.</span>
+      </p>
+    )}
     </div>
   )
 }

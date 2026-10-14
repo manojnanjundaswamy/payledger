@@ -14,6 +14,7 @@ import {
 } from '@/state/money'
 import { useProfile } from '@/state/profile'
 import { BillCalendar } from './BillCalendar'
+import { MonthFlow } from './MonthFlow'
 import { BillSuggestions } from './BillSuggestions'
 import { CommitmentDialog } from './CommitmentDialog'
 import { SafeToSpendCard } from './SafeToSpendCard'
@@ -53,6 +54,8 @@ export function PlanPage() {
       </div>
 
       <Card className="p-pad"><SafeToSpendCard /></Card>
+
+      {commitments && commitments.length > 0 && <MonthFlow />}
 
       {isError && <Card className="p-pad text-sm text-critical">Couldn't load your plan. Refresh to try again.</Card>}
       {isPending && <Skeleton className="h-40" />}
@@ -143,7 +146,7 @@ function DueThisMonth({ start, end, money, locale, onOpen, onAdd }: {
   }
 
   return (
-    <section aria-label="Due this month" className="flex flex-col gap-2">
+    <section aria-label="Due this month" id="due" className="flex scroll-mt-20 flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-medium text-muted">Due this month</h2>
         <Segmented label="View" value={view} onChange={choose}

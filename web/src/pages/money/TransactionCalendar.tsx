@@ -49,8 +49,7 @@ export function TransactionCalendar({ month, filter, locale, money, onOpen }: {
   const byDay = new Map<string, Transaction[]>()
   for (const t of data ?? []) byDay.set(t.occurredOn, [...(byDay.get(t.occurredOn) ?? []), t])
   const spentOn = (day: string) => (byDay.get(day) ?? []).filter((t) => t.kind === 'EXPENSE').reduce((s, t) => s + t.amount, 0)
-  const days = [...byDay.keys()]
-  const maxSpent = Math.max(1, ...days.map(spentOn))
+  const earnedOn = (day: string) => (byDay.get(day) ?? []).filter((t) => t.kind === 'INCOME').reduce((s, t) => s + t.amount, 0)
   const spent = (data ?? []).filter((t) => t.kind === 'EXPENSE').reduce((s, t) => s + t.amount, 0)
   const earned = (data ?? []).filter((t) => t.kind === 'INCOME').reduce((s, t) => s + t.amount, 0)
   const [y, m] = month.split('-').map(Number)
@@ -68,13 +67,12 @@ export function TransactionCalendar({ month, filter, locale, money, onOpen }: {
         {month !== thisMonth && <Button variant="ghost" size="sm" onClick={() => go(thisMonth)}>Today</Button>}
         <span className="flex-1" />
         <span className="text-sm text-muted tabular" data-testid="calendar-totals">
-          <span className="text-fg">{money(spent)}</span> spent · <span className="text-good-text">{money(earned)}</span> in
+          <span className="text-[var(--flow-in)]">{money(earned)}</span> in · <span className="text-[var(--flow-out)]">{money(spent)}</span> spent
         </span>
       </div>
       {isPending ? <Skeleton className="h-96" /> : (
         <MonthCalendar start={start} end={end} locale={locale} label="Transactions calendar"
-          heat={(day) => spentOn(day) / maxSpent}
-          note={(day) => spentOn(day) > 0 ? <span className="text-critical">−{formatMoneyShort(spentOn(day), 'INR', locale)}</span> : null}
+          flows={(day) => ({ in: earnedOn(day), out: spentOn(day) })} formatFlow={(m) => formatMoneyShort(m, 'INR', locale)}
           chips={(day) => (byDay.get(day) ?? []).map((t) => ({
             id: t.id,
             label: `${t.description} ${formatMoneyShort(t.amount, t.currency, locale)}`,

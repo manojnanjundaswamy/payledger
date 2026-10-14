@@ -17,6 +17,8 @@ export function BillCalendar({ start, end, due, money, locale, onOpen, onAdd }: 
 }) {
   return (
     <MonthCalendar start={start} end={end} locale={locale} maxChips={4} label="Bills and savings calendar"
+      flows={(day) => ({ in: 0, out: due.filter((x) => x.dueDate === day).reduce((s, x) => s + x.amount, 0) })}
+      formatFlow={(m) => money(m).replace(/\.00$/, '')}
       chips={(day) => due.filter((x) => x.dueDate === day).map((x) => {
         const overdue = !x.paid && daysUntil(x.dueDate) < 0
         return {
