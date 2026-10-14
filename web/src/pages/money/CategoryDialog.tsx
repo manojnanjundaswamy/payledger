@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { SearchSelect } from '@/components/ui/search-select'
 import { Eye, EyeOff, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -6,8 +7,8 @@ import { Input } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/overlay'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
-import { categoryLabel, useCategories, useCreateCategory, useDeleteCategory, useMergeCategory, useUpdateCategory, type Category } from '@/state/money'
-import { CATEGORY_COLORS, CATEGORY_ICONS, Field, Select } from './parts'
+import { useCategories, useCreateCategory, useDeleteCategory, useMergeCategory, useUpdateCategory, type Category } from '@/state/money'
+import { CATEGORY_COLORS, CATEGORY_ICONS, Field, categoryOptions } from './parts'
 
 /** Add a category, or rename it, change its icon or colour, move it under another, hide or delete it. */
 export function CategoryDialog({ open, onOpenChange, category, kind }: {
@@ -120,10 +121,8 @@ export function CategoryDialog({ open, onOpenChange, category, kind }: {
         </Field>
         <Field label="Inside" htmlFor="category-parent"
           hint={hasChildren ? 'It has subcategories, so it stays at the top.' : 'Optional: make it a subcategory, like Groceries › Snacks.'}>
-          <Select id="category-parent" value={parentId} disabled={hasChildren} onChange={(e) => setParentId(e.target.value)}>
-            <option value="">Nothing (top level)</option>
-            {parents.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </Select>
+          <SearchSelect id="category-parent" value={parentId} disabled={hasChildren} onChange={setParentId}
+            options={[{ value: '', label: 'Nothing (top level)' }, ...categoryOptions(parents, categories)]} />
         </Field>
         <fieldset>
           <legend className="mb-1.5 text-sm font-medium">Icon</legend>
@@ -158,11 +157,8 @@ export function CategoryDialog({ open, onOpenChange, category, kind }: {
             <label htmlFor="category-merge" className="text-sm font-medium">Merge into another category</label>
             <p className="text-xs text-subtle">Its transactions and bills move there, including past months in reports; this one is then hidden.</p>
             <div className="flex gap-2">
-              <Select id="category-merge" value={mergeInto} onChange={(e) => setMergeInto(e.target.value)}>
-                <option value="">Choose…</option>
-                {categories.filter((c) => c.kind === category.kind && !c.hidden && c.id !== category.id && c.parentId !== category.id)
-                  .map((c) => <option key={c.id} value={c.id}>{categoryLabel(c, categories)}</option>)}
-              </Select>
+              <SearchSelect id="category-merge" value={mergeInto} onChange={setMergeInto}
+                options={categoryOptions(categories.filter((c) => c.kind === category.kind && !c.hidden && c.id !== category.id && c.parentId !== category.id), categories)} />
               <Button variant="outline" onClick={mergeIt} disabled={!mergeInto || merge.isPending}>{merge.isPending ? 'Merging…' : 'Merge'}</Button>
             </div>
           </div>

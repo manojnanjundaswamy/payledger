@@ -1,4 +1,5 @@
 import { uuid7 } from '@/lib/uuid'
+import { SearchSelect } from '@/components/ui/search-select'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Trash2 } from 'lucide-react'
@@ -9,10 +10,10 @@ import { Dialog } from '@/components/ui/overlay'
 import { ApiError } from '@/lib/api'
 import { minorToInput, parseMoney } from '@/lib/money'
 import {
-  categoryLabel, categoryTree, useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useUpdateTransaction,
+  useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useUpdateTransaction,
   type Transaction, type TransactionFields, type TxnKind,
 } from '@/state/money'
-import { Field, Select, TXN_KINDS, today } from './parts'
+import { Field, TXN_KINDS, today, accountOptions, categoryOptions } from './parts'
 
 interface Draft {
   kind: TxnKind
@@ -67,6 +68,11 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
     }
     // Reset only when the dialog opens or switches transaction, not on every accounts refetch.
   }, [open, transaction?.id, initialKind])
+
+  // Opened before the accounts arrived (a link straight to ?add=): take the default once they do.
+  useEffect(() => {
+    if (open && defaultAccount) setDraft((d) => (d.accountId ? d : { ...d, accountId: defaultAccount }))
+  }, [open, defaultAccount])
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }))
   const account = accounts.find((a) => a.id === draft.accountId)
@@ -144,30 +150,19 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
         {draft.kind === 'TRANSFER' ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="From" htmlFor="txn-from">
-              <Select id="txn-from" value={draft.accountId} onChange={(e) => set('accountId', e.target.value)}>
-                {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </Select>
+              <SearchSelect id="txn-from" value={draft.accountId} onChange={(v) => set('accountId', v)} options={accountOptions(accounts)} />
             </Field>
             <Field label="To" htmlFor="txn-to">
-              <Select id="txn-to" value={draft.toAccountId} onChange={(e) => set('toAccountId', e.target.value)}>
-                <option value="">Choose…</option>
-                {accounts.filter((a) => a.id !== draft.accountId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </Select>
+              <SearchSelect id="txn-to" value={draft.toAccountId} onChange={(v) => set('toAccountId', v)} options={accountOptions(accounts.filter((a) => a.id !== draft.accountId))} />
             </Field>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Category" htmlFor="txn-category">
-              <Select id="txn-category" value={draft.categoryId} onChange={(e) => set('categoryId', e.target.value)}>
-                <option value="">Choose…</option>
-                {categoryTree(choices).flatMap(({ category, children }) => [category, ...children]).map((c) =>
-                  <option key={c.id} value={c.id}>{categoryLabel(c, categories)}</option>)}
-              </Select>
+              <SearchSelect id="txn-category" value={draft.categoryId} onChange={(v) => set('categoryId', v)} options={categoryOptions(choices, categories)} />
             </Field>
             <Field label={draft.kind === 'INCOME' ? 'Into' : 'Paid from'} htmlFor="txn-account">
-              <Select id="txn-account" value={draft.accountId} onChange={(e) => set('accountId', e.target.value)}>
-                {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </Select>
+              <SearchSelect id="txn-account" value={draft.accountId} onChange={(v) => set('accountId', v)} options={accountOptions(accounts)} />
             </Field>
           </div>
         )}

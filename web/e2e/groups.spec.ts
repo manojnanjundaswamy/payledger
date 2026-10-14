@@ -137,6 +137,13 @@ test('when several people pay, the form shows what is left to add and what each 
   const add = page.getByRole('dialog', { name: 'Add a shared expense' })
   await add.getByLabel('What for').fill('Dance')
   await add.getByLabel('Amount').fill('1000')
+  // The category: your own categories are offered, and a new one can be typed.
+  await add.getByLabel('Category', { exact: true }).click()
+  await page.getByRole('textbox', { name: 'Search the list' }).fill('eating')
+  await expect(page.getByRole('option', { name: 'Eating out' })).toBeVisible()
+  await page.getByRole('textbox', { name: 'Search the list' }).fill('Party night')
+  await page.getByRole('option', { name: 'Add "Party night"' }).click()
+  await expect(add.getByLabel('Category', { exact: true })).toHaveText('Party night')
   await add.getByRole('switch', { name: 'Several people paid' }).click()
   // It starts with you paying it all; then the owner's numbers.
   await expect(add.getByTestId('paid-total')).toContainText('adds up')
@@ -164,6 +171,7 @@ test('when several people pay, the form shows what is left to add and what each 
   await expect(add).toBeHidden()
   await page.getByRole('radio', { name: 'Activity' }).click()
   await expect(page.getByRole('button', { name: 'Edit Dance' })).toContainText('your share ₹100.00')
+  await expect(page.getByRole('button', { name: 'Edit Dance' })).toContainText('Party night')
 
   await page.getByRole('radio', { name: 'People' }).click()
   await page.getByRole('button', { name: 'Archive group' }).click()

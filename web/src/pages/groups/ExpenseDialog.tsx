@@ -1,4 +1,7 @@
 import { uuid7 } from '@/lib/uuid'
+import { SearchSelect } from '@/components/ui/search-select'
+import { categoryTree, useCategories } from '@/state/money'
+import { CategoryIcon } from '@/pages/money/parts'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -8,11 +11,8 @@ import { Dialog } from '@/components/ui/overlay'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatMoney, minorToInput, parseMoney } from '@/lib/money'
-import { Field, Select, today } from '@/pages/money/parts'
-import {
-  previewSplit, useAddExpense, useDeleteExpense, useUpdateExpense,
-  type GroupExpense, type GroupMember, type SplitType,
-} from '@/state/groups'
+import { Field, today } from '@/pages/money/parts'
+import { useActivity, previewSplit, useAddExpense, useDeleteExpense, useUpdateExpense, type GroupExpense, type GroupMember, type SplitType } from '@/state/groups'
 
 const SPLITS: { value: SplitType; label: string }[] = [
   { value: 'EQUAL', label: 'Equally' }, { value: 'EXACT', label: 'Amounts' }, { value: 'PERCENT', label: '%' }, { value: 'SHARES', label: 'Shares' },
@@ -77,6 +77,22 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
   }, [open, expense, members, you])
 
   const total = parseMoney(amount)
+  // The category: one of your own spending categories, or a label this group already uses, or a new one. It's
+  // stored by name, so each member's share lands in their own category of that name (or Shared expenses).
+  const { data: myCategories = [] } = useCategories()
+  const { data: activity } = useActivity(groupId)
+  const labelOptions = useMemo(() => {
+    const mine = myCategories.filter((c) => c.kind === 'EXPENSE' && !c.hidden)
+    const used = [...new Set((activity?.expenses ?? []).map((e) => e.category).filter((c): c is string => !!c))]
+      .filter((l) => !mine.some((c) => c.name.toLowerCase() === l.toLowerCase()))
+    return [
+      { value: '', label: 'No category' },
+      ...used.map((l) => ({ value: l, label: l, group: 'Used in this group' })),
+      ...categoryTree(mine).flatMap(({ category, children }) => [category, ...children]).map((c) => ({
+        value: c.name, label: c.name, group: 'Your categories', indent: !!c.parentId, icon: <CategoryIcon category={c} className="size-5 bg-transparent" />,
+      })),
+    ]
+  }, [myCategories, activity])
   const chosen = members.filter((m) => included[m.id])
   // What each value means for the split, in the units core-service expects.
   const parts = chosen.map((m) => {
@@ -149,7 +165,10 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Date" htmlFor="gexp-date"><Input id="gexp-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
-          <Field label="Label (optional)" htmlFor="gexp-category"><Input id="gexp-category" maxLength={40} placeholder="Food" value={category} onChange={(e) => setCategory(e.target.value)} /></Field>
+          <Field label="Category" htmlFor="gexp-category">
+            <SearchSelect id="gexp-category" value={category} onChange={setCategory} options={labelOptions} allowCustom customLabel="Add"
+              placeholder="Food, Travel, Stay…" />
+          </Field>
         </div>
 
         <fieldset className="flex flex-col gap-2">
@@ -160,9 +179,8 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
             </span>
           </div>
           {!severalPayers ? (
-            <Select aria-label="Paid by" value={payer} onChange={(e) => setPayer(e.target.value)}>
-              {members.map((m) => <option key={m.id} value={m.id}>{m.you ? `${m.name} (you)` : m.name}</option>)}
-            </Select>
+            <SearchSelect aria-label="Paid by" value={payer} onChange={setPayer}
+              options={members.map((m) => ({ value: m.id, label: m.you ? `${m.name} (you)` : m.name }))} />
           ) : (
             <div className="grid gap-2 sm:grid-cols-2">
               {members.map((m) => (

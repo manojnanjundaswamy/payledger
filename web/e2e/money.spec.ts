@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { signIn } from './helpers'
+import { signIn, pick } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page)
@@ -32,13 +32,13 @@ test('an account and an expense end up in the ledger, and edits and deletes chan
   await add.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(add.getByRole('alert')).toHaveText('Enter an amount, like 486 or 1,200.50.')
   await add.getByLabel('Amount').fill('486')
-  await add.getByLabel('Category').selectOption({ label: 'Groceries' })
-  await add.getByLabel('Paid from').selectOption({ label: name })
+  await pick(add, 'Category', 'Groceries')
+  await pick(add, 'Paid from', name)
   await add.getByLabel('Description').fill('BigBasket')
   await add.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(add).toBeHidden()
 
-  await page.getByLabel('Filter by account').selectOption({ label: name })
+  await pick(page, 'Filter by account', name)
   const row = page.getByRole('button', { name: 'Edit BigBasket' })
   await expect(row).toContainText('-₹486.00')
   await expect(row).toContainText(`Groceries · ${name}`)
@@ -56,7 +56,7 @@ test('an account and an expense end up in the ledger, and edits and deletes chan
 
   // Delete it: back to the opening balance.
   await page.goto('/transactions')
-  await page.getByLabel('Filter by account').selectOption({ label: name })
+  await pick(page, 'Filter by account', name)
   await page.getByRole('button', { name: 'Edit BigBasket' }).click()
   await page.getByRole('dialog', { name: 'Edit expense' }).getByRole('button', { name: 'Delete' }).click()
   await expect(page.getByText('Nothing here yet')).toBeVisible()

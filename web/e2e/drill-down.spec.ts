@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { signIn } from './helpers'
+import { signIn, pick } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page)
@@ -29,8 +29,8 @@ test('accounts, categories, budgets, dashboard rows and charts open what is behi
   await page.goto('/transactions?add=EXPENSE')
   dialog = page.getByRole('dialog', { name: 'Add expense' })
   await dialog.getByLabel('Amount').fill('321')
-  await dialog.getByLabel('Category').selectOption({ label: cat })
-  await dialog.getByLabel('Paid from').selectOption({ label: bank })
+  await pick(dialog, 'Category', cat)
+  await pick(dialog, 'Paid from', bank)
   await dialog.getByLabel('Description').fill(what)
   await dialog.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(dialog).toBeHidden()
@@ -39,7 +39,7 @@ test('accounts, categories, budgets, dashboard rows and charts open what is behi
   await page.goto('/accounts')
   await page.getByRole('link', { name: `${bank} transactions` }).click()
   await expect(page).toHaveURL(/\/transactions\?account=/)
-  await expect(page.getByLabel('Filter by account')).toHaveValue(/.+/)
+  await expect(page.getByLabel('Filter by account')).toContainText(bank)
   await expect(page.getByRole('button', { name: `Edit ${what}` })).toBeVisible()
 
   // The transaction links to everything related.
@@ -74,7 +74,7 @@ test('accounts, categories, budgets, dashboard rows and charts open what is behi
 
   // ?open= works on its own too (a shared link).
   await page.goto('/transactions')
-  await page.getByLabel('Filter by account').selectOption({ label: bank })
+  await pick(page, 'Filter by account', bank)
   await page.getByRole('button', { name: `Edit ${what}` }).click()
   await page.keyboard.press('Escape')
 
@@ -86,7 +86,7 @@ test('accounts, categories, budgets, dashboard rows and charts open what is behi
 
   // Clean up: delete the expense, archive the account, hide the category.
   await page.goto('/transactions')
-  await page.getByLabel('Filter by account').selectOption({ label: bank })
+  await pick(page, 'Filter by account', bank)
   await page.getByRole('button', { name: `Edit ${what}` }).click()
   await page.getByRole('dialog', { name: 'Edit expense' }).getByRole('button', { name: 'Delete' }).click()
   await expect(page.getByText('Nothing here yet')).toBeVisible()

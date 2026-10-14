@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
-import { callApi, signIn } from './helpers'
+import { callApi, signIn, pick } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page)
@@ -27,8 +27,8 @@ test('reports show spending by category for the financial year and open its tran
   await page.goto('/transactions?add=EXPENSE')
   const add = page.getByRole('dialog', { name: 'Add expense' })
   await add.getByLabel('Amount').fill('321')
-  await add.getByLabel('Category').selectOption({ label: category })
-  await add.getByLabel('Paid from').selectOption({ label: bank })
+  await pick(add, 'Category', category)
+  await pick(add, 'Paid from', bank)
   await add.getByLabel('Description').fill('Report check')
   await add.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(add).toBeHidden()
@@ -67,7 +67,7 @@ test('reports show spending by category for the financial year and open its tran
 
   // Clean up.
   await page.goto('/transactions')
-  await page.getByLabel('Filter by account').selectOption({ label: bank })
+  await pick(page, 'Filter by account', bank)
   await page.getByRole('button', { name: 'Edit Report check' }).click()
   await page.getByRole('dialog', { name: 'Edit expense' }).getByRole('button', { name: 'Delete' }).click()
   await expect(page.getByText('Nothing here yet')).toBeVisible()

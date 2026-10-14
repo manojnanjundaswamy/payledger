@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { signIn } from './helpers'
+import { signIn, pick } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page)
@@ -29,7 +29,7 @@ test('a budget shows spending from the ledger, its status, and only from its mon
   const thisMonth = await page.getByTestId('budget-month').textContent()
   await page.getByRole('button', { name: 'Set budget' }).first().click()
   dialog = page.getByRole('dialog', { name: 'Set a budget' })
-  await dialog.getByLabel('Category').selectOption({ label: food })
+  await pick(dialog, 'Category', food)
   await dialog.getByLabel('Monthly limit').fill('1,000')
   await dialog.getByRole('switch', { name: 'Roll over' }).click()
   await dialog.getByRole('button', { name: 'Set budget' }).click()
@@ -43,8 +43,8 @@ test('a budget shows spending from the ledger, its status, and only from its mon
   await page.goto('/transactions?add=EXPENSE')
   const add = page.getByRole('dialog', { name: 'Add expense' })
   await add.getByLabel('Amount').fill('900')
-  await add.getByLabel('Category').selectOption({ label: food })
-  await add.getByLabel('Paid from').selectOption({ label: bank })
+  await pick(add, 'Category', food)
+  await pick(add, 'Paid from', bank)
   await add.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(add).toBeHidden()
 
@@ -74,7 +74,7 @@ test('a budget shows spending from the ledger, its status, and only from its mon
   await expect(card).toBeHidden()
 
   await page.goto('/transactions')
-  await page.getByLabel('Filter by account').selectOption({ label: bank })
+  await pick(page, 'Filter by account', bank)
   await page.getByRole('button', { name: `Edit ${food}` }).click()
   await page.getByRole('dialog', { name: 'Edit expense' }).getByRole('button', { name: 'Delete' }).click()
   await expect(page.getByText('Nothing here yet')).toBeVisible()

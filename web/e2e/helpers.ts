@@ -1,4 +1,4 @@
-import { expect, type APIRequestContext, type Page } from '@playwright/test'
+import { expect, type APIRequestContext, type Page, type Locator } from '@playwright/test'
 
 export const DEMO = { email: 'demo@payledger.local', password: 'demo-password' }
 
@@ -84,4 +84,12 @@ export async function callApi<T = unknown>(page: Page, method: string, path: str
     if (!res.ok) throw new Error(`${method} ${path}: ${res.status} ${await res.text()}`)
     return res.status === 204 ? null : res.json()
   }, { method, path, body }) as Promise<T>
+}
+
+/** Chooses an option in a searchable dropdown (components/ui/search-select): open it, type, click the match. */
+export async function pick(scope: Page | Locator, label: string, option: string) {
+  await scope.getByLabel(label, { exact: true }).click()
+  const page = 'page' in scope ? scope.page() : scope
+  await page.getByRole('textbox', { name: 'Search the list' }).fill(option)
+  await page.getByRole('option', { name: option, exact: true }).click()
 }

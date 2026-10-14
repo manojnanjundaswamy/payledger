@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { SearchSelect } from '@/components/ui/search-select'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -7,10 +8,10 @@ import { Dialog } from '@/components/ui/overlay'
 import { ApiError } from '@/lib/api'
 import { minorToInput, parseMoney } from '@/lib/money'
 import {
-  categoryLabel, categoryTree, useAccounts, useCategories, useCreateCommitment, useDeleteCommitment, useUpdateCommitment,
+  categoryTree, useAccounts, useCategories, useCreateCommitment, useDeleteCommitment, useUpdateCommitment,
   type Commitment, type CommitmentKind,
 } from '@/state/money'
-import { Field, Select, today } from './parts'
+import { Field, Select, today, accountOptions, categoryOptions } from './parts'
 
 /** 0 is "only once": stored as a yearly bill whose last payment is its first. */
 const ONCE = 0
@@ -125,24 +126,16 @@ export function CommitmentDialog({ open, onOpenChange, commitment, initialDue }:
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Paid from" htmlFor="commitment-account">
-            <Select id="commitment-account" value={accountId} onChange={(e) => set('accountId', e.target.value)}>
-              {accounts.length === 0 && <option value="">No accounts yet</option>}
-              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </Select>
+            <SearchSelect id="commitment-account" value={accountId} onChange={(v) => set('accountId', v)} options={accountOptions(accounts)}
+              placeholder={accounts.length === 0 ? 'No accounts yet' : 'Choose…'} />
           </Field>
           {bill ? (
             <Field label="Category" htmlFor="commitment-category">
-              <Select id="commitment-category" value={d.categoryId} onChange={(e) => set('categoryId', e.target.value)}>
-                <option value="">Choose…</option>
-                {expenseCategories.map((c) => <option key={c.id} value={c.id}>{categoryLabel(c, categories)}</option>)}
-              </Select>
+              <SearchSelect id="commitment-category" value={d.categoryId} onChange={(v) => set('categoryId', v)} options={categoryOptions(expenseCategories, categories)} />
             </Field>
           ) : (
             <Field label="Into" htmlFor="commitment-to">
-              <Select id="commitment-to" value={d.toAccountId} onChange={(e) => set('toAccountId', e.target.value)}>
-                <option value="">Choose…</option>
-                {accounts.filter((a) => a.id !== accountId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </Select>
+              <SearchSelect id="commitment-to" value={d.toAccountId} onChange={(v) => set('toAccountId', v)} options={accountOptions(accounts.filter((a) => a.id !== accountId))} />
             </Field>
           )}
         </div>
