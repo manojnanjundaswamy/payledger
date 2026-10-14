@@ -150,6 +150,10 @@ class GroupExpenseIntegrationTest {
                                 .formatted(rahul, priya)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(), "$.id");
         assertThat(legs(1)).containsExactly(leg(rahul, -30_000), leg(priya, 30_000));
+        // The activity lists it (it once failed with a server error whenever a group had a payment).
+        mvc.perform(get(path("/activity")).with(me)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.settlements[0].fromMemberId").value(rahul)).andExpect(jsonPath("$.settlements[0].toMemberId").value(priya))
+                .andExpect(jsonPath("$.settlements[0].note").value("UPI"));
         mvc.perform(post(path("/settlements")).with(me).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fromMemberId\":\"%s\",\"toMemberId\":\"%s\",\"amount\":1,\"occurredOn\":\"2026-10-06\"}".formatted(rahul, rahul)))
                 .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("invalid-settlement"));
