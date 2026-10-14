@@ -47,6 +47,7 @@ delete from commitment_payments where transaction_id in (select id from transact
 delete from transactions where deleted_at is not null
   and (account_id in (select id from test_accounts) or to_account_id in (select id from test_accounts) or category_id in (select id from test_categories));
 delete from budget_limits where category_id in (select id from test_categories);
+delete from tax_mappings where category_id in (select id from test_categories);
 delete from group_entry_accounts where account_id in (select id from test_accounts);
 update users set group_account_id = null where group_account_id in (select id from test_accounts);
 delete from money_accounts where id in (select id from test_accounts)
@@ -66,6 +67,7 @@ delete from commitment_payments where transaction_id in (select id from transact
 delete from commitments where space_id in (select id from gone_spaces);
 delete from transactions where space_id in (select id from gone_spaces);
 delete from budget_limits where space_id in (select id from gone_spaces);
+delete from tax_mappings where space_id in (select id from gone_spaces);
 delete from imports where space_id in (select id from gone_spaces);
 delete from group_entry_accounts where user_id in (select id from gone_users)
   or account_id in (select id from money_accounts where space_id in (select id from gone_spaces));

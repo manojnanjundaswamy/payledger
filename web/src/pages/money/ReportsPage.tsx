@@ -81,6 +81,7 @@ export function ReportsPage() {
         {spaceId && (
           <div className="ml-auto flex flex-wrap items-center gap-1 pb-1" role="group" aria-label="Download">
             <Button asChild variant="ghost" size="sm"><a href={exportUrl(spaceId, 'xlsx', filter)} download><Download />Excel</a></Button>
+            <Button asChild variant="ghost" size="sm"><Link to="/tax">Tax (80C, 80D…)</Link></Button>
             <Button asChild variant="ghost" size="sm"><a href={exportUrl(spaceId, 'csv', filter)} download><Download />CSV</a></Button>
             <Button variant="ghost" size="sm" disabled={!data} aria-label="Download the summary"
               onClick={() => data && downloadSummary(data, categories, accounts, period, locale)}><FileSpreadsheet />Summary</Button>

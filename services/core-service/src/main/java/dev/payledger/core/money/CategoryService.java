@@ -135,6 +135,7 @@ public class CategoryService {
         }
         // An unused category's budget and rules are only settings, so they go with it.
         jdbc.sql("delete from budget_limits where category_id = :id").param("id", id).update();
+        jdbc.sql("delete from tax_mappings where category_id = :id").param("id", id).update();
         jdbc.sql("delete from category_rules where category_id = :id").param("id", id).update();
         jdbc.sql("delete from categories where id = :id").param("id", id).update();
     }

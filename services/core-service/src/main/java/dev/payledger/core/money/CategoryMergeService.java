@@ -77,6 +77,12 @@ public class CategoryMergeService {
         jdbc.sql("update commitments set category_id = :target, version = version + 1, updated_at = now() where category_id = :source")
                 .param("target", targetId).param("source", sourceId).update();
         jdbc.sql("delete from budget_limits where category_id = :source").param("source", sourceId).update();
+        // Its tax section goes with its entries, unless the target has its own.
+        jdbc.sql("""
+                        insert into tax_mappings (space_id, category_id, section)
+                        select space_id, :target, section from tax_mappings where category_id = :source on conflict do nothing
+                        """).param("target", targetId).param("source", sourceId).update();
+        jdbc.sql("delete from tax_mappings where category_id = :source").param("source", sourceId).update();
         jdbc.sql("update categories set hidden = true where id = :source").param("source", sourceId).update();
         return new Merged(targetId, live.size());
     }
