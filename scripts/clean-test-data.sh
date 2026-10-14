@@ -30,7 +30,8 @@ while IFS=$'\t' read -r id username email; do
   [ -z "$id" ] && continue
   case "$username" in service-account-*) continue ;; esac
   if [ "$(echo "$email" | tr '[:upper:]' '[:lower:]')" != "$(echo "$KEEP" | tr '[:upper:]' '[:lower:]')" ]; then
-    kc delete "users/$id" -r payledger >/dev/null
+    # </dev/null: docker exec would otherwise read the rest of the list as its own input.
+    kc delete "users/$id" -r payledger >/dev/null </dev/null
     removed=$((removed + 1))
   fi
 done < <(kc get users -r payledger --limit 10000 --fields id,username,email --format csv --noquotes | tr ',' '\t' | tr -d '\r')
