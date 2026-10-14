@@ -9,6 +9,10 @@ export interface Goal {
   id: string; name: string; emoji: string | null; target: number; targetDate: string | null; accountId: string | null
   version: number; startedOn: string; archived: boolean; saved: number | null; perMonth: number | null
   status: GoalStatus; behindBy: number | null
+  /** Transfers and income marked for the goal (paise), and expenses marked for it. */
+  fromEntries: number; spent: number
+  /** A saving on the plan is made for it. */
+  planned: boolean
 }
 
 export interface GoalContribution { id: string; amount: number; occurredOn: string; note: string | null }

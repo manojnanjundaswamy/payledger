@@ -1,4 +1,5 @@
 import { uuid7 } from '@/lib/uuid'
+import { useGoals } from '@/state/goals'
 import { SearchSelect } from '@/components/ui/search-select'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
@@ -23,15 +24,16 @@ interface Draft {
   occurredOn: string
   description: string
   note: string
+  goalId: string
 }
 
 function draftOf(t: Transaction | undefined, kind: TxnKind, accountId: string, date?: string): Draft {
   return t
     ? {
         kind: t.kind, amount: minorToInput(t.amount, t.currency), accountId: t.accountId, toAccountId: t.toAccountId ?? '',
-        categoryId: t.categoryId ?? '', occurredOn: t.occurredOn, description: t.description, note: t.note ?? '',
+        categoryId: t.categoryId ?? '', occurredOn: t.occurredOn, description: t.description, note: t.note ?? '', goalId: t.goalId ?? '',
       }
-    : { kind, amount: '', accountId, toAccountId: '', categoryId: '', occurredOn: date ?? today(), description: '', note: '' }
+    : { kind, amount: '', accountId, toAccountId: '', categoryId: '', occurredOn: date ?? today(), description: '', note: '', goalId: '' }
 }
 
 /**
@@ -47,7 +49,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
   /** A new one's date (a day clicked on the calendar). */
   initialDate?: string
   /** A new one's amount, description and category (by name), e.g. from a calculator's answer. */
-  prefill?: { amount?: string; description?: string; categoryName?: string; note?: string }
+  prefill?: { amount?: string; description?: string; categoryName?: string; note?: string; goalId?: string }
 }) {
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
@@ -67,7 +69,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
       if (!transaction && prefill) {
         const wanted = prefill.categoryName?.toLowerCase()
         const category = wanted ? categories.find((c) => c.kind === initialKind && !c.hidden && c.name.toLowerCase() === wanted) : undefined
-        Object.assign(draft, { amount: prefill.amount ?? '', description: prefill.description ?? '', note: prefill.note ?? '', categoryId: category?.id ?? '' })
+        Object.assign(draft, { amount: prefill.amount ?? '', description: prefill.description ?? '', note: prefill.note ?? '', categoryId: category?.id ?? '', goalId: prefill.goalId ?? '' })
       }
       setDraft(draft)
       setClientId(uuid7())
@@ -87,6 +89,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
   // what you chose before). A guess only fills an empty category, or replaces an earlier guess, never your choice.
   const spaceId = useSpaceId()
   const saveRule = useSaveCategoryRule()
+  const { data: goals = [] } = useGoals()
   const [guess, setGuess] = useState<CategoryGuess | null>(null)
   const [guessed, setGuessed] = useState(false)
   const [remember, setRemember] = useState(false)
@@ -142,6 +145,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
       occurredOn: draft.occurredOn,
       description: draft.description.trim() || defaultDescription(draft, categories, accounts),
       note: draft.note.trim() || null,
+      goalId: draft.goalId || null,
     }
     try {
       if (transaction) {
@@ -230,6 +234,13 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
         <Field label="Note" htmlFor="txn-note">
           <Input id="txn-note" maxLength={1000} value={draft.note} onChange={(e) => set('note', e.target.value)} />
         </Field>
+        {(goals.length > 0 || draft.goalId) && (
+          <Field label="For a goal (optional)" htmlFor="txn-goal"
+            hint={draft.goalId ? (draft.kind === 'EXPENSE' ? 'Shows as spent on the goal.' : 'Counts as saved towards the goal.') : undefined}>
+            <SearchSelect id="txn-goal" value={draft.goalId} onChange={(v) => set('goalId', v)} placeholder="No goal"
+              options={[{ value: '', label: 'No goal' }, ...goals.map((g) => ({ value: g.id, label: `${g.emoji ?? '🎯'} ${g.name}` }))]} />
+          </Field>
+        )}
         {error && <p className="rounded-control bg-critical/10 px-3 py-2 text-sm text-critical" role="alert">{error}</p>}
         {transaction && <Related transaction={transaction} categories={categories} accounts={accounts} onGo={() => onOpenChange(false)} />}
         <div className="flex items-center gap-2">

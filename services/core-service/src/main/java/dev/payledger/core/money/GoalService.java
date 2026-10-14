@@ -46,7 +46,8 @@ public class GoalService {
      * @param behindBy   how far below the straight line from start to target date, when BEHIND
      */
     public record Goal(UUID id, String name, String emoji, long target, LocalDate targetDate, UUID accountId, int version,
-                       LocalDate startedOn, boolean archived, Long saved, Long perMonth, String status, Long behindBy) {
+                       LocalDate startedOn, boolean archived, Long saved, Long perMonth, String status, Long behindBy,
+                       long fromEntries, long spent, boolean planned) {
     }
 
     public record Contribution(UUID id, long amount, LocalDate occurredOn, String note) {
@@ -55,13 +56,27 @@ public class GoalService {
     public record Fields(String name, String emoji, long target, LocalDate targetDate, UUID accountId) {
     }
 
+    /**
+     * @param contributed money added by hand
+     * @param fromEntries transfers and income marked for the goal
+     * @param spent       expenses marked for the goal
+     * @param planned     a saving on the plan is made for it
+     */
     record Row(UUID id, String name, String emoji, long target, LocalDate targetDate, UUID accountId, int version,
-               java.time.OffsetDateTime createdAt, boolean archived, long contributed) {
+               java.time.OffsetDateTime createdAt, boolean archived, long contributed, long fromEntries, long spent, boolean planned) {
+
+        Row(UUID id, String name, String emoji, long target, LocalDate targetDate, UUID accountId, int version,
+            java.time.OffsetDateTime createdAt, boolean archived, long contributed) {
+            this(id, name, emoji, target, targetDate, accountId, version, createdAt, archived, contributed, 0, 0, false);
+        }
     }
 
     private static final String SELECT = """
             select g.id, g.name, g.emoji, g.target, g.target_date, g.account_id, g.version, g.created_at, g.archived_at is not null as archived,
-                   coalesce((select sum(c.amount) from goal_contributions c where c.goal_id = g.id), 0) as contributed
+                   coalesce((select sum(c.amount) from goal_contributions c where c.goal_id = g.id), 0) as contributed,
+                   coalesce((select sum(t.amount) from transactions t where t.goal_id = g.id and t.deleted_at is null and t.kind <> 'EXPENSE'), 0) as from_entries,
+                   coalesce((select sum(t.amount) from transactions t where t.goal_id = g.id and t.deleted_at is null and t.kind = 'EXPENSE'), 0) as spent,
+                   exists (select 1 from commitments c where c.goal_id = g.id and (c.ends_on is null or c.ends_on >= current_date)) as planned
             from goals g
             """;
 
@@ -75,7 +90,9 @@ public class GoalService {
                 .collect(Collectors.toMap(AccountView::id, AccountView::balance))
                 : Map.of();
         LocalDate today = LocalDate.now();
-        return rows.stream().map(r -> view(r, r.accountId() == null ? Long.valueOf(r.contributed()) : accountBalances.get(r.accountId()), today)).toList();
+        // A goal tied to an account counts that account's balance (transfers into it are already in it); otherwise what
+        // was added by hand plus the transfers and income marked for it.
+        return rows.stream().map(r -> view(r, r.accountId() == null ? Long.valueOf(r.contributed() + r.fromEntries()) : accountBalances.get(r.accountId()), today)).toList();
     }
 
     @Transactional(readOnly = true)
@@ -135,7 +152,7 @@ public class GoalService {
         if (amount == 0) {
             throw new InvalidRequestException("invalid-amount", "amount can't be zero");
         }
-        if (goal.contributed() + amount < 0) {
+        if (goal.contributed() + goal.fromEntries() + amount < 0) {
             throw new InvalidRequestException("invalid-amount", "you can't take out more than was put in");
         }
         jdbc.sql("insert into goal_contributions (id, goal_id, amount, occurred_on, note, created_by) values (:id, :goalId, :amount, :on, :note, :userId)")
@@ -159,6 +176,9 @@ public class GoalService {
         access.write(user, spaceId);
         find(spaceId, id);
         jdbc.sql("delete from goal_contributions where goal_id = :id").param("id", id).update();
+        // Its entries and plan stay; they're just no longer for a goal.
+        jdbc.sql("update transactions set goal_id = null where goal_id = :id").param("id", id).update();
+        jdbc.sql("update commitments set goal_id = null where goal_id = :id").param("id", id).update();
         jdbc.sql("delete from goals where id = :id").param("id", id).update();
     }
 
@@ -203,6 +223,6 @@ public class GoalService {
             behindBy = saved >= expected ? null : expected - saved;
         }
         return new Goal(r.id(), r.name(), r.emoji(), r.target(), r.targetDate(), r.accountId(), r.version(), start, r.archived(),
-                saved, perMonth, status, behindBy);
+                saved, perMonth, status, behindBy, r.fromEntries(), r.spent(), r.planned());
     }
 }

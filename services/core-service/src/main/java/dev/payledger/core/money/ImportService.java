@@ -149,7 +149,7 @@ public class ImportService {
             }
             Resolved r = resolver.resolve(byLine.get(row.line()));
             var fields = new TransactionRequests.Fields(r.kind, r.amount, r.accountId, r.toAccountId, r.categoryId, r.date,
-                    r.description, r.note, r.tags);
+                    r.description, r.note, r.tags, null);
             transactions.createChecked(space, user, Uuid7.next(), fields, accountsById.get(r.accountId),
                     r.toAccountId == null ? null : accountsById.get(r.toAccountId),
                     r.categoryId == null ? null : categoriesById.get(r.categoryId), importId, r.externalId);

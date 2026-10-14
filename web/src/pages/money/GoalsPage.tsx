@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Archive, ArchiveRestore, CalendarDays, Goal as GoalIcon, Landmark, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowLeftRight, CalendarClock, CalendarDays, Goal as GoalIcon, Landmark, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Skeleton } from '@/components/ui/card'
@@ -16,6 +16,8 @@ import {
 } from '@/state/goals'
 import { useProfile } from '@/state/profile'
 import { Field, accountOptions } from './parts'
+import { CommitmentDialog } from './CommitmentDialog'
+import { TransactionDialog } from './TransactionDialog'
 
 const EMOJIS = ['🎯', '🏖️', '🏠', '🚗', '📱', '💍', '🎓', '🪔', '🛟', '✈️']
 
@@ -98,6 +100,8 @@ function GoalCard({ goal: g, money, locale, onEdit, onAdd }: { goal: Goal; money
   const account = accounts.find((a) => a.id === g.accountId)
   const status = STATUS[g.status]
   const fields = { name: g.name, emoji: g.emoji, target: g.target, targetDate: g.targetDate, accountId: g.accountId }
+  const [recording, setRecording] = useState(false)
+  const [planning, setPlanning] = useState(false)
   return (
     <Card className={cn('flex flex-col gap-4 p-pad', g.archived && 'opacity-70')} data-testid={`goal-${g.name}`}>
       <div className="flex items-start gap-3">
@@ -125,9 +129,21 @@ function GoalCard({ goal: g, money, locale, onEdit, onAdd }: { goal: Goal; money
             : 'Add a date to see what it needs each month.'}
         </p>
       )}
+      {(g.fromEntries > 0 || g.spent > 0 || g.planned) && (
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted" data-testid="goal-entries">
+          {g.fromEntries > 0 && <span>{money(g.fromEntries)} from entries</span>}
+          {g.spent > 0 && <span>{money(g.spent)} spent on it</span>}
+          {g.planned && <Link to="/plan" className="flex items-center gap-1 hover:text-fg hover:underline"><CalendarClock className="size-3.5" />On your plan</Link>}
+          <Link to="/transactions" search={{ goal: g.id }} className="text-fg underline-offset-4 hover:underline">Its transactions</Link>
+        </p>
+      )}
       {g.status === 'REACHED' && !g.archived && <p className="rounded-control bg-good/10 px-3 py-2 text-sm text-good-text">You got there. Archive it to keep it as history.</p>}
       <div className="flex flex-wrap items-center gap-1">
         {!g.archived && !g.accountId && <Button size="sm" variant="primary" onClick={onAdd}><Plus />Add money</Button>}
+        {!g.archived && <Button size="sm" variant="outline" onClick={() => setRecording(true)}><ArrowLeftRight />Record a transfer</Button>}
+        {!g.archived && !g.planned && g.status !== 'REACHED' && g.perMonth !== null && (
+          <Button size="sm" variant="ghost" onClick={() => setPlanning(true)} title="A monthly saving until the date; each payment counts towards the goal"><CalendarClock />Add to my plan</Button>
+        )}
         <span className="flex-1" />
         <Button size="sm" variant="ghost" aria-label={`Edit ${g.name}`} onClick={onEdit}><Pencil /></Button>
         <Button size="sm" variant="ghost" aria-label={g.archived ? `Bring back ${g.name}` : `Archive ${g.name}`}
@@ -138,6 +154,12 @@ function GoalCard({ goal: g, money, locale, onEdit, onAdd }: { goal: Goal; money
         </Button>
         {g.archived && <Button size="sm" variant="ghost" aria-label={`Delete ${g.name}`} onClick={() => remove.mutate(g.id)}><Trash2 /></Button>}
       </div>
+      {/* A transfer into savings (or income set aside) marked for this goal; the form opens with the goal chosen. */}
+      <TransactionDialog open={recording} onOpenChange={setRecording} initialKind="TRANSFER"
+        prefill={{ amount: g.perMonth ? minorToInput(g.perMonth, 'INR') : '', description: `Saving for ${g.name}`, goalId: g.id }} />
+      <CommitmentDialog open={planning} onOpenChange={setPlanning}
+        prefill={{ kind: 'SAVING', name: `Saving for ${g.name}`, amount: g.perMonth ? minorToInput(g.perMonth, 'INR') : '', everyMonths: 1,
+          endsOn: g.targetDate ?? undefined, goalId: g.id, toAccountId: g.accountId ?? undefined }} />
     </Card>
   )
 }
