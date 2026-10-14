@@ -114,6 +114,17 @@ test('a shared expense shows who lent what, in charts, on the calendar and in th
   // In the list itself (a toast says the same, which once hid that the list failed to load).
   await expect(page.getByRole('region', { name: 'Activity' }).getByText('Amit paid You')).toBeVisible()
 
+  // The history: every step, who and when; an entry opens to its details.
+  await page.getByRole('radio', { name: 'History' }).click()
+  const history = page.getByTestId('group-history')
+  await expect(history).toContainText(`Created the group “${groupName}”`)
+  await expect(history).toContainText('Added Amit')
+  await expect(history).toContainText('Added Dinner, ₹900.00')
+  await expect(history).toContainText('Recorded Amit paid')
+  await history.getByTestId('history-entry').filter({ hasText: 'Added Dinner' }).click()
+  await expect(page.getByTestId('history-details').first()).toContainText('Shares')
+  await page.getByRole('radio', { name: 'Expenses & payments' }).click()
+
   await page.getByRole('radio', { name: 'People' }).click()
   await page.getByRole('button', { name: 'Archive group' }).click()
 })

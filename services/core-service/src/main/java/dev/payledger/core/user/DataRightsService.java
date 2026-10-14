@@ -93,7 +93,7 @@ public class DataRightsService {
                     .param("g", g).param("u", u).query(UUID.class).optional().orElse(null);
             if (successor == null) {
                 jdbc.sql("delete from group_expense_parts where expense_id in (select id from group_expenses where group_id = :g)").param("g", g).update();
-                for (String table : List.of("group_settlements", "group_expenses", "group_links", "group_members")) {
+                for (String table : List.of("group_events", "group_settlements", "group_expenses", "group_links", "group_members")) {
                     jdbc.sql("delete from " + table + " where group_id = :g").param("g", g).update();
                 }
                 jdbc.sql("delete from groups where id = :g").param("g", g).update();
@@ -127,6 +127,8 @@ public class DataRightsService {
 
         // Your traces elsewhere.
         jdbc.sql("delete from space_members where user_id = :u").param("u", u).update();
+        // Groups' histories keep the name they knew you by, not the account.
+        jdbc.sql("update group_events set actor_user_id = null where actor_user_id = :u").param("u", u).update();
         jdbc.sql("delete from inbox where user_id = :u").param("u", u).update();
         jdbc.sql("update inbox set actor_id = null where actor_id = :u").param("u", u).update();
         jdbc.sql("delete from email_outbox where user_id = :u").param("u", u).update();

@@ -25,6 +25,13 @@ public class GroupService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    private GroupHistory history;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setHistory(GroupHistory history) {
+        this.history = history;
+    }
+
     private final JdbcClient jdbc;
 
     private final dev.payledger.core.notify.Notifications notifications;
@@ -98,6 +105,7 @@ public class GroupService {
                         """)
                 .param("id", Uuid7.next()).param("groupId", id).param("userId", user.id()).param("name", truncate(user.displayName()))
                 .update();
+        history.record(id, user, GroupHistory.Action.GROUP_CREATED, GroupHistory.details("name", request.name().strip(), "emoji", blankToNull(request.emoji())));
         return get(user, id);
     }
 
@@ -126,6 +134,9 @@ public class GroupService {
         if (request.archived() != null && !me.role().equals("OWNER")) {
             throw new InvalidRequestException("owner-only", "only the group's owner can archive it");
         }
+        record Was(String name, String emoji, boolean archived) {
+        }
+        Was was = jdbc.sql("select name, emoji, archived_at is not null as archived from groups where id = :id").param("id", groupId).query(Was.class).single();
         jdbc.sql("""
                         update groups set name = coalesce(:name, name), emoji = coalesce(:emoji, emoji),
                             archived_at = case when cast(:archived as boolean) is null then archived_at
@@ -135,6 +146,19 @@ public class GroupService {
                 .param("id", groupId).param("name", request.name() == null ? null : request.name().strip())
                 .param("emoji", request.emoji()).param("archived", request.archived())
                 .update();
+        java.util.List<java.util.Map<String, Object>> changes = new java.util.ArrayList<>();
+        if (request.name() != null && !request.name().strip().equals(was.name())) {
+            changes.add(GroupHistory.details("field", "name", "before", was.name(), "after", request.name().strip()));
+        }
+        if (request.emoji() != null && !request.emoji().equals(was.emoji())) {
+            changes.add(GroupHistory.details("field", "emoji", "before", was.emoji(), "after", request.emoji()));
+        }
+        if (request.archived() != null && request.archived() != was.archived()) {
+            changes.add(GroupHistory.details("field", "archived", "before", was.archived(), "after", request.archived()));
+        }
+        if (!changes.isEmpty()) {
+            history.record(groupId, user, GroupHistory.Action.GROUP_UPDATED, GroupHistory.details("changes", changes));
+        }
         return get(user, groupId);
     }
 
@@ -170,6 +194,8 @@ public class GroupService {
         if (email != null) {
             invite(user, groupId, memberId, email, existingUser);
         }
+        history.record(groupId, user, GroupHistory.Action.MEMBER_ADDED, GroupHistory.details(
+                "member", request.name().strip(), "email", email, "joined", existingUser != null));
         return get(user, groupId);
     }
 
@@ -220,6 +246,9 @@ public class GroupService {
             throw new MemberHasBalanceException();
         }
         jdbc.sql("update group_members set left_at = now() where id = :id").param("id", memberId).update();
+        String name = jdbc.sql("select display_name from group_members where id = :id").param("id", memberId).query(String.class).single();
+        history.record(groupId, user, me.id().equals(memberId) ? GroupHistory.Action.MEMBER_LEFT : GroupHistory.Action.MEMBER_REMOVED,
+                GroupHistory.details("member", name));
     }
 
     /**
@@ -254,6 +283,7 @@ public class GroupService {
         lockGroup(groupId);
         jdbc.sql("update group_links set revoked_at = now() where group_id = :groupId and revoked_at is null")
                 .param("groupId", groupId).update();
+        history.record(groupId, user, GroupHistory.Action.LINK_RESET, GroupHistory.details());
         return newLink(user, groupId);
     }
 
@@ -294,6 +324,7 @@ public class GroupService {
                         .param("name", truncate(user.displayName()))
                         .update();
             }
+            history.record(groupId, user, GroupHistory.Action.MEMBER_JOINED, GroupHistory.details("member", user.displayName(), "via", "link"));
             // Everyone already in the group hears about it.
             String group = jdbc.sql("select name from groups where id = :id").param("id", groupId).query(String.class).single();
             jdbc.sql("select user_id from group_members where group_id = :groupId and user_id is not null and user_id <> :me and left_at is null")
@@ -306,13 +337,18 @@ public class GroupService {
 
     /** A new account takes over the placeholders invited with its (verified) email. */
     public void claimInvites(UUID userId, String email) {
+        record Claimed(UUID groupId, String displayName) {
+        }
         jdbc.sql("""
                         update group_members m set user_id = :userId, joined_at = now()
                         where m.user_id is null and m.email = :email and m.left_at is null
                           and not exists (select 1 from group_members x where x.group_id = m.group_id and x.user_id = :userId and x.left_at is null)
+                        returning m.group_id, m.display_name
                         """)
                 .param("userId", userId).param("email", email)
-                .update();
+                .query(Claimed.class).list()
+                .forEach(c -> history.record(c.groupId(), userId, c.displayName(), GroupHistory.Action.MEMBER_JOINED,
+                        GroupHistory.details("member", c.displayName(), "via", "email")));
     }
 
     // ---------------------------------------------------------------- access
