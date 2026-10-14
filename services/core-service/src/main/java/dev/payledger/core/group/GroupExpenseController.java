@@ -34,6 +34,12 @@ class GroupExpenseController {
         return expenses.activity(user, groupId);
     }
 
+    @GetMapping("/insights")
+    @Operation(summary = "Totals for charts: spent, each member's paid and share, by label, by month, and the biggest expenses")
+    GroupExpenseService.Insights insights(CurrentUser user, @PathVariable UUID groupId) {
+        return expenses.insights(user, groupId);
+    }
+
     @PostMapping("/expenses")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Add an expense: who paid (adding up), split EQUAL, EXACT (paise), PERCENT (basis points) or SHARES")

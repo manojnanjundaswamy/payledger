@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { ArrowLeft, Check, Copy, Link2, MessageCircle, RefreshCw, UserMinus, UserPlus } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import { ArrowLeft, BarChart3, CalendarDays, Check, Copy, Link2, List, MessageCircle, RefreshCw, UserMinus, UserPlus, Users } from 'lucide-react'
+import { Segmented } from '@/components/ui/controls'
 import { whatsAppShare } from '@/lib/whatsapp'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -9,19 +10,29 @@ import { Input } from '@/components/ui/controls'
 import { ApiError } from '@/lib/api'
 import { Field } from '@/pages/money/parts'
 import { joinUrl, useAddMember, useGroup, useGroupLink, useRemoveMember, useResetLink, useUpdateGroup } from '@/state/groups'
-import { GroupMoney } from './GroupMoney'
+import { GroupMoney, type GroupTab } from './GroupMoney'
 
 /** One group: who's in it, adding people, and the link that lets friends join. */
 export function GroupPage() {
   const { groupId } = useParams({ from: '/app/groups/$groupId' })
+  const search = useSearch({ from: '/app/groups/$groupId' })
+  const setTab = (t: GroupTab, extra?: { month?: string }) =>
+    void navigate({ to: '/groups/$groupId', params: { groupId }, search: (s) => ({ ...s, tab: t === 'overview' ? undefined : t, ...(extra ?? {}) }), replace: true })
   const { data: group, isPending, isError } = useGroup(groupId)
   const remove = useRemoveMember(groupId)
   const update = useUpdateGroup(groupId)
   const navigate = useNavigate()
 
+  // A group of just you needs people first: open People, and stay there while they're added.
+  const solo = group?.members.length === 1
+  useEffect(() => {
+    if (solo && !search.tab) setTab('people')
+  }, [solo]) // eslint-disable-line react-hooks/exhaustive-deps
+
   if (isError) return <Card className="mx-auto max-w-3xl p-pad text-sm text-muted">This group doesn't exist, or you're not in it. <Link to="/groups" className="underline">Your groups</Link></Card>
   if (isPending || !group) return <div className="mx-auto max-w-3xl"><Skeleton className="h-64" /></div>
 
+  const tab: GroupTab = search.tab ?? 'overview'
   const me = group.members.find((m) => m.you)
   const owner = me?.role === 'OWNER'
 
@@ -43,7 +54,7 @@ export function GroupPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+    <div className="mx-auto flex max-w-5xl flex-col gap-6">
       <div className="flex items-center gap-3">
         <Button asChild variant="ghost" size="icon" aria-label="Your groups"><Link to="/groups"><ArrowLeft /></Link></Button>
         <span className="flex size-12 items-center justify-center rounded-full bg-surface-2 text-2xl" aria-hidden>{group.emoji ?? '👥'}</span>
@@ -53,8 +64,17 @@ export function GroupPage() {
         </div>
       </div>
 
-      <GroupMoney group={group} />
+      <Segmented label="Group view" value={tab} onChange={(t) => setTab(t)} className="self-start"
+        options={[
+          { value: 'overview', label: <><BarChart3 />Overview</> },
+          { value: 'activity', label: <><List />Activity</> },
+          { value: 'calendar', label: <><CalendarDays />Calendar</> },
+          { value: 'people', label: <><Users />People</> },
+        ]} />
 
+      <GroupMoney group={group} tab={tab} month={search.month} onTab={setTab} />
+
+      {tab === 'people' && <>
       <section aria-label="People" className="flex flex-col gap-2">
         <h3 className="text-sm font-medium text-muted">People</h3>
         <Card className="divide-y divide-border p-0">
@@ -79,11 +99,13 @@ export function GroupPage() {
       {!group.archived && <AddPerson groupId={groupId} />}
       {!group.archived && <InviteLink groupId={groupId} />}
 
+
       <div className="flex flex-wrap justify-end gap-2">
         {owner
           ? <Button variant="ghost" onClick={() => update.mutate({ archived: !group.archived })}>{group.archived ? 'Unarchive group' : 'Archive group'}</Button>
           : <Button variant="ghost" onClick={leave}><UserMinus />Leave group</Button>}
       </div>
+      </>}
     </div>
   )
 }

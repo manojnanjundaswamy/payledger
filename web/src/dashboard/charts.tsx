@@ -202,3 +202,64 @@ function roundedTop(x: number, y: number, w: number, h: number, r: number): stri
   const rr = Math.min(r, h)
   return `M${x},${y + h} V${y + rr} Q${x},${y} ${x + rr},${y} H${x + w - rr} Q${x + w},${y} ${x + w},${y + rr} V${y + h} Z`
 }
+
+/**
+ * Parts of a whole as a ring, with the total in the middle; each slice and legend row can be clicked. Used for who paid
+ * what in a group. Colours come from the validated series palette.
+ */
+export function Donut({ items, format, center, label, onSelect }: {
+  items: { key: string; label: string; value: number; slot: number }[]
+  format: (v: number) => string
+  center: { value: string; caption: string }
+  label: string
+  onSelect?: (key: string) => void
+}) {
+  const [active, setActive] = useState<string | null>(null)
+  const total = items.reduce((s, i) => s + i.value, 0)
+  const R = 42
+  const C = 2 * Math.PI * R
+  let offset = 0
+  const shown = items.filter((i) => i.value > 0)
+  const focus = shown.find((i) => i.key === active)
+  return (
+    <figure className="flex flex-wrap items-center gap-5" aria-label={label}>
+      <svg viewBox="0 0 100 100" className="size-36 shrink-0 -rotate-90" role="img" aria-label={`${label}: ${shown.map((i) => `${i.label} ${format(i.value)}`).join(', ')}`}>
+        <circle cx="50" cy="50" r={R} fill="none" stroke="var(--surface-2)" strokeWidth="12" />
+        {shown.map((i) => {
+          const len = total > 0 ? (i.value / total) * C : 0
+          const el = (
+            <circle key={i.key} cx="50" cy="50" r={R} fill="none" stroke={seriesColor(i.slot)} strokeWidth={active === i.key ? 15 : 12}
+              strokeDasharray={`${Math.max(len - (shown.length > 1 ? 0.8 : 0), 0)} ${C}`} strokeDashoffset={-offset}
+              className={cn('transition-[stroke-width]', onSelect && 'cursor-pointer')}
+              onMouseEnter={() => setActive(i.key)} onMouseLeave={() => setActive(null)} onClick={() => onSelect?.(i.key)} />
+          )
+          offset += len
+          return el
+        })}
+        <g className="rotate-90 origin-center">
+          <text x="50" y="49" textAnchor="middle" className="fill-[var(--fg)] text-[11px] font-semibold tabular">{focus ? format(focus.value) : center.value}</text>
+          <text x="50" y="61" textAnchor="middle" className="fill-[var(--fg-muted)] text-[7px]">{focus ? `${Math.round((focus.value / total) * 100)}% · ${focus.label}`.slice(0, 26) : center.caption}</text>
+        </g>
+      </svg>
+      <ul className="flex min-w-40 flex-1 flex-col gap-1.5 text-[0.8125rem]">
+        {items.map((i) => {
+          const row = (
+            <>
+              <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: seriesColor(i.slot) }} />
+              <span className="min-w-0 flex-1 truncate">{i.label}</span>
+              <span className="tabular text-muted">{format(i.value)}</span>
+              <span className="w-9 text-right text-xs text-subtle tabular">{total > 0 ? Math.round((i.value / total) * 100) : 0}%</span>
+            </>
+          )
+          return (
+            <li key={i.key} onMouseEnter={() => setActive(i.key)} onMouseLeave={() => setActive(null)}>
+              {onSelect
+                ? <button type="button" className="-mx-1 flex w-[calc(100%+0.5rem)] items-center gap-2 rounded-control px-1 py-0.5 text-left hover:bg-surface-2" onClick={() => onSelect(i.key)}>{row}</button>
+                : <span className="flex items-center gap-2">{row}</span>}
+            </li>
+          )
+        })}
+      </ul>
+    </figure>
+  )
+}

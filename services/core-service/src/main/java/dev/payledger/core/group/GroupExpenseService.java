@@ -69,6 +69,67 @@ public class GroupExpenseService {
     public record Balances(boolean known, String currency, Map<UUID, Long> balance, List<Splits.Payment> payments) {
     }
 
+    /**
+     * A group's story in numbers: what was spent, who paid and whose share it was, by label and by month, and the
+     * biggest expenses. Everything live, not just the latest 200 the activity list shows. Amounts are paise.
+     */
+    public record Insights(String currency, long spent, int expenses, long settled, long yourPaid, long yourShare,
+                           List<MemberTotal> members, List<LabelTotal> labels, List<MonthTotal> months, List<Biggest> biggest) {
+        /** @param left this person has left the group; their history still counts */
+        public record MemberTotal(UUID memberId, String name, boolean left, long paid, long share, int expenses) {
+        }
+
+        /** @param label null for expenses without one */
+        public record LabelTotal(String label, long amount, int count) {
+        }
+
+        /** @param month yyyy-mm */
+        public record MonthTotal(String month, long amount, int count) {
+        }
+
+        public record Biggest(UUID id, String description, long amount, LocalDate occurredOn) {
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public Insights insights(CurrentUser user, UUID groupId) {
+        UUID me = groups.member(user, groupId).id();
+        String currency = jdbc.sql("select currency from groups where id = :id").param("id", groupId).query(String.class).single();
+        var members = jdbc.sql("""
+                        select m.id as member_id, m.display_name as name, m.left_at is not null as "left",
+                               coalesce(sum(p.paid), 0) as paid, coalesce(sum(p.share), 0) as share,
+                               count(p.expense_id) filter (where p.share > 0 or p.paid > 0)::int as expenses
+                        from group_members m
+                        left join group_expense_parts p on p.member_id = m.id
+                             and p.expense_id in (select id from group_expenses where group_id = :groupId and deleted_at is null)
+                        where m.group_id = :groupId
+                        group by m.id, m.display_name, m.left_at, m.created_at
+                        having m.left_at is null or coalesce(sum(p.paid), 0) + coalesce(sum(p.share), 0) > 0
+                        order by coalesce(sum(p.paid), 0) desc, m.created_at
+                        """).param("groupId", groupId).query(Insights.MemberTotal.class).list();
+        var labels = jdbc.sql("""
+                        select nullif(trim(category), '') as label, sum(amount) as amount, count(*)::int as count
+                        from group_expenses where group_id = :groupId and deleted_at is null
+                        group by nullif(trim(category), '') order by sum(amount) desc
+                        """).param("groupId", groupId).query(Insights.LabelTotal.class).list();
+        var months = jdbc.sql("""
+                        select to_char(occurred_on, 'YYYY-MM') as month, sum(amount) as amount, count(*)::int as count
+                        from group_expenses where group_id = :groupId and deleted_at is null
+                        group by 1 order by 1
+                        """).param("groupId", groupId).query(Insights.MonthTotal.class).list();
+        var biggest = jdbc.sql("""
+                        select id, description, amount, occurred_on from group_expenses
+                        where group_id = :groupId and deleted_at is null order by amount desc, occurred_on desc limit 5
+                        """).param("groupId", groupId).query(Insights.Biggest.class).list();
+        long settled = jdbc.sql("select coalesce(sum(amount), 0) from group_settlements where group_id = :groupId and deleted_at is null")
+                .param("groupId", groupId).query(Long.class).single();
+        var mine = members.stream().filter(m -> m.memberId().equals(me)).findFirst();
+        return new Insights(currency, labels.stream().mapToLong(Insights.LabelTotal::amount).sum(),
+                labels.stream().mapToInt(Insights.LabelTotal::count).sum(), settled,
+                mine.map(Insights.MemberTotal::paid).orElse(0L), mine.map(Insights.MemberTotal::share).orElse(0L),
+                members, labels, months, biggest);
+    }
+
     @Transactional(readOnly = true)
     public Activity activity(CurrentUser user, UUID groupId) {
         groups.member(user, groupId);

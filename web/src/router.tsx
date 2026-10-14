@@ -169,6 +169,11 @@ const groups = createRoute({
 const group = createRoute({
   getParentRoute: () => app,
   path: '/groups/$groupId',
+  // ?tab= picks Overview, Activity, Calendar or People; ?month= the calendar's month.
+  validateSearch: z.object({
+    tab: z.enum(['overview', 'activity', 'calendar', 'people']).optional().catch(undefined),
+    month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional().catch(undefined),
+  }),
   component: lazyRouteComponent(() => import('@/pages/groups/GroupPage'), 'GroupPage'),
 })
 

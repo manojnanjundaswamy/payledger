@@ -49,6 +49,7 @@ test('a friend with a UPI id gets paid in one tap', async ({ browser, request })
   expect(href).toContain('cu=INR')
 
   // Clean up: delete the expense (the E2E group stays, empty).
+  await ravi.getByRole('radio', { name: 'Activity' }).click()
   await ravi.getByRole('button', { name: `Edit E2E dinner ${run}` }).click()
   await ravi.getByRole('dialog', { name: 'Edit expense' }).getByRole('button', { name: 'Delete' }).click()
   await raviContext.close()

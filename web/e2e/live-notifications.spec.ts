@@ -61,6 +61,7 @@ test('when someone adds you and splits an expense, you see it live and get the e
   }, { timeout: 20_000 }).toContain(`added ${lunch}`)
 
   // Clean up the demo user's side: delete the expense, archive the group.
+  await demo.getByRole('radio', { name: 'Activity' }).click()
   await demo.getByRole('button', { name: `Edit ${lunch}` }).click()
   await demo.getByRole('dialog', { name: 'Edit expense' }).getByRole('button', { name: 'Delete' }).click()
   await raviContext.close()
