@@ -195,7 +195,7 @@ function GroupCalendar({ group, month, locale, activity, name, onMonth, onOpen, 
   const expenses = (activity?.expenses ?? []).filter((e) => e.occurredOn >= start && e.occurredOn <= end)
   const settlements = (activity?.settlements ?? []).filter((s) => s.occurredOn >= start && s.occurredOn <= end)
   const spentOn = (day: string) => expenses.filter((e) => e.occurredOn === day).reduce((s, e) => s + e.amount, 0)
-  const max = Math.max(1, ...expenses.map((e) => spentOn(e.occurredOn)))
+  const settledOn = (day: string) => settlements.filter((s) => s.occurredOn === day).reduce((sum, s) => sum + s.amount, 0)
   const [y, m] = month.split('-').map(Number)
   return (
     <section aria-label="Calendar" className="flex flex-col gap-3">
@@ -207,7 +207,7 @@ function GroupCalendar({ group, month, locale, activity, name, onMonth, onOpen, 
         <span className="text-sm text-muted tabular">{formatMoney(expenses.reduce((s, e) => s + e.amount, 0), group.currency, locale)} spent</span>
       </div>
       <MonthCalendar start={start} end={end} locale={locale} label="Group calendar"
-        heat={(day) => spentOn(day) / max}
+        flows={(day) => ({ in: settledOn(day), out: spentOn(day) })} formatFlow={(m) => formatMoneyShort(m, group.currency, locale)}
         chips={(day) => [
           ...expenses.filter((e) => e.occurredOn === day).map((e) => ({
             id: e.id, label: `${e.description} ${formatMoneyShort(e.amount, e.currency, locale)}`, title: `${e.description}: ${formatMoney(e.amount, e.currency, locale)}`,

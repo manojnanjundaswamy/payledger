@@ -163,3 +163,12 @@ test('a steady monthly expense is suggested as a bill and added in one tap', asy
   await page.getByRole('dialog', { name: `Edit ${bank}` }).getByRole('button', { name: 'Archive' }).click()
   await expect(page.getByRole('button', { name: `Edit ${bank}` })).toBeHidden()
 })
+
+test('the plan shows the month day by day: money in, spent so far, where it ends with the bills still due', async ({ page }) => {
+  await page.goto('/plan')
+  const chart = page.getByRole('region', { name: 'This month, day by day' })
+  await expect(chart).toBeVisible()
+  await expect(chart.getByRole('img')).toHaveAttribute('aria-label', /^Money in ₹[\d,]+; money out ₹[\d,]+ so far, ₹[\d,]+ by the month's end/)
+  await expect(page.getByTestId('flow-gap')).toHaveText(/short at this rate|to spare/)
+  await expect(page.getByTestId('flow-readout')).toContainText('in ₹')
+})

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { SearchSelect } from '@/components/ui/search-select'
-import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { BarChart3, Download, FileSpreadsheet, Printer, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -8,12 +7,11 @@ import { Card, Skeleton } from '@/components/ui/card'
 import { Input, Segmented } from '@/components/ui/controls'
 import { MonthCalendar } from '@/components/MonthCalendar'
 import { BUDGET_STATUS, BarList, GroupedBars } from '@/dashboard/charts'
-import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatMoneyShort, formatMoneyWhole } from '@/lib/money'
 import { PERIOD_KEYS, financialYear, monthsIn, reportPeriod, type Period, type PeriodKey } from '@/lib/periods'
 import {
-  exportUrl, filterParams, type Account, useAccounts, useBudgetMonths, useCategories, useSpaceId, type Category, type TransactionFilter,
+  exportUrl, useBreakdown, type Account, type Breakdown, useAccounts, useBudgetMonths, useCategories, useSpaceId, type Category, type TransactionFilter,
 } from '@/state/money'
 import { useProfile } from '@/state/profile'
 import { CategoryIcon, Select, accountOptions, categoryOptions } from './parts'
@@ -32,28 +30,6 @@ export interface ReportsSearch {
   category?: string
   tag?: string
   q?: string
-}
-
-/** What GET /reports/breakdown returns (paise). */
-export interface Breakdown {
-  spent: number; earned: number; count: number; days: number
-  byCategory: { categoryId: string | null; kind: 'EXPENSE' | 'INCOME'; amount: number; count: number }[]
-  byMonth: { month: string; spent: number; earned: number }[]
-  byAccount: { accountId: string; spent: number; earned: number; count: number }[]
-  byDay: { day: string; spent: number; earned: number }[]
-  byWeekday: { weekday: number; spent: number; count: number }[]
-  byTag: { tag: string; spent: number; count: number }[]
-  places: { name: string; spent: number; count: number }[]
-  biggest: { id: string; description: string; amount: number; occurredOn: string; categoryId: string | null }[]
-}
-
-function useBreakdown(filter: TransactionFilter) {
-  const spaceId = useSpaceId()
-  return useQuery({
-    queryKey: ['money', spaceId, 'transactions', 'breakdown', filter],
-    queryFn: () => api<Breakdown>(`/api/core/spaces/${spaceId}/reports/breakdown?${filterParams(filter)}`),
-    enabled: !!spaceId,
-  })
 }
 
 /**
@@ -300,8 +276,7 @@ function DayByDay({ period, locale, data, txnSearch }: { period: Period; locale:
   if (!data || data.spent === 0) return null
   const short = (m: number) => formatMoneyShort(m, 'INR', locale)
   const calendar = days <= 42 && view === 'calendar'
-  const spentOn = (day: string) => data.byDay.find((d) => d.day === day)?.spent ?? 0
-  const max = Math.max(1, ...data.byDay.map((d) => d.spent))
+  const on = (day: string) => data.byDay.find((d) => d.day === day)
   const weekdays = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(locale, { weekday: 'short' }))
   return (
     <section aria-label="Day by day" className="flex flex-col gap-2">
@@ -314,8 +289,7 @@ function DayByDay({ period, locale, data, txnSearch }: { period: Period; locale:
       </div>
       {calendar ? (
         <MonthCalendar start={period.from} end={period.to} locale={locale} label="Spending calendar" maxChips={0}
-          heat={(day) => spentOn(day) / max}
-          note={(day) => spentOn(day) > 0 ? <span className="text-critical">−{short(spentOn(day))}</span> : null}
+          flows={(day) => ({ in: on(day)?.earned ?? 0, out: on(day)?.spent ?? 0 })} formatFlow={short}
           chips={() => []}
           actions={(date) => [{ key: 'list', label: "See this day's transactions", onSelect: () => void navigate({ to: '/transactions', search: { ...txnSearch, from: date, to: date } }) }]} />
       ) : (

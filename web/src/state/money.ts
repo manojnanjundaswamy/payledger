@@ -588,3 +588,26 @@ export function useMergeCategory() {
   return useMoneyMutation((spaceId, { id, into }: { id: string; into: string }) =>
     api<{ into: string; moved: number }>(`${base(spaceId)}/categories/${id}/merge`, { method: 'POST', json: { into } }))
 }
+
+/** What GET /reports/breakdown returns (paise). */
+export interface Breakdown {
+  spent: number; earned: number; count: number; days: number
+  byCategory: { categoryId: string | null; kind: 'EXPENSE' | 'INCOME'; amount: number; count: number }[]
+  byMonth: { month: string; spent: number; earned: number }[]
+  byAccount: { accountId: string; spent: number; earned: number; count: number }[]
+  byDay: { day: string; spent: number; earned: number }[]
+  byWeekday: { weekday: number; spent: number; count: number }[]
+  byTag: { tag: string; spent: number; count: number }[]
+  places: { name: string; spent: number; count: number }[]
+  biggest: { id: string; description: string; amount: number; occurredOn: string; categoryId: string | null }[]
+}
+
+export function useBreakdown(filter: TransactionFilter, enabled = true) {
+  const spaceId = useSpaceId()
+  return useQuery({
+    queryKey: ['money', spaceId, 'transactions', 'breakdown', filter],
+    queryFn: () => api<Breakdown>(`${base(spaceId!)}/reports/breakdown?${filterParams(filter)}`),
+    enabled: !!spaceId && enabled,
+  })
+}
+
