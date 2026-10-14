@@ -7,6 +7,7 @@ import { Input, Segmented } from '@/components/ui/controls'
 import { cn } from '@/lib/cn'
 import { categoryTree, useCategories, type Category } from '@/state/money'
 import { CategoryDialog } from './CategoryDialog'
+import { CategoryRules } from './CategoryRules'
 import { CategoryIcon, EditButton } from './parts'
 
 type Kind = Category['kind']
@@ -72,6 +73,8 @@ export function CategoriesPage() {
           </Card>
         </section>
       )}
+
+      {!isPending && <CategoryRules categories={categories} />}
 
       <CategoryDialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)} kind={kind}
         category={editing === 'new' || editing === null ? undefined : editing} />

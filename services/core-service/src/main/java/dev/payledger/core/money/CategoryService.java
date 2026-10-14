@@ -133,8 +133,9 @@ public class CategoryService {
         if (exists("select 1 from categories where parent_id = :id", id)) {
             throw new InUseException("category-has-subcategories", "it has subcategories; move or delete them first");
         }
-        // An unused category's budget is only a setting, so it goes with it.
+        // An unused category's budget and rules are only settings, so they go with it.
         jdbc.sql("delete from budget_limits where category_id = :id").param("id", id).update();
+        jdbc.sql("delete from category_rules where category_id = :id").param("id", id).update();
         jdbc.sql("delete from categories where id = :id").param("id", id).update();
     }
 

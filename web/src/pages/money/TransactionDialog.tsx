@@ -2,7 +2,7 @@ import { uuid7 } from '@/lib/uuid'
 import { SearchSelect } from '@/components/ui/search-select'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input, Segmented } from '@/components/ui/controls'
@@ -10,8 +10,7 @@ import { Dialog } from '@/components/ui/overlay'
 import { ApiError } from '@/lib/api'
 import { minorToInput, parseMoney } from '@/lib/money'
 import {
-  useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useUpdateTransaction,
-  type Transaction, type TransactionFields, type TxnKind,
+  useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useUpdateTransaction, type Transaction, type TransactionFields, type TxnKind, useSpaceId, useSaveCategoryRule, fetchCategoryGuess, ruleWords, type CategoryGuess,
 } from '@/state/money'
 import { Field, TXN_KINDS, today, accountOptions, categoryOptions } from './parts'
 
@@ -83,6 +82,40 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
   }, [open, defaultAccount])
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }))
+
+  // Smart categories: as a new expense or income is described, its category is guessed (your rules first, then
+  // what you chose before). A guess only fills an empty category, or replaces an earlier guess, never your choice.
+  const spaceId = useSpaceId()
+  const saveRule = useSaveCategoryRule()
+  const [guess, setGuess] = useState<CategoryGuess | null>(null)
+  const [guessed, setGuessed] = useState(false)
+  const [remember, setRemember] = useState(false)
+  useEffect(() => {
+    if (open) { setGuess(null); setGuessed(false); setRemember(false) }
+  }, [open, transaction?.id])
+  useEffect(() => {
+    const words = draft.description.trim()
+    if (!open || transaction || draft.kind === 'TRANSFER' || words.length < 2 || !spaceId) return
+    const ctl = new AbortController()
+    const t = setTimeout(() => {
+      fetchCategoryGuess(spaceId, draft.kind as 'EXPENSE' | 'INCOME', words, ctl.signal).then((g) => {
+        setGuess(g)
+        if (g && categories.some((c) => c.id === g.categoryId && !c.hidden) && (draft.categoryId === '' || guessed)) {
+          setDraft((d) => ({ ...d, categoryId: g.categoryId }))
+          setGuessed(true)
+        }
+      }).catch(() => { /* a guess is a nicety; typing goes on */ })
+    }, 350)
+    return () => { clearTimeout(t); ctl.abort() }
+  }, [draft.description, draft.kind, open]) // eslint-disable-line react-hooks/exhaustive-deps
+  const ruleMatch = ruleWords(draft.description)
+  const guessHint = guessed && guess && guess.categoryId === draft.categoryId
+    ? guess.source === 'RULE' ? `From your rule for “${guess.match}”`
+      : guess.source === 'HISTORY' ? `You chose this ${guess.times === 1 ? 'before' : `${guess.times} times`} for “${draft.description.trim()}”`
+        : 'Like your other entries starting with the same word'
+    : undefined
+  const canRemember = !transaction && draft.kind !== 'TRANSFER' && !!draft.categoryId && ruleMatch.length >= 2
+    && !(guessHint && guess?.source === 'RULE')
   const account = accounts.find((a) => a.id === draft.accountId)
   const currency = account?.currency ?? 'INR'
   const choices = useMemo(
@@ -116,7 +149,10 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
         toast.success('Saved')
       } else {
         await create.mutateAsync({ id: clientId, ...fields })
-        toast.success(`${TXN_KINDS[draft.kind].label} added`)
+        const ruled = remember && canRemember
+        if (ruled) await saveRule.mutateAsync({ match: ruleMatch, categoryId: draft.categoryId }).catch(() => undefined)
+        toast.success(`${TXN_KINDS[draft.kind].label} added`, ruled
+          ? { description: `“${ruleMatch}” goes to ${categories.find((c) => c.id === draft.categoryId)?.name} from now on.` } : undefined)
       }
       onOpenChange(false)
     } catch (err) {
@@ -155,6 +191,15 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
           <Input id="txn-amount" inputMode="decimal" autoFocus autoComplete="off" placeholder="0" value={draft.amount}
             onChange={(e) => set('amount', e.target.value)} className="h-12 text-xl font-semibold tabular" />
         </Field>
+        <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+          <Field label="Description" htmlFor="txn-description" hint="Optional: a merchant or a few words">
+            <Input id="txn-description" maxLength={120} placeholder="Swiggy, BigBasket, rent…" value={draft.description}
+              onChange={(e) => set('description', e.target.value)} />
+          </Field>
+          <Field label="Date" htmlFor="txn-date">
+            <Input id="txn-date" type="date" required value={draft.occurredOn} onChange={(e) => set('occurredOn', e.target.value)} />
+          </Field>
+        </div>
         {draft.kind === 'TRANSFER' ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="From" htmlFor="txn-from">
@@ -167,22 +212,20 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Category" htmlFor="txn-category">
-              <SearchSelect id="txn-category" value={draft.categoryId} onChange={(v) => set('categoryId', v)} options={categoryOptions(choices, categories)} />
+              <SearchSelect id="txn-category" value={draft.categoryId} onChange={(v) => { set('categoryId', v); setGuessed(false) }} options={categoryOptions(choices, categories)} />
+              {guessHint && <span className="mt-1 flex items-center gap-1 text-xs text-muted" data-testid="category-guess"><Sparkles className="size-3.5 text-accent" />{guessHint}</span>}
+              {canRemember && (
+                <label className="mt-1 flex items-center gap-2 text-xs text-muted">
+                  <input type="checkbox" className="size-3.5 accent-[var(--accent)]" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                  Always use this for “{ruleMatch}”
+                </label>
+              )}
             </Field>
             <Field label={draft.kind === 'INCOME' ? 'Into' : 'Paid from'} htmlFor="txn-account">
               <SearchSelect id="txn-account" value={draft.accountId} onChange={(v) => set('accountId', v)} options={accountOptions(accounts)} />
             </Field>
           </div>
         )}
-        <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
-          <Field label="Description" htmlFor="txn-description" hint="Optional: a merchant or a few words">
-            <Input id="txn-description" maxLength={120} placeholder="Swiggy, BigBasket, rent…" value={draft.description}
-              onChange={(e) => set('description', e.target.value)} />
-          </Field>
-          <Field label="Date" htmlFor="txn-date">
-            <Input id="txn-date" type="date" required value={draft.occurredOn} onChange={(e) => set('occurredOn', e.target.value)} />
-          </Field>
-        </div>
         <Field label="Note" htmlFor="txn-note">
           <Input id="txn-note" maxLength={1000} value={draft.note} onChange={(e) => set('note', e.target.value)} />
         </Field>
