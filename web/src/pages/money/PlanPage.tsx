@@ -27,12 +27,19 @@ export function PlanPage() {
   // A new bill's first due date, when it was started from a day on the calendar.
   const [newDue, setNewDue] = useState<string>()
   const money = (minor: number) => formatMoneyWhole(minor, 'INR', locale)
-  const { open } = useSearch({ from: '/app/plan' })
+  const { open, due } = useSearch({ from: '/app/plan' })
   const navigate = useNavigate({ from: '/plan' })
   const openById = (id: string) => {
     const c = commitments?.find((x) => x.id === id)
     if (c) setEditing(c)
   }
+  // ?due=<date>: start a bill due that day, then drop it from the URL so a refresh doesn't reopen it.
+  useEffect(() => {
+    if (!due) return
+    setNewDue(due)
+    setEditing('new')
+    void navigate({ search: (s) => ({ ...s, due: undefined }), replace: true })
+  }, [due]) // eslint-disable-line react-hooks/exhaustive-deps
   // ?open=<id>: open that bill once the plan has loaded.
   useEffect(() => {
     if (open && commitments) openById(open)
