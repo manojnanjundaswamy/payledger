@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCaptureCount } from '@/state/capture'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { motion, MotionConfig } from 'motion/react'
 import { Check, CloudOff, Loader2, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Plus, Search } from 'lucide-react'
@@ -136,6 +137,16 @@ function Sidebar({ collapsed, onToggle, pathname }: { collapsed: boolean; onTogg
   )
 }
 
+/** Entries waiting in Auto-capture, on its menu item. */
+function NavCount({ rail }: { rail?: boolean }) {
+  const n = useCaptureCount().data?.pending ?? 0
+  if (!n) return null
+  return (
+    <span className={cn('relative ml-auto rounded-full bg-accent px-1.5 text-[0.625rem] font-semibold leading-4 text-accent-fg tabular',
+      rail && 'absolute top-0.5 right-0.5 ml-0')} aria-label={`${n} to review`}>{n > 99 ? '99+' : n}</span>
+  )
+}
+
 function NavLink({ item, active, rail }: { item: NavItem; active: boolean; rail: boolean }) {
   const link = (
     <Link
@@ -153,6 +164,7 @@ function NavLink({ item, active, rail }: { item: NavItem; active: boolean; rail:
       )}
       <item.icon className={cn('relative size-[18px] shrink-0', active && 'text-accent')} />
       {!rail && <span className="relative truncate">{item.label}</span>}
+      {item.badge && <NavCount rail={rail} />}
     </Link>
   )
   return rail ? <Tooltip content={item.label} side="right">{link}</Tooltip> : link
@@ -235,7 +247,7 @@ function MobileTabBar({ pathname }: { pathname: string }) {
           {nav.filter((n) => !n.primary).map((item) => (
             <Link key={item.to} to={item.to} onClick={() => setMore(false)}
               className="flex flex-col items-center gap-2 rounded-card border border-border p-4 text-sm font-medium hover:bg-surface-2">
-              <item.icon className="size-5 text-muted" />
+              <span className="relative"><item.icon className="size-5 text-muted" />{item.badge && <span className="absolute -top-2 -right-3"><NavCount /></span>}</span>
               {item.label}
             </Link>
           ))}

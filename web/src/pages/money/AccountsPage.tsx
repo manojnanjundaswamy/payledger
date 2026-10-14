@@ -128,7 +128,7 @@ function AccountCard({ account: a, range, onEdit }: { account: Account; range: R
   const latest = data?.recent[0]
 
   return (
-    <Card className={cn('flex flex-col gap-3 p-pad', a.archived && 'opacity-70')} data-testid={`account-${a.name}`}>
+    <Card className={cn('flex min-w-0 flex-col gap-3 p-pad', a.archived && 'opacity-70')} data-testid={`account-${a.name}`}>
       <div className="flex items-start gap-3">
         <Link to="/transactions" search={{ account: a.id }} aria-label={`${a.name} transactions`} className="flex min-w-0 flex-1 items-start gap-3 hover:underline-offset-4">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted"><Icon className="size-5" /></span>
@@ -167,7 +167,7 @@ function AccountCard({ account: a, range, onEdit }: { account: Account; range: R
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
         {latest
-          ? <Link to="/transactions" search={{ open: latest.id }} className="min-w-0 truncate hover:text-fg hover:underline">Latest: {latest.description} · {money(latest.amount, a.currency)} · {dayLabel(latest.occurredOn, locale)}</Link>
+          ? <Link to="/transactions" search={{ open: latest.id }} className="min-w-0 max-w-full truncate hover:text-fg hover:underline">Latest: {latest.description} · {money(latest.amount, a.currency)} · {dayLabel(latest.occurredOn, locale)}</Link>
           : <span>No entries yet</span>}
         {goal && <Link to="/goals" className="flex items-center gap-1 hover:text-fg hover:underline"><GoalIcon className="size-3.5" />Saving for {goal.name}</Link>}
       </div>

@@ -1,3 +1,5 @@
+import { CountUp } from '@/components/CountUp'
+import { Progress } from '@/dashboard/charts'
 import { Link } from '@tanstack/react-router'
 import { cn } from '@/lib/cn'
 import { formatMoneyWhole } from '@/lib/money'
@@ -41,7 +43,7 @@ export function SafeToSpendCard({ compact }: { compact?: boolean }) {
         {!compact && <p className="text-sm text-muted">Safe to spend</p>}
         <div className={cn('font-semibold tracking-tight tabular', compact ? 'text-[2.25rem] leading-none' : 'text-4xl', short && 'text-critical')}
           data-testid="safe-to-spend">
-          {short ? `${money(-s.safeToSpend)} short` : money(s.safeToSpend)}
+          {short ? `${money(-s.safeToSpend)} short` : <CountUp to={s.safeToSpend} format={money} />}
         </div>
         <p className="mt-2 text-sm text-muted">
           {short
@@ -49,6 +51,7 @@ export function SafeToSpendCard({ compact }: { compact?: boolean }) {
             : <>about <span className="font-medium text-fg">{money(s.perDay ?? 0)}</span> a day for the next {s.daysLeft} day{s.daysLeft === 1 ? '' : 's'}</>}
         </p>
       </div>
+      {compact && <MonthSoFar income={s.income ?? 0} spent={s.spent ?? 0} start={s.start} end={s.end} daysLeft={s.daysLeft} />}
       <nav aria-label="Where it comes from" className={cn('grid grid-cols-2 gap-x-4 gap-y-1 text-xs', lines.length > 4 ? 'sm:grid-cols-5' : 'sm:grid-cols-4')}>
         {lines.map(([label, value, to]) => (
           <Link key={label} to={to} search={to === '/reports' ? { period: 'this-month' } : {}} className="-m-1 flex flex-col rounded-control p-1 hover:bg-surface-2">
@@ -57,6 +60,26 @@ export function SafeToSpendCard({ compact }: { compact?: boolean }) {
           </Link>
         ))}
       </nav>
+    </div>
+  )
+}
+
+/** Spent against income so far, with a mark for how much of the month has gone: ahead of the mark is spending fast. */
+function MonthSoFar({ income, spent, start, end, daysLeft }: { income: number; spent: number; start: string; end: string; daysLeft: number }) {
+  const total = Math.max(1, Math.round((Date.parse(end) - Date.parse(start)) / 86_400_000) + 1)
+  const gone = Math.min(1, Math.max(0, 1 - daysLeft / total))
+  const used = income > 0 ? spent / income : 0
+  const fast = used > gone + 0.1
+  return (
+    <div className="flex flex-col gap-1.5" data-testid="month-so-far">
+      <div className="flex justify-between gap-2 text-xs text-muted">
+        <span>Spent <span className={cn('font-medium', fast ? 'text-critical' : 'text-fg')}>{Math.round(used * 100)}%</span> of income</span>
+        <span>{Math.round(gone * 100)}% of the month gone</span>
+      </div>
+      <div className="relative">
+        <Progress value={used} color={fast ? 'var(--critical)' : undefined} label="Share of income spent" />
+        <span className="absolute -top-1 h-4 w-0.5 rounded bg-fg" style={{ left: `${gone * 100}%` }} aria-hidden title="Today" />
+      </div>
     </div>
   )
 }

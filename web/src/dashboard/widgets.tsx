@@ -6,7 +6,7 @@ import { api } from '@/lib/api'
 import { useGroups, type GroupBalances } from '@/state/groups'
 import {
   ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BarChart3, CalendarClock, Check, Goal, Home, ListChecks, ListOrdered,
-  PieChart, Rocket, StickyNote, Upload, Users, Wallet, Zap,
+  Inbox, Landmark, PieChart, Rocket, StickyNote, Upload, Users, Wallet, Zap,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
@@ -20,6 +20,8 @@ import {
   daysUntil, isoDate, useAccounts, useBudgets, useCategories, useCategoryTotals, useDue, useTransactions, type Budget, type Category,
 } from '@/state/money'
 import { SafeToSpendCard } from '@/pages/money/SafeToSpendCard'
+import { CountUp } from '@/components/CountUp'
+import { useCapture } from '@/state/capture'
 
 export interface WidgetProps { widget: Widget; dashboardId: string; editing: boolean }
 
@@ -78,9 +80,19 @@ function RealBudgets({ widget }: { widget: Widget }) {
     )
   }
   const ratio = (b: Budget) => (b.spent ?? 0) / b.limit
-  const rows = [...month.budgets].sort((a, b) => ratio(b) - ratio(a)).slice(0, widget.size === 's' ? 3 : 5)
+  const rows = [...month.budgets].sort((a, b) => ratio(b) - ratio(a)).slice(0, widget.size === 's' ? 3 : 8)
+  const limit = month.budgets.reduce((t, b) => t + (b.available ?? b.limit), 0)
+  const spent = month.budgets.reduce((t, b) => t + (b.spent ?? 0), 0)
+  const over = month.budgets.filter((b) => b.status === 'OVER').length
   return (
     <div className="flex flex-col gap-3">
+      {widget.size !== 's' && (
+        <p className="text-sm text-muted">
+          <span className="font-semibold text-fg"><CountUp to={spent} format={(v) => money(v, { whole: true })} /></span> of {money(limit, { whole: true })} budgeted
+          {over > 0 && <span className="text-critical"> · {over} over</span>}
+          {month.budgets.length > rows.length && <span className="text-subtle"> · {month.budgets.length - rows.length} more</span>}
+        </p>
+      )}
       <ul className="flex flex-col gap-3.5">
         {rows.map((b) => {
           const name = categories.find((c) => c.id === b.categoryId)?.name ?? 'Category'
@@ -191,7 +203,10 @@ function RealCashFlow() {
   if (income.isPending || spending.isPending) return <div className="h-40 animate-pulse rounded-control bg-surface-2" />
   const sum = (rows: { month: string | null; amount: number }[], month: string) =>
     rows.filter((r) => r.month === month).reduce((total, r) => total + r.amount, 0)
-  const months = Array.from({ length: 6 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - 5 + i, 1))
+  const all = Array.from({ length: 6 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - 5 + i, 1))
+  // Empty months before the first entry say nothing: start where the data starts (always show three).
+  const first = all.findIndex((m) => sum(income.data, isoDate(m)) > 0 || sum(spending.data, isoDate(m)) > 0)
+  const months = all.slice(Math.min(first < 0 ? 3 : first, 3))
   return (
     <GroupedBars
       data={months.map((m) => ({
@@ -504,7 +519,7 @@ function GettingStarted() {
   const { prefs, profile, real } = useWidgetEnv()
   const steps: { done: boolean; label: string; tab: SettingsTab | null; to?: '/welcome' }[] = [
     { done: true, label: 'Create your account', tab: null },
-    { done: prefs.theme.accent !== null || prefs.theme.mode !== 'system', label: 'Make it yours: pick a theme', tab: 'appearance' },
+    { done: prefs.theme.accent !== null || prefs.theme.palette !== 'classic' || prefs.theme.mode !== 'system', label: 'Make it yours: pick a theme', tab: 'appearance' },
     { done: profile.settings.budgetStartDay !== 1, label: 'Set the day your month starts (payday)', tab: 'regional' },
     { done: prefs.dashboards.length > 1 || prefs.dashboards.some((d) => d.widgets.some((w) => w.title || w.type === 'note')), label: 'Customize a dashboard', tab: 'dashboards' },
     { done: real, label: 'Set up your accounts and bills (2 minutes)', tab: null, to: '/welcome' },
@@ -594,30 +609,82 @@ export const WIDGETS = {
   groups: { name: 'Groups & balances', description: 'Who owes whom in your groups.', icon: Users, defaultSize: 'm', sample: true, component: Groups },
   goals: { name: 'Savings goals', description: 'Progress towards what you are saving for.', icon: Goal, defaultSize: 'm', sample: true, component: Goals },
   household: { name: 'Household', description: 'The family budget and who paid what.', icon: Home, defaultSize: 'l', sample: true, component: Household },
+  toReview: { name: 'To review', description: 'Bank alerts waiting to be added (Auto-capture).', icon: Inbox, defaultSize: 's', sample: false, component: ToReview },
+  netWorth: { name: 'Net worth', description: 'What you have minus what you owe, by kind of account.', icon: Landmark, defaultSize: 'm', sample: false, component: NetWorth },
   quickActions: { name: 'Quick actions', description: 'One tap to record or split.', icon: Zap, defaultSize: 'm', sample: false, component: QuickActions },
   note: { name: 'Note', description: 'A sticky note for reminders and plans.', icon: StickyNote, defaultSize: 's', sample: false, component: Note },
 } as const satisfies Record<Widget['type'], {
   name: string; description: string; icon: typeof Wallet; defaultSize: Widget['size']; sample: boolean; component: (p: WidgetProps) => React.ReactNode
 }>
 
-function CountUp({ to, format }: { to: number; format: (v: number) => string }) {
-  const [value, setValue] = useState(to)
-  useEffect(() => {
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === 'reduced') {
-      setValue(to)
-      return
-    }
-    const start = performance.now()
-    let frame = 0
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / 700)
-      setValue(Math.round(to * (1 - (1 - t) ** 3)))
-      if (t < 1) frame = requestAnimationFrame(tick)
-    }
-    frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
-  }, [to])
-  return <span className="tabular">{format(value)}</span>
+/** Auto-capture's waiting entries: the count, the first few, one tap to review. */
+function ToReview() {
+  const { money } = useWidgetEnv()
+  const { data, isPending } = useCapture()
+  if (isPending) return <div className="h-24 animate-pulse rounded-control bg-surface-2" />
+  const pending = (data?.items ?? []).filter((i) => i.status === 'PENDING')
+  if (!data || pending.length === 0) {
+    return (
+      <div className="flex min-h-24 flex-col items-start justify-center gap-1.5 text-sm text-muted">
+        {data?.lastEmailAt ? 'All caught up: nothing waiting.' : 'Forward bank emails or paste SMS, and entries wait here to be checked.'}
+        <Link to="/capture" className="text-fg underline underline-offset-4">{data?.lastEmailAt ? 'Paste SMS' : 'Set up auto-capture'}</Link>
+      </div>
+    )
+  }
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-sm text-muted"><span className="text-2xl font-semibold text-fg"><CountUp to={pending.length} format={String} /></span> to review</p>
+      <ul className="flex flex-col gap-1">
+        {pending.slice(0, 3).map((i) => (
+          <li key={i.id} className="flex items-center justify-between gap-3 text-sm">
+            <span className="min-w-0 truncate">{i.merchant ?? i.bank ?? 'Bank alert'}</span>
+            <span className={cn('shrink-0 tabular', i.kind === 'INCOME' ? 'text-[var(--flow-in)]' : 'text-[var(--flow-out)]')}>
+              {i.kind === 'INCOME' ? '+' : '−'}{money(i.amount ?? 0, { whole: true })}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <Link to="/capture" className="self-start rounded-control bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90">Review {pending.length > 1 ? 'them' : 'it'}</Link>
+    </div>
+  )
+}
+
+/** What you have minus what you owe, across your accounts, by kind. */
+function NetWorth() {
+  const { money } = useWidgetEnv()
+  const { data: accounts, isPending } = useAccounts()
+  if (isPending) return <div className="h-24 animate-pulse rounded-control bg-surface-2" />
+  const live = (accounts ?? []).filter((a) => !a.archived && a.currency === 'INR' && a.balance !== null)
+  if (live.length === 0) {
+    return <div className="flex min-h-24 flex-col items-start justify-center gap-1.5 text-sm text-muted">Add your accounts to see your net worth.<Link to="/accounts" className="text-fg underline underline-offset-4">Accounts</Link></div>
+  }
+  const by = (kinds: string[]) => live.filter((a) => kinds.includes(a.kind)).reduce((t, a) => t + (a.balance ?? 0), 0)
+  // A card's balance is what you owe on it; "Friends & groups" below zero is what you owe friends.
+  const parts = [
+    { label: 'Bank', value: by(['BANK']), slot: 1 }, { label: 'Cash & wallets', value: by(['CASH', 'WALLET']), slot: 3 },
+    { label: 'Friends owe you', value: by(['OWED']), slot: 4 }, { label: 'Cards owed', value: -by(['CARD']), slot: 2 },
+  ].filter((p) => p.value !== 0)
+  const net = parts.reduce((t, p) => t + p.value, 0)
+  const scale = Math.max(1, ...parts.map((p) => Math.abs(p.value)))
+  return (
+    <Link to="/accounts" className="-m-1 flex flex-col gap-3 rounded-control p-1 hover:bg-surface-2/50">
+      <span className={cn('text-[2rem] leading-none font-semibold tracking-tight', net < 0 && 'text-critical')}>
+        <CountUp to={net} format={(v) => money(v, { whole: true })} />
+      </span>
+      <ul className="flex flex-col gap-2">
+        {parts.map((p) => (
+          <li key={p.label} className="grid grid-cols-[7rem_1fr_auto] items-center gap-2 text-xs">
+            <span className="text-muted">{p.label}</span>
+            <span className="h-1.5 overflow-hidden rounded-full bg-surface-2">
+              <span className="block h-full origin-left animate-[grow-x_700ms_cubic-bezier(.2,.8,.2,1)] rounded-full"
+                style={{ width: `${(Math.abs(p.value) / scale) * 100}%`, background: p.value < 0 ? 'var(--critical)' : `var(--series-${p.slot})` }} />
+            </span>
+            <span className={cn('tabular', p.value < 0 ? 'text-critical' : 'text-fg')}>{p.value < 0 ? '−' : ''}{money(Math.abs(p.value), { compact: true })}</span>
+          </li>
+        ))}
+      </ul>
+    </Link>
+  )
 }
 
 function relativeDay(daysAgo: number) {

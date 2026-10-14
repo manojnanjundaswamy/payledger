@@ -53,6 +53,7 @@ public class DataRightsService {
         out.put("billsAndSavings", rows("select * from commitments where space_id in (" + MY_SPACES + ") order by created_at", u));
         out.put("billPayments", rows("select p.* from commitment_payments p join commitments c on c.id = p.commitment_id where c.space_id in (" + MY_SPACES + ")", u));
         out.put("goals", rows("select * from goals where space_id in (" + MY_SPACES + ") order by created_at", u));
+        out.put("capturedItems", rows("select id, source, status, sender, subject, body, kind, amount, occurred_on, merchant, bank, received_at from captured_items where user_id = :u order by received_at", u));
         out.put("goalContributions", rows("select c.* from goal_contributions c join goals g on g.id = c.goal_id where g.space_id in (" + MY_SPACES + ")", u));
         out.put("categoryRules", rows("select * from category_rules where space_id in (" + MY_SPACES + ") order by match", u));
         out.put("imports", rows("select * from imports where space_id in (" + MY_SPACES + ") order by created_at", u));
@@ -106,6 +107,10 @@ public class DataRightsService {
                 jdbc.sql("update group_members set user_id = null, email = null where group_id = :g and user_id = :u").param("g", g).param("u", u).update();
             }
         }
+
+        // Auto-capture: your address and anything waiting to be reviewed.
+        jdbc.sql("delete from captured_items where user_id = :u").param("u", u).update();
+        jdbc.sql("delete from capture_addresses where user_id = :u").param("u", u).update();
 
         // Group bookings: which of your accounts you paid from.
         jdbc.sql("delete from group_entry_accounts where user_id = :u").param("u", u).update();

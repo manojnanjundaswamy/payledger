@@ -61,14 +61,16 @@ export function BillSuggestions({ money }: { money: (m: number) => string }) {
       <Card className="divide-y divide-border p-0">
         {shown.map((s) => (
           <div key={s.name} className="flex flex-wrap items-center gap-3 px-pad py-3" data-testid={`suggestion-${s.name}`}>
-            <span className="min-w-0 flex-1">
+            <span className="min-w-0 flex-1 max-sm:basis-full">
               <span className="block truncate font-medium">{s.name}</span>
               <span className="block text-xs text-subtle">
                 {money(s.amount)} around the {ordinal(s.dayOfMonth)} · {categories.find((c) => c.id === s.categoryId)?.name ?? 'Category'} · seen in {s.months} months
               </span>
             </span>
-            <Button size="sm" variant="ghost" onClick={() => dismiss(s.name)} aria-label={`${s.name} is not a bill`}><X />Not a bill</Button>
-            <Button size="sm" variant="outline" onClick={() => add(s)} disabled={create.isPending}><Plus />Add to plan</Button>
+            <span className="ml-auto flex items-center gap-1">
+              <Button size="sm" variant="ghost" onClick={() => dismiss(s.name)} aria-label={`${s.name} is not a bill`}><X />Not a bill</Button>
+              <Button size="sm" variant="outline" onClick={() => add(s)} disabled={create.isPending}><Plus />Add to plan</Button>
+            </span>
           </div>
         ))}
       </Card>

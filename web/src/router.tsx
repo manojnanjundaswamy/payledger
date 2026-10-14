@@ -177,6 +177,17 @@ const groups = createRoute({
   component: lazyRouteComponent(() => import('@/pages/groups/GroupsPage'), 'GroupsPage'),
 })
 
+const capture = createRoute({
+  getParentRoute: () => app,
+  path: '/capture',
+  // Android's share sheet opens /capture?title=…&text=… (the manifest's share_target).
+  validateSearch: z.object({
+    text: z.string().max(20_000).optional().catch(undefined), title: z.string().max(500).optional().catch(undefined),
+    method: z.enum(['email', 'paste', 'share']).optional().catch(undefined),
+  }),
+  component: lazyRouteComponent(() => import('@/pages/capture/CapturePage'), 'CapturePage'),
+})
+
 const tax = createRoute({
   getParentRoute: () => app,
   path: '/tax',
@@ -259,7 +270,7 @@ const utilities = createRoute({
 const comingSoon = (Object.keys(COMING) as (keyof typeof COMING)[]).map((page) =>
   createRoute({ getParentRoute: () => app, path: `/${page}`, component: () => <ComingSoon page={page} /> }))
 
-const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, categories, budgets, plan, goals, importPage, reports, groups, group, people, tax, join, transactions, admin, welcome, utilities, ...comingSoon])])
+const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, categories, budgets, plan, goals, importPage, reports, groups, group, people, tax, capture, join, transactions, admin, welcome, utilities, ...comingSoon])])
 
 export function createAppRouter(queryClient: QueryClient) {
   return createRouter({

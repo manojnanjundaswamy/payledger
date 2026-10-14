@@ -1,5 +1,5 @@
 import {
-  ArrowLeftRight, BarChart3, Calculator, CalendarClock, Goal, Home, LayoutDashboard, PieChart, Settings, ShieldCheck, Tags, UserRoundPlus, Users, Wallet, type LucideIcon,
+  ArrowLeftRight, BarChart3, Inbox, Calculator, CalendarClock, Goal, Home, LayoutDashboard, PieChart, Settings, ShieldCheck, Tags, UserRoundPlus, Users, Wallet, type LucideIcon,
 } from 'lucide-react'
 import { useProfile } from '@/state/profile'
 
@@ -10,6 +10,8 @@ export interface NavItem {
   section: 'money' | 'together' | 'app'
   /** shown in the phone tab bar */
   primary?: boolean
+  /** a count shown next to it: entries waiting in Auto-capture */
+  badge?: 'capture'
   /** only for PayLedger staff (the admin console) */
   staff?: boolean
 }
@@ -17,6 +19,7 @@ export interface NavItem {
 export const NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, section: 'money', primary: true },
   { to: '/transactions', label: 'Transactions', icon: ArrowLeftRight, section: 'money', primary: true },
+  { to: '/capture', label: 'Auto-capture', icon: Inbox, section: 'money', badge: 'capture' },
   { to: '/budgets', label: 'Budgets', icon: PieChart, section: 'money', primary: true },
   { to: '/accounts', label: 'Accounts', icon: Wallet, section: 'money' },
   { to: '/categories', label: 'Categories', icon: Tags, section: 'money' },

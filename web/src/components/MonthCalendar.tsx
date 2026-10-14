@@ -53,15 +53,22 @@ export function MonthCalendar({ start, end, locale, chips, note, actions, heat, 
   const days: Date[] = []
   for (let d = new Date(first); d <= last; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) days.push(d)
   const lead = (first.getDay() + 6) % 7
-  const weekdays = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(locale, { weekday: 'short' }))
+  const weekdays = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i)).map((d) => ({
+    short: d.toLocaleDateString(locale, { weekday: 'short' }), narrow: d.toLocaleDateString(locale, { weekday: 'narrow' }),
+  }))
   const today = isoDay(new Date())
   const maxFlow = flows ? Math.max(1, ...days.map((d) => { const f = flows(isoDay(d)); return Math.abs(f.in - f.out) })) : 1
 
   return (
     <div className="flex flex-col gap-2">
-    <div className="overflow-x-auto rounded-card border border-border bg-surface" role="grid" aria-label={label}>
-      <div className="grid min-w-[42rem] grid-cols-7">
-        {weekdays.map((w) => <div key={w} className="border-b border-border px-2 py-1.5 text-xs font-medium text-muted">{w}</div>)}
+    {/* Fits any width: on a phone (a narrow container) a day shows its date, the net and a dot per item; tapping it lists them. */}
+    <div className="@container rounded-card border border-border bg-surface" role="grid" aria-label={label}>
+      <div className="grid grid-cols-7">
+        {weekdays.map((w) => (
+          <div key={w.short} className="border-b border-border px-1 py-1.5 text-center text-xs font-medium text-muted @2xl:px-2 @2xl:text-left">
+            <span className="@md:hidden">{w.narrow}</span><span className="hidden @md:inline">{w.short}</span>
+          </div>
+        ))}
         {Array.from({ length: lead }, (_, i) => <div key={`lead-${i}`} className="border-b border-border bg-surface-2/40" />)}
         {days.map((day) => {
           const key = isoDay(day)
@@ -75,7 +82,7 @@ export function MonthCalendar({ start, end, locale, chips, note, actions, heat, 
             <DropdownMenu.Root key={key}>
               <DropdownMenu.Trigger asChild>
                 <div role="button" tabIndex={0} data-testid={`day-${key}`} aria-label={day.toLocaleDateString(locale, { day: 'numeric', month: 'long' })}
-                  className={cn('relative flex min-h-20 cursor-pointer flex-col gap-1 border-b border-l border-border p-1.5 text-left outline-none hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-[var(--accent)] data-[state=open]:bg-surface-2',
+                  className={cn('relative flex min-h-14 min-w-0 cursor-pointer flex-col gap-0.5 border-b border-l border-border p-1 text-left @2xl:min-h-20 @2xl:gap-1 @2xl:p-1.5 outline-none hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-[var(--accent)] data-[state=open]:bg-surface-2',
                     key === today && 'bg-accent-soft')}>
                   {h > 0 && <span aria-hidden className="pointer-events-none absolute inset-0 bg-critical" style={{ opacity: 0.04 + h * 0.16 }} />}
                   {f && net !== 0 && (
@@ -84,12 +91,24 @@ export function MonthCalendar({ start, end, locale, chips, note, actions, heat, 
                   )}
                   <span className={cn('relative flex items-baseline justify-between gap-1 text-xs tabular', key === today ? 'font-semibold text-fg' : 'text-muted')}>
                     {day.getDate() === 1 || key === start ? day.toLocaleDateString(locale, { day: 'numeric', month: 'short' }) : day.getDate()}
-                    {note && <span className="truncate text-[0.6875rem] font-medium">{note(key)}</span>}
+                    {note && <span className="hidden truncate text-[0.6875rem] font-medium @2xl:inline">{note(key)}</span>}
                   </span>
+                  {f && net !== 0 && formatFlow && (
+                    <span aria-hidden className={cn('relative truncate text-[0.625rem] leading-tight font-semibold tabular @2xl:hidden', net > 0 ? 'text-[var(--flow-in)]' : 'text-[var(--flow-out)]')}>
+                      {net > 0 ? '+' : '−'}{formatFlow(Math.abs(net))}
+                    </span>
+                  )}
                   {f && (f.in > 0 || f.out > 0) && formatFlow && (
-                    <span className="relative flex flex-col items-end text-[0.6875rem] leading-tight font-medium tabular" data-testid={`flow-${key}`}>
+                    <span className="relative hidden flex-col items-end text-[0.6875rem] leading-tight font-medium tabular @2xl:flex" data-testid={`flow-${key}`}>
                       {f.in > 0 && <span className="text-[var(--flow-in)]">+{formatFlow(f.in)}</span>}
                       {f.out > 0 && <span className="text-[var(--flow-out)]">−{formatFlow(f.out)}</span>}
+                    </span>
+                  )}
+                  {items.length > 0 && (
+                    <span aria-hidden className="relative mt-auto flex flex-wrap gap-0.5 @2xl:hidden">
+                      {items.slice(0, 6).map((x) => (
+                        <span key={x.id} className={cn('size-1.5 rounded-full', x.tone === 'done' || x.tone === 'good' ? 'bg-good' : x.tone === 'critical' ? 'bg-critical' : 'bg-fg/50')} />
+                      ))}
                     </span>
                   )}
                   {shown.map((x) => (
@@ -97,13 +116,13 @@ export function MonthCalendar({ start, end, locale, chips, note, actions, heat, 
                       // A chip opens its item at once; the rest of the day opens the menu.
                       onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); x.onOpen?.() }} aria-label={`Open ${x.label}`}
-                      className={cn('relative truncate rounded px-1 py-0.5 text-left text-[0.6875rem] leading-tight hover:ring-1 hover:ring-border-strong',
+                      className={cn('relative hidden truncate rounded px-1 py-0.5 text-left @2xl:block text-[0.6875rem] leading-tight hover:ring-1 hover:ring-border-strong',
                         x.tone === 'done' ? 'bg-good/10 text-good-text line-through decoration-1' : x.tone === 'good' ? 'bg-good/10 text-good-text'
                           : x.tone === 'critical' ? 'bg-critical/10 text-critical' : 'bg-surface-2 text-fg')}>
                       {x.label}
                     </button>
                   ))}
-                  {items.length > shown.length && <span className="relative text-[0.6875rem] text-subtle">+{items.length - shown.length} more</span>}
+                  {items.length > shown.length && <span className="relative hidden text-[0.6875rem] text-subtle @2xl:inline">+{items.length - shown.length} more</span>}
                 </div>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
@@ -129,10 +148,10 @@ export function MonthCalendar({ start, end, locale, chips, note, actions, heat, 
       </div>
     </div>
     {flows && (
-      <p className="flex items-center gap-4 px-1 text-xs text-muted">
+      <p className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-muted">
         <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-[var(--flow-in)]" />Money in</span>
         <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-[3px] bg-[var(--flow-out)]" />Money out</span>
-        <span className="text-subtle">A day's colour shows which was more.</span>
+        <span className="text-subtle">A day's colour shows which was more. Tap a day to see it.</span>
       </p>
     )}
     </div>

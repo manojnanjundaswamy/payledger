@@ -43,7 +43,7 @@ export function Segmented<T extends string>({ value, onChange, options, label, c
       aria-label={label}
       value={value}
       onValueChange={(v) => onChange(v as T)}
-      className={cn('inline-flex rounded-control border border-border bg-surface-2 p-0.5', className)}
+      className={cn('inline-flex max-w-full overflow-x-auto rounded-control border border-border bg-surface-2 p-0.5 [scrollbar-width:none]', className)}
     >
       {options.map((o) => (
         <RadioGroup.Item

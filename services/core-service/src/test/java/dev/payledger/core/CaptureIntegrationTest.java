@@ -1,0 +1,133 @@
+package dev.payledger.core;
+
+import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+
+import java.util.List;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+/** Auto-capture: pasted SMS and forwarded emails wait in "To review", with guesses, and become transactions only when added. */
+@Import(TestcontainersConfiguration.class)
+@SpringBootTest(properties = {"payledger.capture.inbound-secret=test-inbound-secret", "payledger.capture.domain=in.example.com"})
+@AutoConfigureMockMvc
+class CaptureIntegrationTest {
+
+    @Autowired MockMvc mvc;
+    @Autowired JdbcClient jdbc;
+
+    @Test
+    void pastedAndForwardedAlertsWaitForReviewAndBecomeTransactionsWhenAdded() throws Exception {
+        var me = user();
+        String space = JsonPath.read(body(get("/api/core/me"), me, null), "$.spaces[0].id");
+        String hdfc = JsonPath.read(body(post("/api/core/spaces/" + space + "/accounts"), me, "{\"kind\":\"BANK\",\"name\":\"HDFC Salary\",\"openingBalance\":0}"), "$.id");
+
+        String view = body(get("/api/core/capture"), me, null);
+        String address = JsonPath.read(view, "$.address");
+        assertThat(address).endsWith("@in.example.com");
+        assertThat(JsonPath.<Boolean>read(view, "$.emailReady")).isTrue();
+
+        // Two SMS and an OTP pasted together: two entries, the OTP is ignored.
+        String paste = """
+                Rs.450.00 debited from a/c **1234 on 14-10-26 to VPA swiggy@icici (UPI Ref No 428910283746) - HDFC Bank
+
+                Your A/C XXXXX12345 Credited INR 5,000.00 on 13/10/26 by NEHA SHARMA. Avl Bal INR 45,210.00 - HDFC Bank
+
+                123456 is your OTP for Rs 999 at Amazon. Do not share it.
+                """;
+        String pasted = body(post("/api/core/capture/paste"), me, "{\"text\":" + json(paste) + "}");
+        assertThat(JsonPath.<Integer>read(pasted, "$.added")).isEqualTo(2);
+        assertThat(JsonPath.<String>read(pasted, "$.items[0].accountId")).isEqualTo(hdfc);
+        // The same again: nothing new.
+        assertThat(JsonPath.<Integer>read(body(post("/api/core/capture/paste"), me, "{\"text\":" + json(paste) + "}"), "$.duplicates")).isEqualTo(2);
+
+        String swiggy = JsonPath.<List<String>>read(pasted, "$.items[?(@.merchant == 'Swiggy')].id").getFirst();
+        String neha = JsonPath.<List<String>>read(pasted, "$.items[?(@.merchant == 'Neha Sharma')].id").getFirst();
+        String other = JsonPath.<List<String>>read(body(get("/api/core/spaces/" + space + "/categories"), me, null), "$[?(@.name == 'Eating out')].id").getFirst();
+        body(post("/api/core/capture/items/" + swiggy + "/add"), me, "{\"accountId\":\"" + hdfc + "\",\"categoryId\":\"" + other + "\"}");
+        body(post("/api/core/capture/items/" + neha + "/dismiss"), me, null);
+        assertThat(jdbc.sql("select count(*) from transactions where space_id = ?::uuid and description = 'Swiggy' and amount = 45000 and 'captured' = any(tags)")
+                .param(space).query(Long.class).single()).isEqualTo(1);
+        // Added or dismissed, the original text is let go.
+        assertThat(jdbc.sql("select count(*) from captured_items where id in (?::uuid, ?::uuid) and body is null").params(swiggy, neha).query(Long.class).single()).isEqualTo(2);
+        mvc.perform(post("/api/core/capture/items/" + swiggy + "/add").with(me).contentType(MediaType.APPLICATION_JSON).content("{\"accountId\":\"" + hdfc + "\"}"))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("already-decided"));
+
+        // Someone else can't touch it.
+        mvc.perform(post("/api/core/capture/items/" + swiggy + "/dismiss").with(user())).andExpect(status().isNotFound());
+
+        // A forwarded email, through the Email Worker's door.
+        String email = """
+                From: HDFC Bank InstaAlerts <alerts@hdfcbank.net>
+                To: someone@gmail.com
+                Subject: You have done a UPI txn. Check details!
+                Message-ID: <abc123@hdfcbank.net>
+                Content-Type: text/html; charset=UTF-8
+
+                <html><body><p>Dear Customer, Rs.799.00 has been debited from account **1234 to VPA netflix@hdfcbank on 15-10-26.</p></body></html>
+                """.replace("\n", "\r\n");
+        mvc.perform(post("/inbound/email").header("X-Inbound-Secret", "wrong").header("X-Envelope-To", address).content(email))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/inbound/email").header("X-Inbound-Secret", "test-inbound-secret").header("X-Envelope-To", address).content(email))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result").value("added"));
+        mvc.perform(post("/inbound/email").header("X-Inbound-Secret", "test-inbound-secret").header("X-Envelope-To", address).content(email))
+                .andExpect(jsonPath("$.result").value("duplicate"));
+        mvc.perform(post("/inbound/email").header("X-Inbound-Secret", "test-inbound-secret").header("X-Envelope-To", "nobody@in.example.com").content(email))
+                .andExpect(jsonPath("$.result").value("unknown-address"));
+
+        // Gmail's forwarding confirmation: its code is shown in the app.
+        String gmail = """
+                From: Gmail Team <forwarding-noreply@google.com>
+                Subject: (#123456789) Gmail Forwarding Confirmation - Receive Mail from someone@gmail.com
+                Content-Type: text/plain
+
+                someone@gmail.com has requested to automatically forward mail to your email address.
+                Confirmation code: 123456789
+                To allow someone@gmail.com to automatically forward mail to your address, please click the link below to confirm the request:
+                https://mail-settings.google.com/mail/vf-%5BANGjdJ%5D-abc
+                """.replace("\n", "\r\n");
+        mvc.perform(post("/inbound/email").header("X-Inbound-Secret", "test-inbound-secret").header("X-Envelope-To", address).content(gmail))
+                .andExpect(jsonPath("$.result").value("gmail-confirmation"));
+        mvc.perform(get("/api/core/capture").with(me))
+                .andExpect(jsonPath("$.confirmation.code").value("123456789"))
+                .andExpect(jsonPath("$.confirmation.link").value("https://mail-settings.google.com/mail/vf-%5BANGjdJ%5D-abc"))
+                .andExpect(jsonPath("$.pending").value(1))
+                .andExpect(jsonPath("$.items[0].merchant").value("Netflix"));
+
+        // A new address: the old one stops working.
+        body(post("/api/core/capture/address/reset"), me, null);
+        mvc.perform(post("/inbound/email").header("X-Inbound-Secret", "test-inbound-secret").header("X-Envelope-To", address).content(email))
+                .andExpect(jsonPath("$.result").value("unknown-address"));
+    }
+
+    private static String json(String s) {
+        return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\"";
+    }
+
+    private String body(MockHttpServletRequestBuilder request, RequestPostProcessor who, String json) throws Exception {
+        if (json != null) {
+            request.contentType(MediaType.APPLICATION_JSON).content(json);
+        }
+        return mvc.perform(request.with(who)).andExpect(status().is2xxSuccessful()).andReturn().getResponse().getContentAsString();
+    }
+
+    private static RequestPostProcessor user() {
+        String subject = UUID.randomUUID().toString();
+        return jwt().jwt(j -> j.subject(subject).claim("email", subject + "@example.com").claim("email_verified", true));
+    }
+}

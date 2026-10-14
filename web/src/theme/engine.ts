@@ -41,13 +41,14 @@ export function applyTheme(theme: Theme): ResolvedMode {
   root.dataset.theme = mode
   root.dataset.motion = theme.motion
   root.dataset.width = theme.width
+  root.dataset.palette = theme.palette
   for (const name of MANAGED) {
     if (vars[name]) root.style.setProperty(name, vars[name])
     else root.style.removeProperty(name)
   }
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', mode === 'dark' ? '#0a0a0a' : '#ffffff')
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', getComputedStyle(root).getPropertyValue('--bg').trim() || (mode === 'dark' ? '#0a0a0a' : '#ffffff'))
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ mode: theme.mode, vars, width: theme.width }))
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ mode: theme.mode, vars, width: theme.width, palette: theme.palette }))
   } catch {
     // private mode or blocked storage: the theme still applies, it just isn't pre-painted next time
   }

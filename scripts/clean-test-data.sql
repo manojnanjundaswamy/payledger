@@ -10,7 +10,9 @@ do $$ begin
   if (select count(*) from keep_user) <> 1 then raise exception 'the user to keep does not exist'; end if;
 end $$;
 
-create temp table gone_users on commit drop as select id from users where id not in (select id from keep_user);
+-- Test users only (…@example.com, what the tests sign up with), unless :'everyone' is 'yes': real sign-ups stay.
+create temp table gone_users on commit drop as select id from users where id not in (select id from keep_user)
+  and (:'everyone' = 'yes' or email ~* '@example\.com$');
 create temp table gone_spaces on commit drop as
   select id from spaces where created_by in (select id from gone_users)
     and id not in (select space_id from space_members where user_id in (select id from keep_user));
@@ -44,6 +46,7 @@ delete from commitments where account_id in (select id from test_accounts) or to
 -- Only deleted (reversed) transactions may still point at them; anything live stays, and so does its account.
 delete from commitment_payments where transaction_id in (select id from transactions where deleted_at is not null
   and (account_id in (select id from test_accounts) or to_account_id in (select id from test_accounts) or category_id in (select id from test_categories)));
+update captured_items set transaction_id = null where transaction_id in (select id from transactions where deleted_at is not null);
 delete from transactions where deleted_at is not null
   and (account_id in (select id from test_accounts) or to_account_id in (select id from test_accounts) or category_id in (select id from test_categories));
 delete from budget_limits where category_id in (select id from test_categories);
@@ -61,10 +64,14 @@ delete from categories where id in (select id from test_categories)
 delete from imports i where i.space_id in (select id from kept_spaces) and i.file_name ~* 'e2e'
   and not exists (select 1 from transactions t where t.import_id = i.id);
 
+delete from captured_items where user_id in (select id from keep_user) and (merchant ~* '^E2E' or body ~* 'e2e');
+
 -- Everything the other users owned.
 delete from commitment_payments where commitment_id in (select id from commitments where space_id in (select id from gone_spaces));
 delete from commitment_payments where transaction_id in (select id from transactions where space_id in (select id from gone_spaces));
 delete from commitments where space_id in (select id from gone_spaces);
+delete from captured_items where user_id in (select id from gone_users) or space_id in (select id from gone_spaces);
+delete from capture_addresses where user_id in (select id from gone_users);
 delete from transactions where space_id in (select id from gone_spaces);
 delete from budget_limits where space_id in (select id from gone_spaces);
 delete from tax_mappings where space_id in (select id from gone_spaces);

@@ -53,3 +53,33 @@ must be up. Remove `PUBLIC_URL` (and rerun both commands) to go back to purely l
   Wi-Fi can reach `:8180`.
 - Without SMTP settings, sign-up emails go to Mailpit on your laptop, so new people can't verify their address.
 - Back up: `docker compose exec -T core-db pg_dump -U core core > core-backup.sql` (and the same for `keycloak-db`).
+
+## Auto-capture: bank emails by forwarding
+
+Each person gets an address like `k3pf98qvpvxa@in.example.com`. Cloudflare Email Routing receives mail for that
+subdomain and hands it to a small Worker, which posts it to PayLedger (`/inbound/email`) with a shared secret.
+
+1. **Email Routing on a subdomain** (so your own domain's mail is untouched): Cloudflare dashboard → your domain →
+   Email → Email Routing → enable it for `in.example.com`; Cloudflare adds the MX and SPF records.
+2. **The Worker**: Workers & Pages → Create → Hello World → paste `deploy/cloudflare/email-worker.js` → Deploy.
+   Settings → Variables: `INBOUND_URL` = `https://payledger.example.com/inbound/email`, and `INBOUND_SECRET` (as a
+   secret) = a long random value (`openssl rand -hex 32`).
+3. **Route everything to it**: Email Routing → Routing rules → Catch-all → Send to a Worker → the Worker above.
+4. **`.env`**: `CAPTURE_DOMAIN=in.example.com` and the same `INBOUND_SECRET`, then
+   `docker compose --profile web up -d core-service`.
+
+People then follow the guide on the Auto-capture page (forwarding address, Gmail's confirmation code, a filter
+for bank senders). Pasting SMS works without any of this.
+
+## Google sign-in ("Continue with Google")
+
+1. [Google Cloud Console](https://console.cloud.google.com/projectcreate): create a project (e.g. "PayLedger").
+2. [Google Auth Platform → Branding](https://console.cloud.google.com/auth/branding): app name, support email,
+   authorised domain `example.com`; Audience: External, then Publish (only the basic `openid email profile` scopes,
+   which need no review).
+3. [Clients → Create client](https://console.cloud.google.com/auth/clients/create): Web application.
+   - Authorised JavaScript origin: `https://payledger.example.com`
+   - Authorised redirect URIs: `https://payledger.example.com/realms/payledger/broker/google/endpoint`
+     (and `http://localhost:8180/realms/payledger/broker/google/endpoint` for the laptop on its own)
+4. Put the client id and secret in `.env` as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, then run
+   `scripts/keycloak-sync.sh`. The sign-in and sign-up pages show "Google".

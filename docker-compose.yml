@@ -251,6 +251,9 @@ services:
       SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
       MAIL_FROM: ${MAIL_FROM:-no-reply@payledger.local}
       FRONTEND_URL: ${PUBLIC_URL:-http://localhost:5173}
+      # Auto-capture (docs/hosting.md): forwarding addresses are <token>@CAPTURE_DOMAIN; the Email Worker sends INBOUND_SECRET.
+      CAPTURE_DOMAIN: ${CAPTURE_DOMAIN:-in.payledger.local}
+      INBOUND_SECRET: ${INBOUND_SECRET:-}
     ports:
       - "${CORE_PORT:-8060}:8060"
       - "${CORE_MANAGEMENT_PORT:-8061}:8061"

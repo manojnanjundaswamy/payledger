@@ -97,6 +97,16 @@ class GatewaySecurityTest {
     }
 
     @Test
+    void theEmailWorkersDoorNeedsNoSessionButOnlyTakesPostsToItsOnePath() throws Exception {
+        mvc.perform(post("/inbound/email").header("X-Inbound-Secret", "s").content("raw mail"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fake").value("core"));
+        assertThat(forwardedHeaders.get()).doesNotContainKey("Authorization").containsKey("X-inbound-secret");
+        mvc.perform(get("/inbound/email")).andExpect(status().is4xxClientError());
+        mvc.perform(post("/inbound/other")).andExpect(status().is4xxClientError());
+    }
+
+    @Test
     void loginStartsAnHttpOnlySameSiteSessionCookie() throws Exception {
         // Starting a login stores the PKCE verifier and state in the (Redis) session.
         List<String> setCookies = mvc.perform(get("/oauth2/authorization/keycloak")).andReturn().getResponse().getHeaders("Set-Cookie");
@@ -145,6 +155,14 @@ class GatewaySecurityTest {
     private static HttpServer startFakeCore() {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+            server.createContext("/inbound/email", exchange -> {
+                forwardedHeaders.set(Map.copyOf(exchange.getRequestHeaders()));
+                byte[] body = "{\"fake\":\"core\"}".getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+                exchange.close();
+            });
             server.createContext("/api/core/me", exchange -> {
                 forwardedHeaders.set(Map.copyOf(exchange.getRequestHeaders()));
                 byte[] body = "{\"fake\":\"core\"}".getBytes(StandardCharsets.UTF_8);
