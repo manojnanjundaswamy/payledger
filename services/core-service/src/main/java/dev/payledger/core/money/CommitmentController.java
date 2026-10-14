@@ -50,6 +50,23 @@ class CommitmentController {
         return commitments.replace(user, spaceId, id, version, request);
     }
 
+    record Link(@jakarta.validation.constraints.NotNull LocalDate dueDate, @jakarta.validation.constraints.NotNull UUID transactionId) {
+    }
+
+    @PostMapping("/{id}/link")
+    @Operation(summary = "Say that a transaction you already entered paid this due date")
+    CommitmentService.Due link(CurrentUser user, @PathVariable UUID spaceId, @PathVariable UUID id, @Valid @RequestBody Link request) {
+        return commitments.link(user, spaceId, id, request.dueDate(), request.transactionId());
+    }
+
+    @DeleteMapping("/{id}/payments/{dueDate}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Forget which transaction paid this due date (the transaction stays)")
+    void unlink(CurrentUser user, @PathVariable UUID spaceId, @PathVariable UUID id,
+                @PathVariable @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate dueDate) {
+        commitments.unlink(user, spaceId, id, dueDate);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Delete the schedule; its payments stay as ordinary transactions")

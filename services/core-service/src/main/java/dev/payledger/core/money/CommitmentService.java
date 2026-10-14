@@ -56,14 +56,27 @@ public class CommitmentService {
      *
      * @param transactionId the payment, or null while unpaid
      * @param amount        what was paid, or the commitment's amount while unpaid
+     * @param suggestion    while unpaid: a transaction you already entered that looks like this payment
      */
     public record Due(UUID commitmentId, String kind, String name, LocalDate dueDate, long amount, String currency,
-                      UUID transactionId, boolean paid) {
+                      UUID transactionId, boolean paid, Match suggestion) {
 
         Due(UUID commitmentId, String kind, String name, LocalDate dueDate, long amount, String currency, UUID transactionId) {
-            this(commitmentId, kind, name, dueDate, amount, currency, transactionId, transactionId != null);
+            this(commitmentId, kind, name, dueDate, amount, currency, transactionId, transactionId != null, null);
+        }
+
+        Due withSuggestion(Match match) {
+            return new Due(commitmentId, kind, name, dueDate, amount, currency, transactionId, paid, match);
         }
     }
+
+    /** A transaction that looks like a due date's payment: same category (or the saving's account), near date and amount. */
+    public record Match(UUID transactionId, String description, LocalDate occurredOn, long amount) {
+    }
+
+    /** How near a transaction has to be to count as a due date's payment. */
+    static final int MATCH_DAYS = 20;
+    static final int MATCH_PERCENT = 20;
 
     @Transactional(readOnly = true)
     public List<Commitment> list(CurrentUser user, UUID spaceId) {
@@ -186,11 +199,142 @@ public class CommitmentService {
                 .toList();
     }
 
-    /** Every due date between the two dates, paid or not, oldest first. */
+    /**
+     * Every due date between the two dates, paid or not, oldest first. An unpaid one that already passed (or is close)
+     * carries a suggestion when a transaction you entered looks like its payment, so it can be confirmed in one tap.
+     */
     @Transactional(readOnly = true)
     public List<Due> due(CurrentUser user, UUID spaceId, LocalDate from, LocalDate to) {
         access.read(user, spaceId);
-        return due(spaceId, from, to);
+        List<Due> due = due(spaceId, from, to);
+        java.util.Set<UUID> taken = new java.util.HashSet<>();
+        LocalDate soon = LocalDate.now().plusDays(MATCH_DAYS);
+        return due.stream().map(d -> {
+            if (d.paid() || d.dueDate().isAfter(soon)) {
+                return d;
+            }
+            Match match = bestMatch(spaceId, d.commitmentId(), d.dueDate(), taken);
+            if (match != null) {
+                taken.add(match.transactionId());
+            }
+            return match == null ? d : d.withSuggestion(match);
+        }).toList();
+    }
+
+    /**
+     * The transaction most likely to be this due date's payment: a live, unlinked expense in the bill's category (or
+     * a subcategory), or a transfer into the saving's account, within {@value MATCH_DAYS} days and
+     * {@value MATCH_PERCENT}% of the amount; the nearest date, then the nearest amount.
+     */
+    private Match bestMatch(UUID spaceId, UUID commitmentId, LocalDate dueDate, java.util.Set<UUID> taken) {
+        return jdbc.sql("""
+                        select t.id as transaction_id, t.description, t.occurred_on, t.amount
+                        from commitments c
+                        join transactions t on t.space_id = c.space_id and t.deleted_at is null
+                          and ((c.kind = 'BILL' and t.kind = 'EXPENSE'
+                                and (t.category_id = c.category_id or t.category_id in (select id from categories where parent_id = c.category_id)))
+                            or (c.kind = 'SAVING' and t.kind = 'TRANSFER' and t.to_account_id = c.to_account_id))
+                        where c.id = :id and c.space_id = :spaceId
+                          and t.occurred_on between cast(:due as date) - :days and cast(:due as date) + :days
+                          and t.amount between c.amount * (100 - :pct) / 100 and c.amount * (100 + :pct) / 100
+                          and not exists (select 1 from commitment_payments p join transactions pt on pt.id = p.transaction_id and pt.deleted_at is null
+                                          where p.transaction_id = t.id)
+                        order by abs(t.occurred_on - cast(:due as date)), abs(t.amount - c.amount), t.created_at desc
+                        """)
+                .param("id", commitmentId).param("spaceId", spaceId).param("due", dueDate)
+                .param("days", MATCH_DAYS).param("pct", MATCH_PERCENT)
+                .query(Match.class).list().stream()
+                .filter(m -> !taken.contains(m.transactionId()))
+                .findFirst().orElse(null);
+    }
+
+    /**
+     * After a transaction is added or changed: if it looks like the payment of an unpaid due date (see bestMatch), it
+     * becomes that payment, so entering the expense yourself counts as paying the bill. Returns that due date, or null.
+     */
+    @Transactional
+    public Due autoLink(UUID spaceId, Transaction t) {
+        if (!"EXPENSE".equals(t.kind()) && !"TRANSFER".equals(t.kind())) {
+            return null;
+        }
+        boolean linked = jdbc.sql("""
+                        select exists (select 1 from commitment_payments p join transactions pt on pt.id = p.transaction_id and pt.deleted_at is null
+                                       where p.transaction_id = :id)
+                        """).param("id", t.id()).query(Boolean.class).single();
+        if (linked) {
+            return null;
+        }
+        List<Commitment> candidates = jdbc.sql("select " + COLUMNS + """
+                        from commitments where space_id = :spaceId
+                          and ((kind = 'BILL' and :kind = 'EXPENSE' and (category_id = :categoryId
+                                or category_id = (select parent_id from categories where id = :categoryId)))
+                            or (kind = 'SAVING' and :kind = 'TRANSFER' and to_account_id = :toAccountId))
+                        """)
+                .param("spaceId", spaceId).param("kind", t.kind()).param("categoryId", t.categoryId()).param("toAccountId", t.toAccountId())
+                .query(Commitment.class).list();
+        LocalDate from = t.occurredOn().minusDays(MATCH_DAYS);
+        LocalDate to = t.occurredOn().plusDays(MATCH_DAYS);
+        Due best = null;
+        for (Due d : due(spaceId, from, to)) {
+            boolean candidate = candidates.stream().anyMatch(c -> c.id().equals(d.commitmentId()));
+            long amount = candidates.stream().filter(c -> c.id().equals(d.commitmentId())).mapToLong(Commitment::amount).findFirst().orElse(0);
+            if (!candidate || d.paid() || Math.abs(t.amount() - amount) * 100 > amount * MATCH_PERCENT) {
+                continue;
+            }
+            if (best == null || Math.abs(d.dueDate().toEpochDay() - t.occurredOn().toEpochDay())
+                    < Math.abs(best.dueDate().toEpochDay() - t.occurredOn().toEpochDay())) {
+                best = d;
+            }
+        }
+        if (best == null) {
+            return null;
+        }
+        // A payment row left by a deleted transaction is replaced; a live one never is (on conflict below).
+        int done = jdbc.sql("""
+                        insert into commitment_payments (commitment_id, due_date, transaction_id) values (:id, :dueDate, :txn)
+                        on conflict (commitment_id, due_date) do update set transaction_id = excluded.transaction_id, created_at = now()
+                        where not exists (select 1 from transactions x where x.id = commitment_payments.transaction_id and x.deleted_at is null)
+                        """)
+                .param("id", best.commitmentId()).param("dueDate", best.dueDate()).param("txn", t.id()).update();
+        return done == 0 ? null : new Due(best.commitmentId(), best.kind(), best.name(), best.dueDate(), t.amount(), t.currency(), t.id());
+    }
+
+    /** Says that an existing transaction paid this due date (it must fit: a bill's expense, a saving's transfer). */
+    @Transactional
+    public Due link(CurrentUser user, UUID spaceId, UUID id, LocalDate dueDate, UUID transactionId) {
+        access.write(user, spaceId);
+        Commitment c = jdbc.sql("select " + COLUMNS + " from commitments where id = :id and space_id = :spaceId for update")
+                .param("id", id).param("spaceId", spaceId).query(Commitment.class).optional()
+                .orElseThrow(() -> new NotFoundException("commitment"));
+        if (!c.isDueOn(dueDate)) {
+            throw new InvalidRequestException("not-a-due-date", c.name() + " isn't due on " + dueDate);
+        }
+        Transaction t = transactions.get(user, spaceId, transactionId);
+        if (!(c.kind().equals("BILL") ? "EXPENSE" : "TRANSFER").equals(t.kind())) {
+            throw new InvalidRequestException("transaction-does-not-fit",
+                    c.kind().equals("BILL") ? "a bill is paid by an expense" : "a saving is paid by a transfer");
+        }
+        UUID existing = jdbc.sql("""
+                        select p.transaction_id from commitment_payments p
+                        join transactions x on x.id = p.transaction_id and x.deleted_at is null
+                        where p.commitment_id = :id and p.due_date = :dueDate
+                        """).param("id", id).param("dueDate", dueDate).query(UUID.class).optional().orElse(null);
+        if (existing != null && !existing.equals(transactionId)) {
+            throw new AlreadyPaidException(c.name(), existing);
+        }
+        jdbc.sql("""
+                        insert into commitment_payments (commitment_id, due_date, transaction_id) values (:id, :dueDate, :txn)
+                        on conflict (commitment_id, due_date) do update set transaction_id = excluded.transaction_id, created_at = now()
+                        """).param("id", id).param("dueDate", dueDate).param("txn", transactionId).update();
+        return new Due(c.id(), c.kind(), c.name(), dueDate, t.amount(), t.currency(), t.id());
+    }
+
+    /** Forgets which transaction paid a due date; the transaction stays. */
+    @Transactional
+    public void unlink(CurrentUser user, UUID spaceId, UUID id, LocalDate dueDate) {
+        access.write(user, spaceId);
+        find(spaceId, id);
+        jdbc.sql("delete from commitment_payments where commitment_id = :id and due_date = :dueDate").param("id", id).param("dueDate", dueDate).update();
     }
 
     /** For other services that already checked access. */

@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { CalendarClock, CalendarDays, Check, History, List, PiggyBank, Plus, Receipt } from 'lucide-react'
+import { CalendarClock, CalendarDays, Check, History, List, PiggyBank, Plus, Receipt, Sparkles, Unlink } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Skeleton } from '@/components/ui/card'
 import { Segmented } from '@/components/ui/controls'
+import { Dialog } from '@/components/ui/overlay'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatMoneyWhole } from '@/lib/money'
 import {
-  daysUntil, everyLabel, isoDate, useCommitments, useDue, usePayCommitment, usePlanner, useSafeToSpend,
+  daysUntil, everyLabel, isoDate, useCommitments, useDue, useLinkPayment, usePayCommitment, usePlanner, useSafeToSpend, useTransactions, useUnlinkPayment,
   type Commitment, type Due,
 } from '@/state/money'
 import { useProfile } from '@/state/profile'
@@ -127,6 +128,9 @@ function DueThisMonth({ start, end, money, locale, onOpen, onAdd }: {
   const [y, m, d] = start.split('-').map(Number)
   const { data: due = [], isPending } = useDue(isoDate(new Date(y!, m! - 2, d!)), end)
   const pay = usePayCommitment()
+  const link = useLinkPayment()
+  const unlink = useUnlinkPayment()
+  const [linking, setLinking] = useState<Due | null>(null)
   const rows = due.filter((x) => x.dueDate >= start || !x.paid)
   const [view, setView] = useState<'list' | 'calendar'>(() => {
     try { return localStorage.getItem('plan-view') === 'calendar' ? 'calendar' : 'list' } catch { return 'list' }
@@ -161,7 +165,8 @@ function DueThisMonth({ start, end, money, locale, onOpen, onAdd }: {
           {rows.map((x) => {
             const days = daysUntil(x.dueDate)
             return (
-              <div key={`${x.commitmentId}/${x.dueDate}`} className="flex items-center gap-3 px-pad py-3" data-testid={`due-${x.name}`}>
+              <Fragment key={`${x.commitmentId}/${x.dueDate}`}>
+              <div className="flex items-center gap-3 px-pad py-3" data-testid={`due-${x.name}`}>
                 <DateChip iso={x.dueDate} locale={locale} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{x.name}</span>
@@ -170,14 +175,39 @@ function DueThisMonth({ start, end, money, locale, onOpen, onAdd }: {
                   </span>
                 </span>
                 <span className="tabular shrink-0 text-sm font-medium">{money(x.amount)}</span>
-                {x.paid
-                  ? <Badge tone="good"><Check className="size-3" />Paid</Badge>
-                  : <Button size="sm" variant="outline" onClick={() => markPaid(x)} disabled={pay.isPending}>Mark paid</Button>}
+                {x.paid ? (
+                  <span className="flex items-center gap-1">
+                    {/* Paid: the badge opens the payment; unlinking keeps the transaction. */}
+                    <Link to="/transactions" search={{ open: x.transactionId! }} aria-label={`Open the payment of ${x.name}`}>
+                      <Badge tone="good"><Check className="size-3" />Paid</Badge>
+                    </Link>
+                    <Button size="sm" variant="ghost" aria-label={`Unlink the payment of ${x.name}`} title="Not this payment? Unlink it (the transaction stays)"
+                      onClick={() => unlink.mutate({ id: x.commitmentId, dueDate: x.dueDate })}><Unlink /></Button>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => setLinking(x)} title="Already paid it? Pick the transaction">Link</Button>
+                    <Button size="sm" variant="outline" onClick={() => markPaid(x)} disabled={pay.isPending}>Mark paid</Button>
+                  </span>
+                )}
               </div>
+              {!x.paid && x.suggestion && (
+                <div className="flex flex-wrap items-center gap-2 bg-accent-soft/50 px-pad py-2 text-sm" data-testid={`suggestion-${x.name}`}>
+                  <Sparkles className="size-4 text-accent" />
+                  <span className="min-w-0 flex-1">
+                    Looks paid: <span className="font-medium">{x.suggestion.description}</span>
+                    <span className="text-muted"> · {new Date(`${x.suggestion.occurredOn}T00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short' })} · {money(x.suggestion.amount)}</span>
+                  </span>
+                  <Button size="sm" variant="primary" onClick={() => link.mutate({ id: x.commitmentId, dueDate: x.dueDate, transactionId: x.suggestion!.transactionId },
+                    { onSuccess: () => toast.success(`${x.name} marked paid`, { description: `With ${x.suggestion!.description}.` }) })}>That's it</Button>
+                </div>
+              )}
+              </Fragment>
             )
           })}
         </Card>
       )}
+      <LinkPaymentDialog due={linking} onClose={() => setLinking(null)} money={money} locale={locale} />
     </section>
   )
 }
@@ -250,4 +280,49 @@ function DateChip({ iso, locale }: { iso: string; locale: string }) {
 function dateLabel(iso: string, locale: string): string {
   const [y, m, d] = iso.split('-').map(Number)
   return new Date(y!, m! - 1, d!).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+/**
+ * Pick the transaction that paid a due date: the bill's category (or transfers for a saving), around the date. For
+ * when you entered the expense yourself and it wasn't matched (a different amount, a later date).
+ */
+function LinkPaymentDialog({ due, onClose, money, locale }: { due: Due | null; onClose: () => void; money: (m: number) => string; locale: string }) {
+  const { data: commitments = [] } = useCommitments()
+  const link = useLinkPayment()
+  const c = commitments.find((x) => x.id === due?.commitmentId)
+  const around = (days: number) => {
+    if (!due) return ''
+    const d = new Date(`${due.dueDate}T00:00`)
+    d.setDate(d.getDate() + days)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  const { data } = useTransactions(c ? {
+    from: around(-45), to: around(45), kind: c.kind === 'BILL' ? 'EXPENSE' : 'TRANSFER',
+    categoryId: c.kind === 'BILL' ? c.categoryId ?? undefined : undefined, accountId: c.kind === 'SAVING' ? c.toAccountId ?? undefined : undefined,
+  } : { from: '1900-01-01', to: '1900-01-01' })
+  const items = (data?.pages.flatMap((p) => p.items) ?? []).slice(0, 30)
+  return (
+    <Dialog open={due !== null} onOpenChange={(o) => !o && onClose()} title={due ? `Which transaction paid ${due.name}?` : 'Link a payment'}
+      description={due ? `Due ${new Date(`${due.dueDate}T00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })} · ${money(due.amount)}` : undefined}>
+      <div className="flex flex-col gap-2 p-pad">
+        {items.length === 0 ? <p className="text-sm text-muted">Nothing in {c?.kind === 'BILL' ? 'its category' : 'that account'} within six weeks of the date. Use Mark paid to record it.</p> : (
+          <ul className="divide-y divide-border rounded-control border border-border">
+            {items.map((t) => (
+              <li key={t.id}>
+                <button type="button" className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-surface-2" aria-label={`It was ${t.description}`}
+                  onClick={() => due && link.mutate({ id: due.commitmentId, dueDate: due.dueDate, transactionId: t.id }, {
+                    onSuccess: () => { toast.success(`${due.name} marked paid`, { description: `With ${t.description}.` }); onClose() },
+                    onError: (err) => toast.error(err instanceof ApiError ? err.message : 'Could not link it. Try again.'),
+                  })}>
+                  <span className="w-16 shrink-0 text-xs text-subtle">{new Date(`${t.occurredOn}T00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}</span>
+                  <span className="min-w-0 flex-1 truncate">{t.description}</span>
+                  <span className="tabular">{money(t.amount)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Dialog>
+  )
 }

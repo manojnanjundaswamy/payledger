@@ -19,8 +19,9 @@ function xsrfToken(): string | undefined {
   return document.cookie.split('; ').find((c) => c.startsWith('XSRF-TOKEN='))?.slice('XSRF-TOKEN='.length)
 }
 
-export async function api<T>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
-  const { json, headers, ...rest } = init
+/** @param init.onHeaders sees the response's headers, for the few answers that carry extra news in one */
+export async function api<T>(path: string, init: RequestInit & { json?: unknown; onHeaders?: (h: Headers) => void } = {}): Promise<T> {
+  const { json, headers, onHeaders, ...rest } = init
   const method = (rest.method ?? 'GET').toUpperCase()
   const h = new Headers(headers)
   h.set('Accept', 'application/json')
@@ -45,5 +46,6 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown 
     throw new ApiError(response.status, problem.code ?? String(response.status), problem.detail ?? response.statusText,
       problem.requestId ?? response.headers?.get('X-Request-Id') ?? undefined)
   }
+  onHeaders?.(response.headers)
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T)
 }

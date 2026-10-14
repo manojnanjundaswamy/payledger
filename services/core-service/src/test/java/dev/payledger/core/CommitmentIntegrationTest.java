@@ -203,6 +203,52 @@ class CommitmentIntegrationTest {
 
     // ---------------------------------------------------------------- helpers
 
+    @Test
+    void enteringABillsExpenseYourselfPaysItAndOlderOnesAreSuggested() throws Exception {
+        var today = java.time.LocalDate.now();
+        // Entered before the bill existed: it can only be suggested.
+        String carLoan = id(mvc.perform(post(path("/transactions")).with(me).contentType(MediaType.APPLICATION_JSON).content("""
+                {"kind":"EXPENSE","amount":1950000,"accountId":"%s","categoryId":"%s","occurredOn":"%s","description":"Car loan EMI"}
+                """.formatted(bank, emi, today.minusDays(2)))).andExpect(status().isCreated()));
+        String car = id(create(bill("Car EMI", 2_000_000, 1, today.minusDays(3).toString(), null)).andExpect(status().isCreated()));
+        String insurance = id(create(bill("Term insurance", 3_500_000, 12, today.plusDays(4).toString(), null)).andExpect(status().isCreated()));
+
+        mvc.perform(get(path("/commitments/due")).with(me).param("from", today.minusDays(3).toString()).param("to", today.minusDays(3).toString()))
+                .andExpect(jsonPath("$[0].paid").value(false))
+                .andExpect(jsonPath("$[0].suggestion.transactionId").value(carLoan))
+                .andExpect(jsonPath("$[0].suggestion.description").value("Car loan EMI"));
+
+        // The insurance premium entered yourself, a few days early: it pays the bill, and the response says so.
+        mvc.perform(post(path("/transactions")).with(me).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"kind":"EXPENSE","amount":3500000,"accountId":"%s","categoryId":"%s","occurredOn":"%s","description":"LIC premium"}
+                        """.formatted(bank, emi, today)))
+                .andExpect(status().isCreated())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("X-Paid-Commitment",
+                        java.net.URLEncoder.encode("Term insurance|" + today.plusDays(4), java.nio.charset.StandardCharsets.UTF_8)));
+        expectPaid(insurance, today.plusDays(4).toString(), true);
+        // A far-off amount isn't taken as a payment.
+        mvc.perform(post(path("/transactions")).with(me).contentType(MediaType.APPLICATION_JSON).content("""
+                        {"kind":"EXPENSE","amount":100000,"accountId":"%s","categoryId":"%s","occurredOn":"%s","description":"Late fee"}
+                        """.formatted(bank, emi, today.minusDays(3))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().doesNotExist("X-Paid-Commitment"));
+
+        // Confirming the suggestion links it; unlinking forgets it and it's suggested again.
+        String linkBody = "{\"dueDate\":\"" + today.minusDays(3) + "\",\"transactionId\":\"" + carLoan + "\"}";
+        mvc.perform(post(path("/commitments/" + car + "/link")).with(me).contentType(MediaType.APPLICATION_JSON).content(linkBody))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.paid").value(true)).andExpect(jsonPath("$.amount").value(1_950_000));
+        expectPaid(car, today.minusDays(3).toString(), true);
+        mvc.perform(delete(path("/commitments/" + car + "/payments/" + today.minusDays(3))).with(me)).andExpect(status().isNoContent());
+        expectPaid(car, today.minusDays(3).toString(), false);
+
+        // Only an expense pays a bill.
+        String income = id(mvc.perform(post(path("/transactions")).with(me).contentType(MediaType.APPLICATION_JSON).content("""
+                {"kind":"INCOME","amount":1000,"accountId":"%s","categoryId":"%s","occurredOn":"%s","description":"Refund"}
+                """.formatted(bank, salary, today))).andExpect(status().isCreated()));
+        mvc.perform(post(path("/commitments/" + car + "/link")).with(me).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"dueDate\":\"" + today.minusDays(3) + "\",\"transactionId\":\"" + income + "\"}"))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("transaction-does-not-fit"));
+    }
+
     private String path(String rest) {
         return "/api/core/spaces/" + space + rest;
     }

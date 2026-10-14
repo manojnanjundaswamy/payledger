@@ -145,14 +145,15 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
     }
     try {
       if (transaction) {
-        await update.mutateAsync({ id: transaction.id, version: transaction.version, fields })
-        toast.success('Saved')
+        const saved = await update.mutateAsync({ id: transaction.id, version: transaction.version, fields })
+        toast.success('Saved', saved.paid ? { description: paidNote(saved.paid) } : undefined)
       } else {
-        await create.mutateAsync({ id: clientId, ...fields })
+        const saved = await create.mutateAsync({ id: clientId, ...fields })
         const ruled = remember && canRemember
         if (ruled) await saveRule.mutateAsync({ match: ruleMatch, categoryId: draft.categoryId }).catch(() => undefined)
-        toast.success(`${TXN_KINDS[draft.kind].label} added`, ruled
-          ? { description: `“${ruleMatch}” goes to ${categories.find((c) => c.id === draft.categoryId)?.name} from now on.` } : undefined)
+        toast.success(`${TXN_KINDS[draft.kind].label} added`, ruled || saved.paid
+          ? { description: [ruled ? `“${ruleMatch}” goes to ${categories.find((c) => c.id === draft.categoryId)?.name} from now on.` : '', saved.paid ? paidNote(saved.paid) : ''].filter(Boolean).join(' ') }
+          : undefined)
       }
       onOpenChange(false)
     } catch (err) {
@@ -274,4 +275,9 @@ function defaultDescription(d: Draft, categories: { id: string; name: string }[]
     return to ? `To ${to}` : 'Transfer'
   }
   return categories.find((c) => c.id === d.categoryId)?.name ?? TXN_KINDS[d.kind].label
+}
+
+/** "Counted as paying Term insurance, due 18 Oct." */
+function paidNote(paid: { name: string; dueDate: string }): string {
+  return `Counted as paying ${paid.name}, due ${new Date(`${paid.dueDate}T00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}.`
 }
