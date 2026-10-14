@@ -92,8 +92,10 @@ services:
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: keycloak
       # Tokens say "issued by http://localhost:8180" (what browsers see), while containers may call
-      # Keycloak at http://keycloak:8080 for tokens and keys.
-      KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8180}
+      # Keycloak at http://keycloak:8080 for tokens and keys. Hosted (PUBLIC_URL in .env), the sign-in pages are
+      # served through the web app's own address (nginx forwards /realms/payledger and /resources to Keycloak).
+      KC_HOSTNAME: ${PUBLIC_URL:-http://localhost:${KEYCLOAK_PORT:-8180}}
+      KC_PROXY_HEADERS: xforwarded
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_HEALTH_ENABLED: "true"
     ports:
@@ -206,9 +208,11 @@ services:
     environment:
       REDIS_HOST: redis
       CORE_SERVICE_URL: http://core-service:8060
-      KEYCLOAK_PUBLIC_URL: http://localhost:${KEYCLOAK_PORT:-8180}
+      KEYCLOAK_PUBLIC_URL: ${PUBLIC_URL:-http://localhost:${KEYCLOAK_PORT:-8180}}
       KEYCLOAK_INTERNAL_URL: http://keycloak:8080
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      FRONTEND_URL: ${PUBLIC_URL:-http://localhost:5173}
+      # Hosted over https: the session cookie is only ever sent over https.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
       # Locally every browser test signs in as the demo user, so one "user" makes all the calls; production keeps 600/120.
       PAYLEDGER_RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-3000}
       PAYLEDGER_RATE_LIMIT_WRITES_PER_MINUTE: ${RATE_LIMIT_WRITES_PER_MINUTE:-600}
@@ -229,7 +233,7 @@ services:
       LEDGER_COMMANDS_TOPIC: ${LEDGER_COMMANDS_TOPIC:-ledger.commands.v1}
       # Balances are read from the ledger; if it isn't running, the app shows accounts without numbers.
       LEDGER_URL: http://ledger-service:8080
-      KEYCLOAK_ISSUER: http://localhost:${KEYCLOAK_PORT:-8180}/realms/payledger
+      KEYCLOAK_ISSUER: ${PUBLIC_URL:-http://localhost:${KEYCLOAK_PORT:-8180}}/realms/payledger
       KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/payledger/protocol/openid-connect/certs
       # Complimentary Premium (comma-separated): the demo user never meets a Free limit in the e2e tests.
       PREMIUM_EMAILS: ${PREMIUM_EMAILS:-demo@payledger.local}
@@ -246,7 +250,7 @@ services:
       SMTP_AUTH: ${SMTP_AUTH:-false}
       SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
       MAIL_FROM: ${MAIL_FROM:-no-reply@payledger.local}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      FRONTEND_URL: ${PUBLIC_URL:-http://localhost:5173}
     ports:
       - "${CORE_PORT:-8060}:8060"
       - "${CORE_MANAGEMENT_PORT:-8061}:8061"
