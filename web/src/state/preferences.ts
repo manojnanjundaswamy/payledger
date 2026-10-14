@@ -37,6 +37,8 @@ export const ThemeSchema = z.object({
   density: z.enum(['comfortable', 'compact']).catch('comfortable'),
   textSize: z.enum(['sm', 'md', 'lg']).catch('md'),
   motion: z.enum(['system', 'reduced', 'full']).catch('system'),
+  /** comfortable: pages in a readable column; wide: pages use the whole window, for lists, calendars and charts. */
+  width: z.enum(['comfortable', 'wide']).catch('comfortable'),
 })
 export type Theme = z.infer<typeof ThemeSchema>
 
@@ -63,7 +65,7 @@ export const DashboardSchema = z.object({
 export type Dashboard = z.infer<typeof DashboardSchema>
 
 export function defaultTheme(): Theme {
-  return { mode: 'system', accent: null, radius: 'soft', density: 'comfortable', textSize: 'md', motion: 'system' }
+  return { mode: 'system', accent: null, radius: 'soft', density: 'comfortable', textSize: 'md', motion: 'system', width: 'comfortable' }
 }
 
 let counter = 0

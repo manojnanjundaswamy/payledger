@@ -44,6 +44,11 @@ export function AppearanceSettings() {
               { value: 'comfortable', label: 'Comfortable' }, { value: 'compact', label: 'Compact' },
             ]} />
           </Field>
+          <Field label="Page width" hint="Comfortable keeps pages in a readable column; wide uses the whole window for lists, calendars and charts.">
+            <Segmented label="Page width" value={theme.width} onChange={(width) => set({ width })} options={[
+              { value: 'comfortable', label: 'Comfortable' }, { value: 'wide', label: 'Wide' },
+            ]} />
+          </Field>
           <Field label="Text size">
             <Segmented label="Text size" value={theme.textSize} onChange={(textSize) => set({ textSize })} options={[
               { value: 'sm', label: <span className="text-xs">Aa</span>, title: 'Small' },

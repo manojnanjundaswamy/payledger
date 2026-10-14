@@ -4,7 +4,7 @@ import { parsePreferences } from './preferences'
 describe('parsePreferences', () => {
   it('gives a new user a monochrome theme and the overview dashboard', () => {
     const prefs = parsePreferences({})
-    expect(prefs.theme).toEqual({ mode: 'system', accent: null, radius: 'soft', density: 'comfortable', textSize: 'md', motion: 'system' })
+    expect(prefs.theme).toEqual({ mode: 'system', accent: null, radius: 'soft', density: 'comfortable', textSize: 'md', motion: 'system', width: 'comfortable' })
     expect(prefs.dashboards).toHaveLength(1)
     expect(prefs.dashboards[0]!.name).toBe('Overview')
     expect(prefs.activeDashboard).toBe(prefs.dashboards[0]!.id)
@@ -39,5 +39,12 @@ describe('parsePreferences', () => {
     expect(() => parsePreferences('nope')).not.toThrow()
     expect(() => parsePreferences(null)).not.toThrow()
     expect(parsePreferences({ dashboards: 'x' }).dashboards).toHaveLength(1)
+  })
+})
+
+describe('page width', () => {
+  it('is comfortable unless set, and survives a bad value', () => {
+    expect(parsePreferences({ theme: { width: 'wide' } }).theme.width).toBe('wide')
+    expect(parsePreferences({ theme: { width: 'huge' } }).theme.width).toBe('comfortable')
   })
 })

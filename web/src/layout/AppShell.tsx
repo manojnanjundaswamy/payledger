@@ -19,6 +19,7 @@ import { CommandPalette, useCommandPaletteShortcut } from './CommandPalette'
 import { Logo } from './Logo'
 import { useNav, type NavItem } from './nav'
 import { ThemeQuickToggle } from './ThemeQuickToggle'
+import { WidthToggle } from './WidthToggle'
 import { UserMenu } from './UserMenu'
 
 /** Pages outside the navigation still get a title in the top bar. */
@@ -175,6 +176,7 @@ function Topbar({ title, onSearch }: { title: string; onSearch: () => void }) {
         <Button variant="ghost" size="icon" className="sm:hidden" onClick={onSearch} aria-label="Search"><Search /></Button>
         <SaveIndicator />
         <NotificationBell />
+        <WidthToggle />
         <ThemeQuickToggle />
         <UserMenu />
       </div>

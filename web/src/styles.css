@@ -143,3 +143,9 @@
   --flow-in: var(--good);
   --flow-out: var(--series-1);
 }
+
+/* Page width (Settings → Appearance, or the button in the top bar). Pages sit in a readable column by default: text
+   and forms read best at 60–80 characters a line. "Wide" lets every page use the window, which suits lists, calendars
+   and charts on a large screen; the column inside a card (a form's fields) keeps its own width. */
+:root[data-width="wide"] main { max-width: none; }
+:root[data-width="wide"] main > div > .mx-auto { max-width: min(100%, 1600px); }
