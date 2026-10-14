@@ -7,7 +7,7 @@ import { Segmented } from '@/components/ui/controls'
 import { api } from '@/lib/api'
 import { Select } from '@/pages/money/parts'
 import { amountInWords } from '../finance'
-import { Line, Note, NumberField, Result, num, rupees } from './parts'
+import { Line, Note, NumberField, Result, num, rupees, UseIt } from './parts'
 
 interface Fx { base: string; date: string; rates: Record<string, number>; source: string }
 
@@ -40,10 +40,11 @@ export function CurrencyConverter() {
           </Select>
         </label>
       </div>
-      {result !== null && (
+      {result !== null && (<>
+        <UseIt amount={toInr ? result : a} description={toInr ? `${amount} ${other}` : `${other} ${result.toFixed(2)}`} />
         <Result label={toInr ? 'In rupees' : `In ${other}`} value={toInr ? rupees(result, 2) : fmt(result, other)} testId="fx-result">
           {perInr && <Line label={`1 ${other}`} value={rupees(1 / perInr, 2)} />}
-        </Result>
+        </Result></>
       )}
       <NumberField id="fx-manual" label={`Your rate (optional): 1 ${other} in ₹`} value={manual} onChange={setManual}
         hint="Use the rate your bank or card actually gives you; it usually differs from the reference rate by 1–3%." />
@@ -86,10 +87,11 @@ export function BillSplitter() {
         <NumberField id="split-people" label="People" value={people} onChange={setPeople} />
       </div>
       <Segmented label="Tip" value={tip} onChange={setTip} options={[{ value: '0', label: 'No tip' }, { value: '5', label: '5%' }, { value: '10', label: '10%' }, { value: '15', label: '15%' }]} />
-      {b > 0 && (
+      {b > 0 && (<>
+        <UseIt amount={Math.ceil(total / n)} description="My share of the bill" category="Eating out" />
         <Result label="Each pays" value={rupees(Math.ceil(total / n))} testId="split-each">
           <Line label="Total with tip" value={rupees(total)} />
-        </Result>
+        </Result></>
       )}
       <Note>For splits you want to keep track of, use a group: it remembers who paid and settles up in the fewest payments.</Note>
     </div>
@@ -112,6 +114,7 @@ export function PercentCalculator() {
         <NumberField id="pct-a" label={kind === 'change' ? 'From' : 'Percent'} value={a} onChange={setA} suffix={kind === 'change' ? '' : '%'} />
         <NumberField id="pct-b" label={kind === 'change' ? 'To' : 'Amount'} value={b} onChange={setB} />
       </div>
+      {kind !== 'change' && <UseIt amount={value} description={kind === 'discount' ? 'After discount' : ''} />}
       <Result label="Answer" value={kind === 'change' ? `${value >= 0 ? '+' : ''}${value.toFixed(2)}%` : value.toLocaleString('en-IN', { maximumFractionDigits: 2 })} testId="pct-result" />
     </div>
   )

@@ -36,12 +36,14 @@ interface Draft {
 }
 
 /** Add or change a bill (EMI, rent, insurance, subscription) or a saving (SIP, RD) that repeats. */
-export function CommitmentDialog({ open, onOpenChange, commitment, initialDue }: {
+export function CommitmentDialog({ open, onOpenChange, commitment, initialDue, prefill }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   commitment?: Commitment
   /** A new one's first due date (a day clicked on the calendar). */
   initialDue?: string
+  /** A new one filled in, e.g. a loan's EMI from the calculator; the category is matched by name. */
+  prefill?: { kind?: CommitmentKind; name?: string; amount?: string; everyMonths?: number; endsOn?: string; categoryName?: string }
 }) {
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
@@ -59,7 +61,13 @@ export function CommitmentDialog({ open, onOpenChange, commitment, initialDue }:
       accountId: commitment.accountId, categoryId: commitment.categoryId ?? '', toAccountId: commitment.toAccountId ?? '',
       everyMonths: commitment.endsOn === commitment.firstDue ? ONCE : commitment.everyMonths,
       firstDue: commitment.firstDue, endsOn: commitment.endsOn === commitment.firstDue ? '' : commitment.endsOn ?? '',
-    } : { ...empty(), ...(initialDue ? { firstDue: initialDue } : {}) })
+    } : {
+      ...empty(), ...(initialDue ? { firstDue: initialDue } : {}),
+      ...(prefill ? {
+        kind: prefill.kind ?? 'BILL', name: prefill.name ?? '', amount: prefill.amount ?? '', everyMonths: prefill.everyMonths ?? 1, endsOn: prefill.endsOn ?? '',
+        categoryId: categories.find((c) => c.kind === 'EXPENSE' && c.name.toLowerCase() === prefill.categoryName?.toLowerCase())?.id ?? '',
+      } : {}),
+    })
     setError(undefined)
   }, [open, commitment, initialDue])
 

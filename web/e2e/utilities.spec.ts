@@ -85,3 +85,27 @@ test('the edge panel can be turned off and on', async ({ page }) => {
   await page.getByRole('switch', { name: 'Edge panel' }).click()
   await expect(page.getByRole('button', { name: 'Open utilities' })).toBeVisible()
 })
+
+// Nothing is saved: the dialogs open filled in from the answer and are cancelled.
+test("a calculator's answer can be added as an expense, or a loan's EMI to the plan", async ({ page }) => {
+  await page.goto('/utilities?tool=calculator')
+  await page.getByLabel('Expression').fill('250 * 2')
+  await expect(page.getByTestId('calc-result')).toHaveText('500')
+  await page.getByRole('button', { name: 'Add as an expense' }).click()
+  const add = page.getByRole('dialog', { name: 'Add expense' })
+  await expect(add.getByLabel('Amount')).toHaveValue('500')
+  await add.getByRole('button', { name: 'Cancel' }).click()
+
+  await page.goto('/utilities?tool=loan')
+  const emi = (await page.getByTestId('emi').textContent())!.replace(/[₹,]/g, '')
+  await page.getByRole('button', { name: 'Add to my plan' }).click()
+  const plan = page.getByRole('dialog', { name: 'Add to your plan' })
+  await expect(plan.getByLabel('Name')).toHaveValue('Loan EMI')
+  await expect(plan.getByLabel('Amount')).toHaveValue(new RegExp(`^${emi.slice(0, 4)}`))
+  await expect(plan.getByLabel('Category', { exact: true })).toHaveText(/EMIs & loans/)
+  await plan.getByRole('button', { name: 'Cancel' }).click()
+
+  await page.goto('/utilities?tool=split')
+  await page.getByRole('button', { name: 'Add as an expense' }).click()
+  await expect(page.getByRole('dialog', { name: 'Add expense' }).getByLabel('Description')).toHaveValue('My share of the bill')
+})

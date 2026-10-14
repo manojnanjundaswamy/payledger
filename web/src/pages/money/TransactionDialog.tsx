@@ -39,7 +39,7 @@ function draftOf(t: Transaction | undefined, kind: TxnKind, accountId: string, d
  * Add or edit an expense, income or transfer. Amount first: most entries are small UPI payments,
  * so the fastest path is amount, category, Enter.
  */
-export function TransactionDialog({ open, onOpenChange, transaction, initialKind = 'EXPENSE', initialAccountId, initialDate }: {
+export function TransactionDialog({ open, onOpenChange, transaction, initialKind = 'EXPENSE', initialAccountId, initialDate, prefill }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   transaction?: Transaction
@@ -47,6 +47,8 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
   initialAccountId?: string
   /** A new one's date (a day clicked on the calendar). */
   initialDate?: string
+  /** A new one's amount, description and category (by name), e.g. from a calculator's answer. */
+  prefill?: { amount?: string; description?: string; categoryName?: string; note?: string }
 }) {
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
@@ -62,7 +64,13 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
 
   useEffect(() => {
     if (open) {
-      setDraft(draftOf(transaction, initialKind, defaultAccount, initialDate))
+      const draft = draftOf(transaction, initialKind, defaultAccount, initialDate)
+      if (!transaction && prefill) {
+        const wanted = prefill.categoryName?.toLowerCase()
+        const category = wanted ? categories.find((c) => c.kind === initialKind && !c.hidden && c.name.toLowerCase() === wanted) : undefined
+        Object.assign(draft, { amount: prefill.amount ?? '', description: prefill.description ?? '', note: prefill.note ?? '', categoryId: category?.id ?? '' })
+      }
+      setDraft(draft)
       setClientId(uuid7())
       setError(undefined)
     }
