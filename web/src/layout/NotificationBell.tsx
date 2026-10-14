@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { AlarmClock, Bell, CalendarClock, CheckCheck, HandCoins, KeyRound, PieChart, Receipt, UserPlus, type LucideIcon } from 'lucide-react'
+import { AlarmClock, Bell, CalendarClock, CalendarRange, CheckCheck, HandCoins, KeyRound, PieChart, Receipt, UserPlus, type LucideIcon } from 'lucide-react'
 import { Popover } from 'radix-ui'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { useProfile } from '@/state/profile'
 
 const ICONS: Record<InboxKind, LucideIcon> = {
   GROUP_EXPENSE: Receipt, SETTLEMENT: HandCoins, GROUP_MEMBER: UserPlus, BILL_DUE: CalendarClock,
-  BILL_OVERDUE: AlarmClock, BUDGET: PieChart, SIGN_IN: KeyRound,
+  BILL_OVERDUE: AlarmClock, BUDGET: PieChart, SIGN_IN: KeyRound, RECAP: CalendarRange,
 }
 
 /** The bell: how many are unread, and a panel with the latest. New ones also pop up while you're here. */

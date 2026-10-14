@@ -72,6 +72,7 @@ test('settings send a test email, and admins see emails and sign-ins', async ({ 
   await signIn(page)
   await page.goto('/settings?tab=notifications')
   await expect(page.getByRole('switch', { name: 'Bills due soon' })).toBeVisible()
+  await expect(page.getByRole('switch', { name: 'Weekly recap' })).toBeVisible()
   await page.getByRole('button', { name: 'Send a test email' }).click()
   await expect(page.getByTestId('sent-emails')).toContainText('Test email from PayLedger', { timeout: 15_000 })
   await expect.poll(async () => {
@@ -81,6 +82,9 @@ test('settings send a test email, and admins see emails and sign-ins', async ({ 
 
   await page.goto('/admin?tab=emails')
   await expect(page.getByTestId('admin-emails')).toContainText('Test email from PayLedger')
+  // The weekly recap can be sent now; running it again sends nothing twice.
+  await page.getByRole('button', { name: 'Send weekly recap now' }).click()
+  await expect(page.getByText('Weekly recap sent')).toBeVisible()
   await page.goto('/admin?tab=activity')
   await expect(page.getByTestId('activity-list')).toContainText('signed in')
 })

@@ -11,6 +11,7 @@ const KINDS: { kind: EmailKind; label: string; hint: string }[] = [
   { kind: 'BILL_REMINDERS', label: 'Bills due soon', hint: 'A morning email when bills or savings on your plan are due in the next 3 days.' },
   { kind: 'BUDGET_ALERTS', label: 'Budget alerts', hint: 'When a budget gets close to its limit (80%) and when it goes over. Once each a month.' },
   { kind: 'GROUP_ACTIVITY', label: 'Groups', hint: 'When someone adds you to a group.' },
+  { kind: 'WEEKLY_RECAP', label: 'Weekly recap', hint: 'Monday morning: last week\u2019s spending against the week before, where it went, and what\u2019s due this week.' },
   { kind: 'PRODUCT_NEWS', label: 'Product news', hint: 'Now and then, what\u2019s new in PayLedger. Off unless you turn it on.' },
 ]
 

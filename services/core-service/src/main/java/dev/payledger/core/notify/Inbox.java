@@ -20,6 +20,8 @@ public class Inbox {
         GROUP_EXPENSE(Notifications.Kind.GROUP_ACTIVITY), SETTLEMENT(Notifications.Kind.GROUP_ACTIVITY),
         GROUP_MEMBER(Notifications.Kind.GROUP_ACTIVITY), BILL_DUE(Notifications.Kind.BILL_REMINDERS),
         BILL_OVERDUE(Notifications.Kind.BILL_REMINDERS), BUDGET(Notifications.Kind.BUDGET_ALERTS),
+        /** Monday's look back at the week. */
+        RECAP(Notifications.Kind.WEEKLY_RECAP),
         /** Security: a sign-in. In the app only; an email for every sign-in would be noise. */
         SIGN_IN(null);
 

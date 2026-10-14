@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 
-export type InboxKind = 'GROUP_EXPENSE' | 'SETTLEMENT' | 'GROUP_MEMBER' | 'BILL_DUE' | 'BILL_OVERDUE' | 'BUDGET' | 'SIGN_IN'
+export type InboxKind = 'GROUP_EXPENSE' | 'SETTLEMENT' | 'GROUP_MEMBER' | 'BILL_DUE' | 'BILL_OVERDUE' | 'BUDGET' | 'SIGN_IN' | 'RECAP'
 
 export interface InboxItem {
   id: string

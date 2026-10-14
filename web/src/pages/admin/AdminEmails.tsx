@@ -27,6 +27,14 @@ export function AdminEmails() {
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : 'Could not run them'),
   })
+  const recap = useMutation({
+    mutationFn: () => api<{ users: number; recaps: number }>('/api/core/admin/emails/run-recap', { method: 'POST' }),
+    onSuccess: (r) => {
+      toast.success('Weekly recap sent', { description: `${r.users} people checked: ${r.recaps} recaps queued.` })
+      void client.invalidateQueries({ queryKey: ['admin', 'emails'] })
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : 'Could not send it'),
+  })
 
   if (isError) return <Card className="p-pad text-sm text-critical">Couldn't load emails. Refresh to try again.</Card>
   if (isPending || !data) return <Skeleton className="h-64" />
@@ -39,9 +47,10 @@ export function AdminEmails() {
           <Card className="p-pad"><div className="text-sm text-muted">Gave up</div><div className="text-2xl font-semibold tabular">{data.counts.failed}</div></Card>
         </div>
         {canRun && <Button variant="outline" onClick={() => run.mutate()} disabled={run.isPending}><BellRing />Run morning reminders now</Button>}
+        {canRun && <Button variant="outline" onClick={() => recap.mutate()} disabled={recap.isPending}><BellRing />Send weekly recap now</Button>}
         <ExportButton kind="emails" />
       </div>
-      <p className="text-xs text-subtle">Reminders run every morning at 8:00 IST; running them again never sends the same email twice.</p>
+      <p className="text-xs text-subtle">Reminders run every morning at 8:00 IST and the weekly recap on Mondays at 9:00; running them again never sends the same email twice.</p>
       <Card className="divide-y divide-border p-0" data-testid="admin-emails">
         {data.emails.length === 0 ? <p className="p-pad text-sm text-muted">No emails yet.</p> : data.emails.map((e) => (
           <div key={e.id} className="flex items-center gap-3 px-pad py-2.5 text-sm">

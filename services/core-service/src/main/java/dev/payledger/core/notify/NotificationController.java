@@ -28,7 +28,7 @@ class NotificationController {
     }
 
     @GetMapping("/api/core/me/notifications")
-    @Operation(summary = "Which emails you get: BILL_REMINDERS, BUDGET_ALERTS, GROUP_ACTIVITY, PRODUCT_NEWS")
+    @Operation(summary = "Which emails you get: BILL_REMINDERS, BUDGET_ALERTS, GROUP_ACTIVITY, WEEKLY_RECAP, PRODUCT_NEWS")
     Map<Notifications.Kind, Boolean> get(CurrentUser user) {
         return notifications.prefs(user.id());
     }
