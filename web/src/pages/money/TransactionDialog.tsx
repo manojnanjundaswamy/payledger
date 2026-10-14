@@ -1,3 +1,4 @@
+import { uuid7 } from '@/lib/uuid'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Trash2 } from 'lucide-react'
@@ -55,13 +56,13 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
   const defaultAccount = initialAccountId ?? accounts[0]?.id ?? ''
   const [draft, setDraft] = useState<Draft>(() => draftOf(transaction, initialKind, defaultAccount, initialDate))
   // One id per new transaction: resubmitting after an error or a double tap can't add it twice.
-  const [clientId, setClientId] = useState(() => crypto.randomUUID())
+  const [clientId, setClientId] = useState(() => uuid7())
   const [error, setError] = useState<string>()
 
   useEffect(() => {
     if (open) {
       setDraft(draftOf(transaction, initialKind, defaultAccount, initialDate))
-      setClientId(crypto.randomUUID())
+      setClientId(uuid7())
       setError(undefined)
     }
     // Reset only when the dialog opens or switches transaction, not on every accounts refetch.

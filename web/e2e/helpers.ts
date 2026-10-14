@@ -71,3 +71,17 @@ export async function signUp(page: Page, request: APIRequestContext, email: stri
   await page.waitForURL('**/dashboard')
 }
 
+
+/** Calls the API as the signed-in page (session cookie and CSRF token), for quick test setup and clean-up. */
+export async function callApi<T = unknown>(page: Page, method: string, path: string, body?: unknown): Promise<T> {
+  return page.evaluate(async ({ method, path, body }) => {
+    const token = document.cookie.split('; ').find((c) => c.startsWith('XSRF-TOKEN='))?.slice('XSRF-TOKEN='.length)
+    const res = await fetch(path, {
+      method,
+      headers: { 'Content-Type': 'application/json', ...(token ? { 'X-XSRF-TOKEN': decodeURIComponent(token) } : {}) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error(`${method} ${path}: ${res.status} ${await res.text()}`)
+    return res.status === 204 ? null : res.json()
+  }, { method, path, body }) as Promise<T>
+}

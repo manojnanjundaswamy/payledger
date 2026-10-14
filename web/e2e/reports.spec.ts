@@ -54,10 +54,12 @@ test('reports show spending by category for the financial year and open its tran
   // A category opens its transactions for the same dates.
   await row.click()
   await expect(page).toHaveURL(/\/transactions\?.*category=/)
-  await expect(page.getByTestId('filter-chip')).toContainText(category)
+  await expect(page.getByTestId('filter-chip').filter({ hasText: category })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Edit Report check' })).toBeVisible()
-  await page.getByRole('button', { name: 'Clear filter' }).click()
-  await expect(page.getByTestId('filter-chip')).toBeHidden()
+  await page.getByRole('button', { name: `Remove filter ${category}` }).click()
+  await expect(page.getByTestId('filter-chip').filter({ hasText: category })).toBeHidden()
+  await page.getByRole('button', { name: 'Clear all' }).click()
+  await expect(page.getByTestId('filter-chip')).toHaveCount(0)
 
   // Custom dates.
   await page.goto('/reports?period=custom&from=2026-01-01&to=2026-01-31')

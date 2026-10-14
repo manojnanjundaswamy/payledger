@@ -1,3 +1,4 @@
+import { uuid7 } from '@/lib/uuid'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -29,7 +30,7 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
   const add = useAddExpense(groupId)
   const update = useUpdateExpense(groupId)
   const remove = useDeleteExpense(groupId)
-  const [clientId, setClientId] = useState(() => crypto.randomUUID())
+  const [clientId, setClientId] = useState(() => uuid7())
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(today())
@@ -44,7 +45,7 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
 
   useEffect(() => {
     if (!open) return
-    setClientId(crypto.randomUUID())
+    setClientId(uuid7())
     setError(undefined)
     if (expense) {
       setDescription(expense.description)

@@ -74,7 +74,7 @@ public class GroupExpenseService {
         groups.member(user, groupId);
         List<Settlement> settlements = jdbc.sql("""
                         select id, from_member, to_member, amount, currency, occurred_on, note from group_settlements
-                        where group_id = :groupId and deleted_at is null order by occurred_on desc, id desc limit 200
+                        where group_id = :groupId and deleted_at is null order by occurred_on desc, created_at desc, id desc limit 200
                         """)
                 .param("groupId", groupId).query(Settlement.class).list();
         return new Activity(expenses(groupId, null), settlements);
@@ -86,7 +86,7 @@ public class GroupExpenseService {
                         select id, description, amount, currency, occurred_on, category, split, version
                         from group_expenses where group_id = :groupId and deleted_at is null
                           and (cast(:only as uuid) is null or id = :only)
-                        order by occurred_on desc, id desc limit 200
+                        order by occurred_on desc, created_at desc, id desc limit 200
                         """)
                 .param("groupId", groupId).param("only", only)
                 .query((rs, n) -> new Expense(rs.getObject("id", UUID.class), rs.getString("description"), rs.getLong("amount"),

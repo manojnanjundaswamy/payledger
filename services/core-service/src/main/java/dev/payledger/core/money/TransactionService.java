@@ -69,36 +69,53 @@ public class TransactionService {
     public record Page(List<Transaction> items, String nextCursor) {
     }
 
-    public record Filter(LocalDate from, LocalDate to, UUID accountId, UUID categoryId) {
+    /**
+     * What a filter matched, per currency: how many, and the money out, in and moved between accounts (paise).
+     */
+    public record Summary(List<Total> totals) {
+        public record Total(String currency, int count, long spent, long earned, long moved) {
+        }
     }
 
     @Transactional(readOnly = true)
-    public Page list(CurrentUser user, UUID spaceId, Filter filter, String cursor, int limit) {
+    public Page list(CurrentUser user, UUID spaceId, TransactionFilter filter, String cursor, int limit) {
         access.read(user, spaceId);
         Cursor after = cursor == null ? null : Cursor.parse(cursor);
-        List<Transaction> items = jdbc.sql("select " + COLUMNS + """
-                        from transactions
-                        where space_id = :spaceId and deleted_at is null
-                          and (cast(:from as date) is null or occurred_on >= :from)
-                          and (cast(:to as date) is null or occurred_on <= :to)
-                          and (cast(:accountId as uuid) is null or account_id = :accountId or to_account_id = :accountId)
-                          -- A category includes its subcategories, as its totals do in reports and budgets.
-                          and (cast(:categoryId as uuid) is null or category_id = :categoryId
-                               or category_id in (select id from categories where parent_id = :categoryId))
-                          and (cast(:afterDate as date) is null or (occurred_on, id) < (:afterDate, :afterId))
-                        order by occurred_on desc, id desc
+        List<Transaction> items = filter.bind(jdbc.sql("select " + COLUMNS + """
+                        from transactions t
+                        where t.space_id = :spaceId and t.deleted_at is null
+                        """ + TransactionFilter.WHERE + """
+                          and (cast(:afterDate as date) is null or (t.occurred_on, t.created_at, t.id) < (:afterDate, :afterAt, :afterId))
+                        -- Within a day, the one added last first: ids are chosen by the client and may be random.
+                        order by t.occurred_on desc, t.created_at desc, t.id desc
                         limit :limit
-                        """)
+                        """))
                 .param("spaceId", spaceId)
-                .param("from", filter.from()).param("to", filter.to())
-                .param("accountId", filter.accountId()).param("categoryId", filter.categoryId())
                 .param("afterDate", after == null ? null : after.date())
+                .param("afterAt", after == null ? null : after.createdAt().atOffset(java.time.ZoneOffset.UTC))
                 .param("afterId", after == null ? null : after.id())
                 .param("limit", limit)
                 .query(ROWS)
                 .list().stream().map(Row::transaction).toList();
-        String next = items.size() == limit ? new Cursor(items.getLast().occurredOn(), items.getLast().id()).encode() : null;
+        String next = items.size() == limit ? new Cursor(items.getLast().occurredOn(), items.getLast().createdAt(), items.getLast().id()).encode() : null;
         return new Page(items, next);
+    }
+
+    @Transactional(readOnly = true)
+    public Summary summary(CurrentUser user, UUID spaceId, TransactionFilter filter) {
+        access.read(user, spaceId);
+        return new Summary(filter.bind(jdbc.sql("""
+                        select t.currency, count(*)::int as count,
+                               coalesce(sum(t.amount) filter (where t.kind = 'EXPENSE'), 0) as spent,
+                               coalesce(sum(t.amount) filter (where t.kind = 'INCOME'), 0) as earned,
+                               coalesce(sum(t.amount) filter (where t.kind = 'TRANSFER'), 0) as moved
+                        from transactions t
+                        where t.space_id = :spaceId and t.deleted_at is null
+                        """ + TransactionFilter.WHERE + """
+                        group by t.currency order by count(*) desc
+                        """))
+                .param("spaceId", spaceId)
+                .query(Summary.Total.class).list());
     }
 
     @Transactional(readOnly = true)
@@ -333,17 +350,17 @@ public class TransactionService {
         return array == null ? List.of() : Arrays.asList((String[]) array.getArray());
     }
 
-    /** Keyset cursor "yyyy-mm-dd_uuid": stable while new transactions are added, unlike an offset. */
-    record Cursor(LocalDate date, UUID id) {
+    /** Keyset cursor "yyyy-mm-dd_createdAt_uuid": stable while new transactions are added, unlike an offset. */
+    record Cursor(LocalDate date, java.time.Instant createdAt, UUID id) {
 
         String encode() {
-            return date + "_" + id;
+            return date + "_" + createdAt + "_" + id;
         }
 
         static Cursor parse(String value) {
             try {
-                int split = value.indexOf('_');
-                return new Cursor(LocalDate.parse(value.substring(0, split)), UUID.fromString(value.substring(split + 1)));
+                String[] parts = value.split("_", 3);
+                return new Cursor(LocalDate.parse(parts[0]), java.time.Instant.parse(parts[1]), UUID.fromString(parts[2]));
             } catch (RuntimeException e) {
                 throw new InvalidRequestException("invalid-cursor", "cursor is not one this API returned");
             }

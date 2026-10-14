@@ -187,6 +187,12 @@ const transactions = createRoute({
     category: z.string().uuid().optional().catch(undefined),
     from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
     to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().catch(undefined),
+    // Search: words, type, amount range in rupees, a tag; and the list or calendar view.
+    q: z.string().max(100).optional().catch(undefined),
+    kind: z.enum(['EXPENSE', 'INCOME', 'TRANSFER']).optional().catch(undefined),
+    min: z.coerce.number().nonnegative().optional().catch(undefined),
+    max: z.coerce.number().nonnegative().optional().catch(undefined),
+    tag: z.string().max(40).optional().catch(undefined),
   }),
   component: lazyRouteComponent(() => import('@/pages/money/TransactionsPage'), 'TransactionsPage'),
 })

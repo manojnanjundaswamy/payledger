@@ -2,25 +2,22 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { ArrowLeftRight, FileUp, Plus, X } from 'lucide-react'
+import { ArrowLeftRight, FileUp, Plus, SearchX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, Skeleton } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
 import { useAccounts, useCategories, useSpaceId, useTransactions, type Transaction, type TxnKind } from '@/state/money'
 import { useProfile } from '@/state/profile'
-import { CategoryIcon, Select, TXN_KINDS, dayLabel, useMoneyFormat } from './parts'
+import { CategoryIcon, TXN_KINDS, dayLabel, useMoneyFormat } from './parts'
+import { FILTER_KEYS, TransactionFilters, toFilter, type FilterSearch } from './TransactionFilters'
 import { TransactionDialog } from './TransactionDialog'
 
-export interface TransactionsSearch {
+export interface TransactionsSearch extends FilterSearch {
   add?: TxnKind
   /** A transaction to open for editing (a link from the dashboard or elsewhere). */
   open?: string
   /** The date for a new one (?add=EXPENSE&date=2026-10-21, from the calendar). */
   date?: string
-  account?: string
-  category?: string
-  from?: string
-  to?: string
 }
 
 /** Every expense, income and transfer, newest first, grouped by day. */
@@ -31,7 +28,9 @@ export function TransactionsPage() {
   const money = useMoneyFormat()
   const { data: accounts, isPending: accountsPending } = useAccounts()
   const { data: categories = [] } = useCategories()
-  const { data, isPending, isError, hasNextPage, fetchNextPage, isFetchingNextPage } = useTransactions({ accountId: search.account, categoryId: search.category, from: search.from, to: search.to })
+  const { data, isPending, isError, hasNextPage, fetchNextPage, isFetchingNextPage } = useTransactions(toFilter(search))
+  // Only an account chosen: its empty state invites a first transaction rather than "no matches".
+  const filtered = FILTER_KEYS.some((k) => k !== 'account' && search[k] !== undefined)
   const [editing, setEditing] = useState<Transaction>()
   // ?open=<id>: open that transaction, even if it isn't on the first page of the list.
   const spaceId = useSpaceId()
@@ -69,35 +68,27 @@ export function TransactionsPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
-      <div className="flex flex-wrap items-center gap-3">
-        <Select aria-label="Filter by account" value={search.account ?? ''} className="w-auto min-w-48"
-          onChange={(e) => void navigate({ search: (s: TransactionsSearch) => ({ ...s, account: e.target.value || undefined }) })}>
-          <option value="">All accounts</option>
-          {accounts?.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-        </Select>
-        {(search.category || search.from || search.to) && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-2 py-1 pr-1 pl-3 text-xs" data-testid="filter-chip">
-            {search.category && (
-              <Link to="/categories" className="hover:underline hover:underline-offset-4" title="Categories">{categoryOf(search.category)?.name ?? 'Category'}</Link>
-            )}
-            {search.category && search.from && search.to && ' · '}
-            {search.from && search.to && `${dayLabel(search.from, locale)} – ${dayLabel(search.to, locale)}`}
-            <button type="button" aria-label="Clear filter" className="rounded-full p-0.5 text-muted hover:bg-surface-3 hover:text-fg"
-              onClick={() => void navigate({ search: (s: TransactionsSearch) => ({ ...s, category: undefined, from: undefined, to: undefined }) })}>
-              <X className="size-3.5" />
-            </button>
-          </span>
-        )}
-        <span className="flex-1" />
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Button asChild variant="ghost"><Link to="/import"><FileUp />Import</Link></Button>
         <Button variant="outline" onClick={() => setAdding('TRANSFER')}><ArrowLeftRight />Transfer</Button>
         <Button variant="primary" onClick={() => setAdding('EXPENSE')}><Plus />Add</Button>
       </div>
+      <TransactionFilters search={search} accounts={accounts ?? []} categories={categories}
+        onChange={(next) => void navigate({ search: (s: TransactionsSearch) => ({ ...s, ...next }), replace: true })} />
 
       {isError && <Card className="p-pad text-sm text-critical">Couldn't load transactions. Refresh to try again.</Card>}
       {isPending && <div className="flex flex-col gap-2">{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-14" />)}</div>}
 
-      {!isPending && items.length === 0 && (
+      {!isPending && items.length === 0 && filtered && (
+        <Card className="flex flex-col items-center gap-3 px-pad py-12 text-center">
+          <SearchX className="size-8 text-muted" />
+          <p className="font-medium">No transactions match</p>
+          <p className="max-w-sm text-sm text-muted">Try fewer words, or remove a filter.</p>
+          <Button variant="outline" onClick={() => void navigate({ search: (s: TransactionsSearch) => ({ ...s, ...Object.fromEntries(FILTER_KEYS.map((k) => [k, undefined])) }), replace: true })}>Clear filters</Button>
+        </Card>
+      )}
+
+      {!isPending && items.length === 0 && !filtered && (
         <Card className="flex flex-col items-center gap-3 px-pad py-12 text-center">
           <p className="font-medium">Nothing here yet</p>
           <p className="max-w-sm text-sm text-muted">Add today's spending as it happens: amount, category, done. It takes a few seconds.</p>

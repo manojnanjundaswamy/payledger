@@ -57,11 +57,37 @@ export interface TransactionFields {
   tags?: string[]
 }
 
+/** What to find (all optional): the same filter for the list, its totals and exports. Amounts are paise. */
 export interface TransactionFilter {
   accountId?: string
   categoryId?: string
   from?: string
   to?: string
+  kind?: TxnKind
+  /** Words in the description, note, tags, category or account; a number also finds that exact amount. */
+  q?: string
+  minAmount?: number
+  maxAmount?: number
+  tag?: string
+}
+
+/** A filter as query parameters, leaving out what isn't set. */
+export function filterParams(filter: TransactionFilter): URLSearchParams {
+  const params = new URLSearchParams()
+  for (const [k, v] of Object.entries(filter)) if (v !== undefined && v !== '' && v !== null) params.set(k, String(v))
+  return params
+}
+
+/** What a filter matched, per currency (paise). */
+export interface TransactionSummary { totals: { currency: string; count: number; spent: number; earned: number; moved: number }[] }
+
+export function useTransactionSummary(filter: TransactionFilter, enabled = true) {
+  const spaceId = useSpaceId()
+  return useQuery({
+    queryKey: ['money', spaceId, 'transactions', 'summary', filter],
+    queryFn: () => api<TransactionSummary>(`${base(spaceId!)}/transactions/summary?${filterParams(filter)}`),
+    enabled: !!spaceId && enabled,
+  })
 }
 
 interface Page { items: Transaction[]; nextCursor: string | null }
@@ -88,8 +114,8 @@ export const transactionsQuery = (spaceId: string, filter: TransactionFilter) =>
   queryKey: ['money', spaceId, 'transactions', filter],
   initialPageParam: null as string | null,
   queryFn: ({ pageParam }) => {
-    const params = new URLSearchParams({ limit: '50' })
-    for (const [k, v] of Object.entries(filter)) if (v) params.set(k, v)
+    const params = filterParams(filter)
+    params.set('limit', '50')
     if (pageParam) params.set('cursor', pageParam)
     return api<Page>(`${base(spaceId)}/transactions?${params}`)
   },
@@ -552,9 +578,9 @@ export function problemsCsv(rows: ImportRow[]): string {
   return ['row,column,reason', ...lines].join('\r\n') + '\r\n'
 }
 
-/** Transactions between two dates as a file in the import template's columns (importing it back adds nothing). */
-export function exportUrl(spaceId: string, format: 'csv' | 'xlsx', from: string, to: string): string {
-  return `${base(spaceId)}/exports/transactions.${format}?${new URLSearchParams({ from, to })}`
+/** Transactions matching a filter as a file in the import template's columns (importing it back adds nothing). */
+export function exportUrl(spaceId: string, format: 'csv' | 'xlsx', filter: TransactionFilter): string {
+  return `${base(spaceId)}/exports/transactions.${format}?${filterParams(filter)}`
 }
 
 /** Moves every transaction and bill of a category to another of the same kind, then hides it. */
