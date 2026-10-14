@@ -86,6 +86,21 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
     return { memberId: m.id, value }
   })
   const preview = useMemo(() => (total ? previewSplit(total, split, parts) : null), [total, split, JSON.stringify(parts)])
+  // What each person put in, as typed: the amount is split by "Split", and each person's result is their share less this.
+  const paidOf = (id: string) => severalPayers ? parseMoney(paid[id] ?? '') ?? 0 : id === payer ? total ?? 0 : 0
+  const paidTotal = severalPayers ? members.reduce((s, m) => s + paidOf(m.id), 0) : total ?? 0
+  const unpaid = (total ?? 0) - paidTotal
+  /** Turning on several payers starts from who was chosen paying it all. */
+  function chooseSeveral(on: boolean) {
+    if (on && total) setPaid({ [payer]: minorToInput(total, 'INR') })
+    setSeveralPayers(on)
+  }
+  /** Each person's share is what they paid: nobody owes anybody for this one. */
+  function splitAsPaid() {
+    setSplit('EXACT')
+    setIncluded(Object.fromEntries(members.map((m) => [m.id, paidOf(m.id) > 0])))
+    setValues(Object.fromEntries(members.filter((m) => paidOf(m.id) > 0).map((m) => [m.id, minorToInput(paidOf(m.id), 'INR')])))
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -141,7 +156,7 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
           <div className="flex items-center justify-between gap-2">
             <legend className="text-sm font-medium">Paid by</legend>
             <span className="flex items-center gap-2 text-xs text-muted">
-              <Switch checked={severalPayers} onCheckedChange={setSeveralPayers} label="Several people paid" />Several people paid
+              <Switch checked={severalPayers} onCheckedChange={chooseSeveral} label="Several people paid" />Several people paid
             </span>
           </div>
           {!severalPayers ? (
@@ -159,19 +174,47 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
               ))}
             </div>
           )}
+          {severalPayers && (
+            <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 rounded-control px-3 py-2 text-xs', unpaid === 0 ? 'bg-good/10 text-good-text' : 'bg-critical/10 text-critical')}
+              data-testid="paid-total" role="status">
+              <span className="tabular">
+                {unpaid === 0 ? `✓ Paid ${formatMoney(paidTotal)}: adds up` : total ? `Paid ${formatMoney(paidTotal)} of ${formatMoney(total)}: ${unpaid > 0 ? `${formatMoney(unpaid)} still to add` : `${formatMoney(-unpaid)} too much`}` : `Paid ${formatMoney(paidTotal)}`}
+              </span>
+              {unpaid !== 0 && paidTotal > 0 && (
+                <button type="button" className="underline underline-offset-2" onClick={() => setAmount(minorToInput(paidTotal, 'INR'))}>
+                  Make the amount {formatMoney(paidTotal)}
+                </button>
+              )}
+              {unpaid > 0 && (
+                <button type="button" className="underline underline-offset-2" onClick={() => setPaid({ ...paid, [you]: minorToInput(paidOf(you) + unpaid, 'INR') })}>
+                  I paid the rest
+                </button>
+              )}
+            </div>
+          )}
         </fieldset>
 
         <fieldset className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <legend className="text-sm font-medium">Split</legend>
+            <legend className="text-sm font-medium">Split: who it was for</legend>
             <Segmented label="Split" value={split} onChange={setSplit} options={SPLITS} />
           </div>
+          {severalPayers && paidTotal > 0 && (
+            <p className="text-xs text-muted">
+              What each person paid doesn't change their share.{' '}
+              <button type="button" className="text-fg underline underline-offset-2" onClick={splitAsPaid}>Split as paid</button>{' '}
+              if each paid for their own part.
+            </p>
+          )}
           <ul className="flex flex-col divide-y divide-border rounded-control border border-border">
             {members.map((m) => (
               <li key={m.id} className="flex items-center gap-3 px-3 py-2 text-sm">
                 <input type="checkbox" id={`gexp-in-${m.id}`} checked={!!included[m.id]} className="size-4 accent-[var(--accent)]"
                   onChange={(e) => setIncluded({ ...included, [m.id]: e.target.checked })} />
-                <label htmlFor={`gexp-in-${m.id}`} className="min-w-0 flex-1 truncate">{m.name}{m.you && ' (you)'}</label>
+                <label htmlFor={`gexp-in-${m.id}`} className="min-w-0 flex-1">
+                  <span className="block truncate">{m.name}{m.you && ' (you)'}</span>
+                  <Outcome paid={paidOf(m.id)} share={included[m.id] && preview ? preview[m.id] ?? 0 : 0} show={!!preview && !!total} you={m.you} />
+                </label>
                 {split !== 'EQUAL' && included[m.id] && (
                   <Input aria-label={`${m.name}'s ${split === 'EXACT' ? 'amount' : split === 'PERCENT' ? 'percentage' : 'shares'}`}
                     inputMode="decimal" className="h-8 w-24 tabular" placeholder={split === 'PERCENT' ? '%' : split === 'SHARES' ? '1' : '0'}
@@ -194,5 +237,19 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
         </div>
       </form>
     </Dialog>
+  )
+}
+
+/** A person's result from this expense: paid, and what that leaves them owing or getting back. */
+function Outcome({ paid, share, show, you }: { paid: number; share: number; show: boolean; you: boolean }) {
+  if (!show || (paid === 0 && share === 0)) return null
+  const net = paid - share
+  return (
+    <span className="block text-xs text-subtle tabular" data-testid="outcome">
+      {paid > 0 && `paid ${formatMoney(paid)} · `}
+      {net === 0 ? 'even' : net > 0
+        ? <span className="text-good-text">{you ? 'you get back' : 'gets back'} {formatMoney(net)}</span>
+        : <span className="text-critical">{you ? 'you owe' : 'owes'} {formatMoney(-net)}</span>}
+    </span>
   )
 }

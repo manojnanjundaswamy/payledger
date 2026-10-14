@@ -116,3 +116,55 @@ test('a shared expense shows who lent what, in charts, on the calendar and in th
   await page.getByRole('radio', { name: 'People' }).click()
   await page.getByRole('button', { name: 'Archive group' }).click()
 })
+
+// The owner's report: several people paid, and it still split equally. That's right (the split is who it was for),
+// but the form now shows the paid total live, fixes a mismatch in one click, and shows each person's result.
+test('when several people pay, the form shows what is left to add and what each person ends up owing', async ({ page }) => {
+  await signIn(page)
+  const run = Date.now()
+  await page.goto('/groups')
+  await page.getByRole('button', { name: 'New group' }).first().click()
+  await page.getByRole('dialog', { name: 'New group' }).getByLabel('Name').fill(`E2E payers ${run}`)
+  await page.getByRole('dialog', { name: 'New group' }).getByRole('button', { name: 'Create group' }).click()
+  const addSomeone = page.getByRole('region', { name: 'Add someone' })
+  for (const n of ['Rahul', 'Neha', 'Amit']) {
+    await addSomeone.getByLabel('Name').fill(n)
+    await addSomeone.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(page.getByTestId(`member-${n}`)).toBeVisible()
+  }
+
+  await page.getByRole('button', { name: 'Add expense' }).click()
+  const add = page.getByRole('dialog', { name: 'Add a shared expense' })
+  await add.getByLabel('What for').fill('Dance')
+  await add.getByLabel('Amount').fill('1000')
+  await add.getByRole('switch', { name: 'Several people paid' }).click()
+  // It starts with you paying it all; then the owner's numbers.
+  await expect(add.getByTestId('paid-total')).toContainText('adds up')
+  const me = add.getByRole('textbox', { name: /^Demo.* paid$/ })
+  await me.fill('100')
+  await add.getByLabel('Rahul paid').fill('100')
+  await add.getByLabel('Amit paid').fill('200')
+  await expect(add.getByTestId('paid-total')).toContainText('Paid ₹400.00 of ₹1,000.00: ₹600.00 still to add')
+  await add.locator('li').filter({ hasText: 'Neha' }).getByRole('checkbox').uncheck()
+  await add.getByRole('button', { name: 'Add expense' }).click()
+  await expect(add.getByRole('alert')).toContainText('must add up to ₹1,000.00')
+
+  // One click: the amount is what was paid. Each person's result shows.
+  await add.getByRole('button', { name: 'Make the amount ₹400.00' }).click()
+  await expect(add.getByLabel('Amount')).toHaveValue('400')
+  await expect(add.getByTestId('paid-total')).toContainText('adds up')
+  await expect(add.getByTestId('share-Amit')).toHaveText('₹133.33')
+  await expect(add.getByText('paid ₹200.00 · gets back ₹66.67')).toBeVisible()
+
+  // Or each paid for their own part: nobody owes anybody.
+  await add.getByRole('button', { name: 'Split as paid' }).click()
+  await expect(add.getByTestId('share-Amit')).toHaveText('₹200.00')
+  await expect(add.getByTestId('outcome').filter({ hasText: 'even' })).toHaveCount(3)
+  await add.getByRole('button', { name: 'Add expense' }).click()
+  await expect(add).toBeHidden()
+  await page.getByRole('radio', { name: 'Activity' }).click()
+  await expect(page.getByRole('button', { name: 'Edit Dance' })).toContainText('your share ₹100.00')
+
+  await page.getByRole('radio', { name: 'People' }).click()
+  await page.getByRole('button', { name: 'Archive group' }).click()
+})
