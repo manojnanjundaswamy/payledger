@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { UseIt } from './parts'
 import { Copy, Delete, History } from 'lucide-react'
 import { toast } from 'sonner'
 import { Segmented } from '@/components/ui/controls'
@@ -83,6 +84,8 @@ export function Calculator() {
             onClick={() => { if (current !== null) { void navigator.clipboard?.writeText(String(current)); toast('Copied') } }}><Copy className="size-4" /></button>
         </div>
       </div>
+
+      {!error && current !== null && current > 0 && <UseIt amount={current} description="" kind="EXPENSE" />}
 
       <div className="flex flex-wrap items-center gap-2">
         <Segmented label="Mode" value={sci ? 'sci' : 'std'} onChange={(v) => setSci(v === 'sci')}

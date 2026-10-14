@@ -1,4 +1,10 @@
 import type { ReactNode } from 'react'
+import { useState } from 'react'
+import { CalendarPlus, Plus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { TransactionDialog } from '@/pages/money/TransactionDialog'
+import { CommitmentDialog } from '@/pages/money/CommitmentDialog'
+import type { CommitmentKind } from '@/state/money'
 import { Input } from '@/components/ui/controls'
 import { cn } from '@/lib/cn'
 import { evaluate } from '../expr'
@@ -75,4 +81,41 @@ export function SplitBar({ a, b, aLabel, bLabel }: { a: number; b: number; aLabe
 
 export function Note({ children }: { children: ReactNode }) {
   return <p className="text-xs text-subtle">{children}</p>
+}
+
+/**
+ * Turns a calculator's answer into an entry: record it as an expense or income (amount, description and category
+ * filled in, then you check and save), or add it to your plan as a bill or saving that repeats.
+ */
+export function UseIt({ amount, description, category, kind = 'EXPENSE', plan }: {
+  /** Rupees. */
+  amount: number
+  description: string
+  category?: string
+  kind?: 'EXPENSE' | 'INCOME' | null
+  plan?: { kind: CommitmentKind; name: string; everyMonths: number; months?: number; category?: string }
+}) {
+  const [adding, setAdding] = useState(false)
+  const [planning, setPlanning] = useState(false)
+  if (!(amount > 0)) return null
+  const value = (Math.round(amount * 100) / 100).toFixed(2).replace(/\.00$/, '')
+  const endsOn = plan?.months ? (() => {
+    const d = new Date()
+    d.setMonth(d.getMonth() + plan.months - 1)
+    return d.toISOString().slice(0, 10)
+  })() : undefined
+  return (
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Use this answer">
+      {kind && <Button size="sm" variant="outline" onClick={() => setAdding(true)}><Plus />Add as {kind === 'INCOME' ? 'income' : 'an expense'}</Button>}
+      {plan && <Button size="sm" variant="outline" onClick={() => setPlanning(true)}><CalendarPlus />Add to my plan</Button>}
+      {kind && (
+        <TransactionDialog open={adding} onOpenChange={setAdding} initialKind={kind}
+          prefill={{ amount: value, description, categoryName: category }} />
+      )}
+      {plan && (
+        <CommitmentDialog open={planning} onOpenChange={setPlanning}
+          prefill={{ kind: plan.kind, name: plan.name, amount: value, everyMonths: plan.everyMonths, endsOn, categoryName: plan.category }} />
+      )}
+    </div>
+  )
 }

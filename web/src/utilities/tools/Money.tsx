@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Segmented } from '@/components/ui/controls'
 import { amortize, futureCost, lumpsum, recurringDeposit, sip } from '../finance'
-import { Line, Note, NumberField, Result, SplitBar, num, rupees } from './parts'
+import { Line, Note, NumberField, Result, SplitBar, num, rupees, UseIt } from './parts'
 
 /** Loan EMI with the year-by-year split, and what an extra payment every month saves. */
 export function LoanCalculator() {
@@ -28,6 +28,8 @@ export function LoanCalculator() {
             <Line label="Total interest" value={rupees(plan.totalInterest)} />
             <Line label="Total you pay" value={rupees(plan.totalPaid)} strong />
           </Result>
+          <UseIt amount={plan.emi} description="Loan EMI" kind={null}
+            plan={{ kind: 'BILL', name: 'Loan EMI', everyMonths: 1, months, category: 'EMIs & loans' }} />
           <SplitBar a={p} b={plan.totalInterest} aLabel="Principal" bLabel="Interest" />
           <NumberField id="loan-extra" label="Pay extra every month (optional)" value={extra} onChange={setExtra} suffix="₹" />
           {faster && (
@@ -71,6 +73,7 @@ export function SipCalculator() {
       </div>
       {result && (
         <>
+          <UseIt amount={m} description="SIP" kind={null} plan={{ kind: 'SAVING', name: 'SIP', everyMonths: 1, months: Math.round((num(years) ?? 0) * 12) }} />
           <Result label="You'd have" value={rupees(result.value)} testId="sip-value">
             <Line label="You put in" value={rupees(result.invested)} />
             <Line label="Growth" value={rupees(result.gains)} strong />
@@ -123,11 +126,12 @@ export function RdCalculator() {
         <NumberField id="rd-rate" label="Interest" value={rate} onChange={setRate} suffix="% a year" />
         <NumberField id="rd-months" label="For" value={months} onChange={setMonths} suffix="months" />
       </div>
-      {result && (
+      {result && (<>
+        <UseIt amount={m} description="Recurring deposit" kind={null} plan={{ kind: 'SAVING', name: 'Recurring deposit', everyMonths: 1, months: Math.round(num(months) ?? 0) }} />
         <Result label="At maturity" value={rupees(result.value)} testId="rd-value">
           <Line label="You put in" value={rupees(result.invested)} />
           <Line label="Interest" value={rupees(result.gains)} strong />
-        </Result>
+        </Result></>
       )}
     </div>
   )

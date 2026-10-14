@@ -3,7 +3,7 @@ import { Check } from 'lucide-react'
 import { Segmented, Switch } from '@/components/ui/controls'
 import { cn } from '@/lib/cn'
 import { GST_RATES, TAX_YEAR, gst, incomeTax, type AgeBand, type Deductions, type TaxResult } from '../finance'
-import { Line, Note, NumberField, Result, num, rupees } from './parts'
+import { Line, Note, NumberField, Result, num, rupees, UseIt } from './parts'
 
 /** Old regime against new, side by side, with the cheaper one marked. */
 export function TaxCalculator() {
@@ -44,6 +44,7 @@ export function TaxCalculator() {
       {both && (
         <div className="grid gap-3 sm:grid-cols-2">
           {both.map((t) => <RegimeCard key={t.regime} t={t} best={better === t.regime} />)}
+          <UseIt amount={both.find((t) => t.regime === better)!.total} description={`Income tax ${TAX_YEAR}`} category="Taxes" />
         </div>
       )}
       {both && better && (
@@ -97,6 +98,9 @@ export function GstCalculator() {
           {interstate ? <Line label={`IGST ${rate}%`} value={rupees(r.tax, 2)} />
             : <><Line label={`CGST ${Number(rate) / 2}%`} value={rupees(r.cgst, 2)} /><Line label={`SGST ${Number(rate) / 2}%`} value={rupees(r.sgst, 2)} /></>}
         </Result>
+      )}
+      {a > 0 && (
+        <UseIt amount={inclusive ? a : r.total} description={`Purchase incl. ${rate}% GST`} />
       )}
       <Note>GST 2.0 (from 22 Sept 2025): 5% and 18% for most goods and services, 40% for a short list of luxury and sin goods.</Note>
     </div>
