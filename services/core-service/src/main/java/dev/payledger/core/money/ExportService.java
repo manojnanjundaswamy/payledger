@@ -1,6 +1,5 @@
 package dev.payledger.core.money;
 
-import dev.payledger.core.common.InvalidRequestException;
 import dev.payledger.core.space.SpaceAccess;
 import dev.payledger.core.user.CurrentUser;
 import org.springframework.jdbc.core.simple.JdbcClient;
