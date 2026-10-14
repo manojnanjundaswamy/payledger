@@ -5,6 +5,8 @@
 #
 #   docker compose up -d keycloak && scripts/keycloak-sync.sh
 set -euo pipefail
+# Git Bash on Windows would turn /opt/keycloak/... into C:/Program Files/Git/opt/...
+export MSYS_NO_PATHCONV=1
 
 # SMTP_* and others from .env, the same file docker compose reads.
 if [ -f .env ]; then set -a; . ./.env; set +a; fi
@@ -39,3 +41,18 @@ else
   kc update realms/payledger -s "smtpServer.host=$host" -s "smtpServer.port=${SMTP_PORT:-587}"     -s "smtpServer.auth=${SMTP_AUTH:-true}" -s "smtpServer.user=${SMTP_USERNAME:-}" -s "smtpServer.password=${SMTP_PASSWORD:-}"     -s "smtpServer.starttls=${SMTP_STARTTLS:-true}" -s "smtpServer.ssl=${SMTP_SSL:-false}"     -s "smtpServer.from=${MAIL_FROM:?set MAIL_FROM to the address emails come from}" -s smtpServer.fromDisplayName=PayLedger
   echo "Keycloak email: $host (real delivery)"
 fi
+
+# Hosted (PUBLIC_URL in .env, e.g. https://payledger.example.com): sign-in may return to that address too. The local
+# addresses stay, so the laptop keeps working.
+gw=$(kc get clients -r payledger -q clientId=payledger-gateway --fields id --format csv --noquotes)
+uris="\"http://localhost:8000/login/oauth2/code/keycloak\",\"http://localhost:5173/login/oauth2/code/keycloak\""
+origins="\"http://localhost:5173\",\"http://localhost:8000\""
+logout="http://localhost:5173*##http://localhost:8000*"
+if [ -n "${PUBLIC_URL:-}" ]; then
+  uris="$uris,\"${PUBLIC_URL%/}/login/oauth2/code/keycloak\""
+  origins="$origins,\"${PUBLIC_URL%/}\""
+  logout="$logout##${PUBLIC_URL%/}*"
+fi
+kc update "clients/$gw" -r payledger -s "redirectUris=[$uris]" -s "webOrigins=[$origins]" \
+  -s "attributes.\"post.logout.redirect.uris\"=$logout"
+echo "Sign-in returns to: localhost${PUBLIC_URL:+ and $PUBLIC_URL}"

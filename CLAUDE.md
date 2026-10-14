@@ -13,7 +13,7 @@ splitting groups by link without an account. Owner: Manoj. Read these before cha
 - Notifications (bell, email outbox, providers and costs, WhatsApp, activity audit): `docs/notifications.md`
 - Design decisions: `docs/adr/0001`–`0008` (ledger, locking, idempotency, outbox, ledger v2 books, identity/BFF, groups and splitting, admin console)
 - Event contract: `docs/events/ledger-entry-posted.md`
-- How to run everything: `README.md`
+- How to run everything: `README.md`; hosting from the laptop through a Cloudflare Tunnel: `docs/hosting.md`
 
 ## Architecture (what exists)
 
