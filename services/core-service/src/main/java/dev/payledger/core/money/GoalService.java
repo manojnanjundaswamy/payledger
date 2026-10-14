@@ -217,7 +217,8 @@ public class GoalService {
             long months = Math.max(1, ChronoUnit.MONTHS.between(today.withDayOfMonth(1), r.targetDate().withDayOfMonth(1)) + (r.targetDate().isBefore(today) ? 0 : 1));
             perMonth = (left + months - 1) / months;
             long total = Math.max(1, ChronoUnit.DAYS.between(start, r.targetDate()));
-            long gone = Math.min(total, Math.max(0, ChronoUnit.DAYS.between(start, today)));
+            // A day's leeway: created_at is a UTC instant, so a goal made after midnight in India starts "yesterday".
+            long gone = Math.min(total, Math.max(0, ChronoUnit.DAYS.between(start, today) - 1));
             long expected = r.target() * gone / total;
             status = saved >= expected ? "ON_TRACK" : "BEHIND";
             behindBy = saved >= expected ? null : expected - saved;

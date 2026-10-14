@@ -12,6 +12,8 @@ test('remove the E2E leftovers from the demo account', async ({ page }) => {
   const me = await callApi<{ spaces: { id: string }[] }>(page, 'GET', '/api/core/me')
   const base = `/api/core/spaces/${me.spaces[0]!.id}`
   const isTest = (name: string | null | undefined) => !!name && /^E2E\b/i.test(name.trim())
+  // The test groups' expenses and payments booked in your budget end with the group's name: "Dinner · E2E trip".
+  const isTestBooking = (description: string) => / · E2E\b[^·]*$/i.test(description)
 
   const accounts = await callApi<{ id: string; name: string; openingBalance: number }[]>(page, 'GET', `${base}/accounts?includeArchived=true`)
   const categories = await callApi<{ id: string; name: string }[]>(page, 'GET', `${base}/categories`)
@@ -26,7 +28,7 @@ test('remove the E2E leftovers from the demo account', async ({ page }) => {
     do {
       const page1: { items: { id: string; version: number; description: string; accountId: string; toAccountId: string | null; categoryId: string | null }[]; nextCursor: string | null } =
         await callApi(page, 'GET', `${base}/transactions?limit=200${cursor ? `&cursor=${cursor}` : ''}`)
-      doomed.push(...page1.items.filter((t) => isTest(t.description) || testAccounts.has(t.accountId) || (t.toAccountId && testAccounts.has(t.toAccountId))
+      doomed.push(...page1.items.filter((t) => isTest(t.description) || isTestBooking(t.description) || testAccounts.has(t.accountId) || (t.toAccountId && testAccounts.has(t.toAccountId))
         || (t.categoryId && testCategories.has(t.categoryId))))
       cursor = page1.nextCursor
     } while (cursor)

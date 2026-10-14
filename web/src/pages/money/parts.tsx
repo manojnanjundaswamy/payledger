@@ -35,7 +35,11 @@ export const ACCOUNT_KINDS: Record<AccountKind, { label: string; icon: LucideIco
   CARD: { label: 'Credit card', icon: CreditCard, hint: 'What you owe on it' },
   CASH: { label: 'Cash', icon: Banknote, hint: 'Money in your wallet' },
   WALLET: { label: 'Wallet', icon: Wallet, hint: 'Paytm, Amazon Pay, PhonePe…' },
+  OWED: { label: 'Friends & groups', icon: HandCoins, hint: 'What friends owe you from groups (below zero: what you owe)' },
 }
+
+/** The kinds people add themselves ("Friends & groups" is kept by the app). */
+export const NEW_ACCOUNT_KINDS: AccountKind[] = ['BANK', 'CARD', 'CASH', 'WALLET']
 
 export const TXN_KINDS: Record<TxnKind, { label: string; icon: LucideIcon }> = {
   EXPENSE: { label: 'Expense', icon: ArrowUpRight },

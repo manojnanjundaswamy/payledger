@@ -141,7 +141,7 @@ public class PlanService {
     /** How much of a limit a space uses now. */
     public long usage(UUID spaceId, Limit limit) {
         String sql = switch (limit) {
-            case ACCOUNTS -> "select count(*) from money_accounts where space_id = :spaceId and archived_at is null";
+            case ACCOUNTS -> "select count(*) from money_accounts where space_id = :spaceId and archived_at is null and kind <> 'OWED'";
             // Budgeted categories in the latest month that has any (a limit set for "from now on").
             case BUDGETS -> """
                     select count(*) from (

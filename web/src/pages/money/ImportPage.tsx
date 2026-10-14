@@ -10,7 +10,7 @@ import {
   base64Of, categoryLabel, problemsCsv, templateUrl, useAccounts, useCategories, useCommitImport, useImports, usePreviewImport,
   useSpaceId, useUndoImport, type ImportPreview, type ImportRequest, type ImportUnknown,
 } from '@/state/money'
-import { ACCOUNT_KINDS, Select, useMoneyFormat } from './parts'
+import { ACCOUNT_KINDS, Select, useMoneyFormat, NEW_ACCOUNT_KINDS } from './parts'
 
 /** A CSV in the template's shape: checked row by row, unknown names mapped, then imported (and undoable). */
 export function ImportPage() {
@@ -161,7 +161,7 @@ function Mappings({ preview, request, onChange }: { preview: ImportPreview; requ
               onChange={(e) => setAccount(u.key, e.target.value)}>
               <option value="">Choose…</option>
               <optgroup label="Create it as">
-                {(Object.keys(ACCOUNT_KINDS) as (keyof typeof ACCOUNT_KINDS)[]).map((k) =>
+                {NEW_ACCOUNT_KINDS.map((k) =>
                   <option key={k} value={`new:${k}`}>New {ACCOUNT_KINDS[k].label.toLowerCase()}</option>)}
               </optgroup>
               {accounts.length > 0 && (

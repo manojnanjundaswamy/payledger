@@ -12,6 +12,7 @@ import { usePreferences, useUndoable } from '@/state/PreferencesProvider'
 import { useProfile, useUpdateProfile, type ProfileUpdate } from '@/state/profile'
 import { signOut, useSession } from '@/state/session'
 import { UPI_ID } from '@/lib/upi'
+import { useAccounts, useGroupBudget, useSetGroupBudget } from '@/state/money'
 import { Field, Section, Select } from './parts'
 
 function useSaveSetting() {
@@ -71,6 +72,7 @@ export function RegionalSettings() {
   const period = budgetPeriod(budgetStartDay)
   const fmt = (d: Date) => d.toLocaleDateString(locale, { day: 'numeric', month: 'short' })
   return (
+    <>
     <Section title="Region & money" description="India first: rupees, lakh/crore grouping and the April–March financial year. Change anything that doesn't fit you.">
       <Field label="Currency" hint="Your default for new accounts.">
         <Select label="Currency" value={currency} onChange={(v) => save({ currency: v }, 'Currency')}
@@ -86,6 +88,36 @@ export function RegionalSettings() {
         <Select label="Month starts on" value={String(budgetStartDay)} onChange={(v) => save({ budgetStartDay: Number(v) }, 'Budget month')}
           options={Array.from({ length: 28 }, (_, i) => ({ value: String(i + 1), label: i === 0 ? '1st (calendar month)' : `${ordinal(i + 1)} of the month` }))} />
       </Field>
+    </Section>
+    <GroupBudgetSettings />
+    </>
+  )
+}
+
+/** Whether your share of group expenses counts in your budget, and the account you usually pay friends from. */
+function GroupBudgetSettings() {
+  const { data } = useGroupBudget()
+  const { data: accounts } = useAccounts()
+  const set = useSetGroupBudget()
+  if (!data) return null
+  const save = (enabled: boolean, accountId: string | null, what: string) =>
+    set.mutate({ enabled, accountId }, {
+      onSuccess: () => toast.success(`${what} saved`),
+      onError: (e) => toast.error(`Couldn't save ${what.toLowerCase()}`, { description: e.message }),
+    })
+  const payable = (accounts ?? []).filter((a) => a.kind !== 'OWED' && !a.archived)
+  return (
+    <Section title="Groups in your budget"
+      description="Your share of a group expense counts as your spending, in your category of the same name. What you paid for others isn't spending: it waits in Friends & groups until they pay you back.">
+      <Field label="Count my share in my budget" hint="Turning it on adds what's already in your groups.">
+        <Switch checked={data.enabled} onCheckedChange={(on) => save(on, data.accountId, 'Groups in your budget')} label="Count my share in my budget" />
+      </Field>
+      {data.enabled && (
+        <Field label="I usually pay from" hint="You can pick another account on each expense or payment.">
+          <Select label="I usually pay from" value={data.accountId ?? ''} onChange={(v) => save(true, v || null, 'Account')}
+            options={[{ value: '', label: 'My first bank account' }, ...payable.map((a) => ({ value: a.id, label: a.name }))]} />
+        </Field>
+      )}
     </Section>
   )
 }

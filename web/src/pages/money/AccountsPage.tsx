@@ -38,12 +38,14 @@ export function AccountsPage() {
   const open = (accounts ?? []).filter((a) => !a.archived)
   const known = open.every((a) => a.balance !== null)
   const inr = open.filter((a) => a.currency === 'INR')
+  // What friends owe you is yours too (net worth), and below zero it's what you owe them.
   const have = inr.filter((a) => a.kind !== 'CARD').reduce((s, a) => s + (a.balance ?? 0), 0)
   const owe = inr.filter((a) => a.kind === 'CARD').reduce((s, a) => s + (a.balance ?? 0), 0)
   // Net worth in the main currency: what you have minus what you owe on cards.
   const netWorth = have - owe
   const groups: { title: string; rows: Account[] }[] = [
-    { title: 'Money you have', rows: (accounts ?? []).filter((a) => a.kind !== 'CARD' && !a.archived) },
+    { title: 'Money you have', rows: (accounts ?? []).filter((a) => a.kind !== 'CARD' && a.kind !== 'OWED' && !a.archived) },
+    { title: 'Friends & groups', rows: (accounts ?? []).filter((a) => a.kind === 'OWED' && !a.archived) },
     { title: 'Cards', rows: (accounts ?? []).filter((a) => a.kind === 'CARD' && !a.archived) },
     { title: 'Archived', rows: (accounts ?? []).filter((a) => a.archived) },
   ]
@@ -140,6 +142,7 @@ function AccountCard({ account: a, range, onEdit }: { account: Account; range: R
             {a.balance === null ? '—' : money(a.balance, a.currency)}
           </span>
           {a.kind === 'CARD' && a.balance !== null && <span className="block text-xs text-subtle">owed</span>}
+          {a.kind === 'OWED' && a.balance !== null && <span className="block text-xs text-subtle">{a.balance >= 0 ? 'owed to you' : 'you owe'}</span>}
         </span>
         {a.archived && <Badge>Archived</Badge>}
         <EditButton label={`Edit ${a.name}`} onClick={onEdit} />
@@ -169,7 +172,10 @@ function AccountCard({ account: a, range, onEdit }: { account: Account; range: R
         {goal && <Link to="/goals" className="flex items-center gap-1 hover:text-fg hover:underline"><GoalIcon className="size-3.5" />Saving for {goal.name}</Link>}
       </div>
 
-      {!a.archived && (
+      {a.kind === 'OWED' && (
+        <p className="text-xs text-muted">Your share of group expenses counts as spending; what you paid for others waits here until they pay you back. <Link to="/groups" className="text-fg underline underline-offset-4">Your groups</Link></p>
+      )}
+      {!a.archived && a.kind !== 'OWED' && (
         <div className="flex flex-wrap gap-1 border-t border-border pt-3">
           <Button asChild size="sm" variant="ghost"><Link to="/transactions" search={{ add: 'EXPENSE', account: a.id }}><Receipt />{a.kind === 'CARD' ? 'Add a purchase' : 'Add expense'}</Link></Button>
           <Button asChild size="sm" variant="ghost"><Link to="/transactions" search={{ add: 'TRANSFER', account: a.id }}><ArrowLeftRight />{a.kind === 'CARD' ? 'Pay the card' : 'Transfer'}</Link></Button>
