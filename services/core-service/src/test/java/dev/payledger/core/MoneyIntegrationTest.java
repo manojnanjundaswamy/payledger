@@ -316,6 +316,37 @@ class MoneyIntegrationTest {
         assertThat(JsonPath.<List<String>>read(next, "$.items[*].description")).containsExactly("First");
     }
 
+    @Test
+    void aReportBreaksTheFilteredTransactionsDownEveryWay() throws Exception {
+        String bank = createAccount("BANK", "HDFC", 0);
+        String card = createAccount("CARD", "ICICI card", 0);
+        createTransaction(fields("EXPENSE", 40_000, bank, null, groceries, "Swiggy", "2026-10-05"));  // a Monday
+        createTransaction(fields("EXPENSE", 10_000, card, null, groceries, "SWIGGY ", "2026-10-06"));
+        createTransaction(fields("EXPENSE", 25_000, card, null, groceries, "BigBasket", "2026-09-30"));
+        createTransaction(fields("INCOME", 5_000_000, bank, null, salary, "Salary", "2026-10-01"));
+        createTransaction(fields("TRANSFER", 300_000, bank, card, null, "Card bill", "2026-10-07"));
+
+        String body = mvc.perform(get(path("/reports/breakdown")).with(me).param("from", "2026-10-01").param("to", "2026-10-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.spent").value(50_000)).andExpect(jsonPath("$.earned").value(5_000_000))
+                .andExpect(jsonPath("$.count").value(3)).andExpect(jsonPath("$.days").value(31))
+                .andExpect(jsonPath("$.byCategory[0].categoryId").value(salary))
+                .andExpect(jsonPath("$.byMonth.length()").value(1))
+                .andExpect(jsonPath("$.byAccount[0].accountId").value(bank)).andExpect(jsonPath("$.byAccount[0].spent").value(40_000))
+                .andExpect(jsonPath("$.byWeekday[0].weekday").value(1)).andExpect(jsonPath("$.byWeekday[0].spent").value(40_000))
+                .andExpect(jsonPath("$.byTag[0].tag").value("test")).andExpect(jsonPath("$.byTag[0].spent").value(50_000))
+                // "Swiggy" and "SWIGGY " are one place.
+                .andExpect(jsonPath("$.places[0].spent").value(50_000)).andExpect(jsonPath("$.places[0].count").value(2))
+                .andExpect(jsonPath("$.biggest[0].description").value("Swiggy"))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(JsonPath.<List<Object>>read(body, "$.byDay[*].day")).hasSize(3);
+
+        // Filters narrow it, as on the list.
+        mvc.perform(get(path("/reports/breakdown")).with(me).param("accountId", card))
+                .andExpect(jsonPath("$.spent").value(35_000)).andExpect(jsonPath("$.earned").value(0))
+                .andExpect(jsonPath("$.byMonth.length()").value(2)).andExpect(jsonPath("$.days").value(8));
+    }
+
     private List<String> descriptions(String... params) throws Exception {
         var request = get(path("/transactions")).with(me);
         for (int i = 0; i < params.length; i += 2) {

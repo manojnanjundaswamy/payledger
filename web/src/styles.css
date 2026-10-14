@@ -129,3 +129,10 @@
 .scroll-quiet:hover, .scroll-quiet:focus-within { scrollbar-width: thin; }
 .scroll-quiet::-webkit-scrollbar { width: 0; }
 .scroll-quiet:hover::-webkit-scrollbar { width: 6px; }
+
+/* Printing a page (a report "Print / save as PDF"): just the content, without the app's chrome. */
+@media print {
+  aside, header, nav, [data-sonner-toaster] { display: none !important; }
+  main { padding: 0 !important; max-width: none !important; }
+  body { background: white !important; }
+}

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
-import { signIn } from './helpers'
+import { callApi, signIn } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page)
@@ -78,4 +78,44 @@ test('reports show spending by category for the financial year and open its tran
   await page.getByRole('button', { name: `Edit ${bank}` }).click()
   await page.getByRole('dialog', { name: `Edit ${bank}` }).getByRole('button', { name: 'Archive' }).click()
   await expect(page.getByRole('button', { name: `Edit ${bank}` })).toBeHidden()
+})
+
+test('a report narrows by account, breaks spending down by place, day and account, and downloads a summary', async ({ page }) => {
+  const run = Date.now()
+  const me = await callApi<{ spaces: { id: string }[] }>(page, 'GET', '/api/core/me')
+  const base = `/api/core/spaces/${me.spaces[0]!.id}`
+  const categories = await callApi<{ id: string; name: string }[]>(page, 'GET', `${base}/categories`)
+  const account = await callApi<{ id: string }>(page, 'POST', `${base}/accounts`, { kind: 'WALLET', name: `E2E rpt ${run}`, openingBalance: 0, openingDate: '2026-01-01' })
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const made: { id: string; version: number }[] = []
+  for (const [d, a] of [[`E2E Chai ${run}`, 4_000], [`E2E Chai ${run}`, 6_000], [`E2E Books ${run}`, 50_000]] as const) {
+    made.push(await callApi(page, 'POST', `${base}/transactions`, { kind: 'EXPENSE', amount: a, accountId: account.id, categoryId: categories.find((c) => c.name === 'Eating out')!.id, occurredOn: today, description: d, tags: [`rpt${run}`] }))
+  }
+
+  await page.goto(`/reports?period=custom&from=${today.slice(0, 8)}01&to=${today}&account=${account.id}`)
+  await expect(page.getByTestId('report-spending')).toHaveText('₹600')
+  await expect(page.getByTestId('report-range')).toContainText('narrowed by the filters')
+  // Places: the two chai payments are one place.
+  const places = page.getByRole('region', { name: 'Top places' })
+  await expect(places).toContainText(`E2E Chai ${run} · 2×`)
+  // Day by day: today carries the spending; it opens that day's transactions.
+  await expect(page.getByTestId(`day-${today}`)).toContainText('₹600')
+  await expect(page.getByRole('region', { name: 'By tag' })).toContainText(`#rpt${run}`)
+
+  // The summary downloads as one CSV.
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Download the summary' }).click()
+  const csv = readFileSync(await (await download).path(), 'utf-8')
+  expect(csv).toContain('Spending,6.00'.replace('6.00', '600.00'))
+  expect(csv).toContain(`E2E Chai ${run},100.00,2`)
+
+  // A place opens its transactions, with the report's filters kept.
+  await places.getByRole('button', { name: new RegExp(`E2E Books ${run}`) }).click()
+  await expect(page).toHaveURL(/\/transactions\?.*account=/)
+  await expect(page.getByRole('button', { name: `Edit E2E Books ${run}` })).toBeVisible()
+  await expect(page.getByRole('button', { name: `Edit E2E Chai ${run}` })).toHaveCount(0)
+
+  for (const t of made) await callApi(page, 'DELETE', `${base}/transactions/${t.id}?version=${t.version}`)
+  await callApi(page, 'PATCH', `${base}/accounts/${account.id}`, { archived: true })
 })

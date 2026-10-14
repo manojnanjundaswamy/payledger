@@ -1,14 +1,19 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { BarChart3, Download } from 'lucide-react'
+import { BarChart3, Download, FileSpreadsheet, Printer, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, Skeleton } from '@/components/ui/card'
-import { Input } from '@/components/ui/controls'
-import { BUDGET_STATUS, GroupedBars } from '@/dashboard/charts'
+import { Input, Segmented } from '@/components/ui/controls'
+import { MonthCalendar } from '@/components/MonthCalendar'
+import { BUDGET_STATUS, BarList, GroupedBars } from '@/dashboard/charts'
+import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatMoneyShort, formatMoneyWhole } from '@/lib/money'
 import { PERIOD_KEYS, financialYear, monthsIn, reportPeriod, type Period, type PeriodKey } from '@/lib/periods'
-import { exportUrl, useBudgetMonths, useCategories, useCategoryTotals, useSpaceId, type Category, type CategoryTotal } from '@/state/money'
+import {
+  exportUrl, filterParams, useAccounts, useBudgetMonths, useCategories, useSpaceId, type Category, type TransactionFilter,
+} from '@/state/money'
 import { useProfile } from '@/state/profile'
 import { CategoryIcon, Select } from './parts'
 
@@ -17,31 +22,70 @@ const PERIOD_LABELS: Record<PeriodKey, string> = {
   'last-12': 'Last 12 months', custom: 'Custom dates',
 }
 
-/** Where the money went and came from over a period, including India's April–March financial year. */
+/** The report's search, as it sits in the URL. */
+export interface ReportsSearch {
+  period?: PeriodKey
+  from?: string
+  to?: string
+  account?: string
+  category?: string
+  tag?: string
+  q?: string
+}
+
+/** What GET /reports/breakdown returns (paise). */
+export interface Breakdown {
+  spent: number; earned: number; count: number; days: number
+  byCategory: { categoryId: string | null; kind: 'EXPENSE' | 'INCOME'; amount: number; count: number }[]
+  byMonth: { month: string; spent: number; earned: number }[]
+  byAccount: { accountId: string; spent: number; earned: number; count: number }[]
+  byDay: { day: string; spent: number; earned: number }[]
+  byWeekday: { weekday: number; spent: number; count: number }[]
+  byTag: { tag: string; spent: number; count: number }[]
+  places: { name: string; spent: number; count: number }[]
+  biggest: { id: string; description: string; amount: number; occurredOn: string; categoryId: string | null }[]
+}
+
+function useBreakdown(filter: TransactionFilter) {
+  const spaceId = useSpaceId()
+  return useQuery({
+    queryKey: ['money', spaceId, 'transactions', 'breakdown', filter],
+    queryFn: () => api<Breakdown>(`/api/core/spaces/${spaceId}/reports/breakdown?${filterParams(filter)}`),
+    enabled: !!spaceId,
+  })
+}
+
+/**
+ * Where the money went and came from over a period (including India's April–March financial year), narrowed by
+ * account, category, tag or words. Every chart opens the transactions behind it, and the report downloads as the
+ * transactions (CSV, Excel), a summary, or a printout.
+ */
 export function ReportsPage() {
-  const search = useSearch({ from: '/app/reports' })
+  const search = useSearch({ from: '/app/reports' }) as ReportsSearch
   const navigate = useNavigate({ from: '/reports' })
   const profile = useProfile().data
   const locale = profile?.settings.locale ?? 'en-IN'
   const period = reportPeriod(search.period ?? 'this-month', profile?.settings.budgetStartDay ?? 1, new Date(), search)
   const money = (minor: number) => formatMoneyWhole(minor, 'INR', locale)
   const spaceId = useSpaceId()
-
-  const spending = useCategoryTotals('EXPENSE', period.from, period.to)
-  const income = useCategoryTotals('INCOME', period.from, period.to)
   const { data: categories = [] } = useCategories()
+  const { data: accounts = [] } = useAccounts(true)
+  const filter: TransactionFilter = { from: period.from, to: period.to, accountId: search.account, categoryId: search.category, tag: search.tag, q: search.q }
+  const { data, isPending, isError } = useBreakdown(filter)
+  const set = (next: Partial<ReportsSearch>) => void navigate({ search: (s: ReportsSearch) => ({ ...s, ...next }), replace: true })
+  const narrowed = !!(search.account || search.category || search.tag || search.q)
+  // What a chart opens: the transactions behind it, with the report's own filters kept.
+  const txnSearch = { account: search.account, category: search.category, tag: search.tag, q: search.q, from: period.from, to: period.to }
 
-  const totalSpent = sum(spending.data)
-  const totalIncome = sum(income.data)
-  const net = totalIncome - totalSpent
+  const net = (data?.earned ?? 0) - (data?.spent ?? 0)
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6">
-      <div className="flex flex-wrap items-end gap-3">
+    <div className="mx-auto flex max-w-5xl flex-col gap-6 print:max-w-none">
+      <div className="flex flex-wrap items-end gap-3 print:hidden">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="report-period" className="text-sm font-medium">Period</label>
           <Select id="report-period" className="w-auto min-w-56" value={period.key}
-            onChange={(e) => void navigate({ search: { period: e.target.value as PeriodKey, ...(e.target.value === 'custom' ? { from: period.from, to: period.to } : {}) } })}>
+            onChange={(e) => set({ period: e.target.value as PeriodKey, ...(e.target.value === 'custom' ? { from: period.from, to: period.to } : { from: undefined, to: undefined }) })}>
             {[...PERIOD_KEYS, 'custom' as const].map((k) => <option key={k} value={k}>{PERIOD_LABELS[k]}</option>)}
           </Select>
         </div>
@@ -49,83 +93,159 @@ export function ReportsPage() {
           <>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="report-from" className="text-sm font-medium">From</label>
-              <Input id="report-from" type="date" value={period.from} onChange={(e) => e.target.value && void navigate({ search: (s) => ({ ...s, from: e.target.value }) })} />
+              <Input id="report-from" type="date" value={period.from} onChange={(e) => e.target.value && set({ from: e.target.value })} />
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="report-to" className="text-sm font-medium">To</label>
-              <Input id="report-to" type="date" value={period.to} onChange={(e) => e.target.value && void navigate({ search: (s) => ({ ...s, to: e.target.value }) })} />
+              <Input id="report-to" type="date" value={period.to} onChange={(e) => e.target.value && set({ to: e.target.value })} />
             </div>
           </>
         )}
         {spaceId && (
-          <div className="ml-auto flex items-center gap-1 pb-1">
-            <Button asChild variant="ghost" size="sm"><a href={exportUrl(spaceId, 'xlsx', { from: period.from, to: period.to })} download><Download />Excel</a></Button>
-            <Button asChild variant="ghost" size="sm"><a href={exportUrl(spaceId, 'csv', { from: period.from, to: period.to })} download><Download />CSV</a></Button>
+          <div className="ml-auto flex flex-wrap items-center gap-1 pb-1" role="group" aria-label="Download">
+            <Button asChild variant="ghost" size="sm"><a href={exportUrl(spaceId, 'xlsx', filter)} download><Download />Excel</a></Button>
+            <Button asChild variant="ghost" size="sm"><a href={exportUrl(spaceId, 'csv', filter)} download><Download />CSV</a></Button>
+            <Button variant="ghost" size="sm" disabled={!data} aria-label="Download the summary"
+              onClick={() => data && downloadSummary(data, categories, accounts, period, locale)}><FileSpreadsheet />Summary</Button>
+            <Button variant="ghost" size="sm" onClick={() => window.print()} aria-label="Print or save as PDF"><Printer />Print</Button>
           </div>
         )}
-        <p className="pb-2 text-sm text-muted" data-testid="report-range">
-          {period.key.endsWith('fy') && <span className="font-medium text-fg">{financialYear(new Date(`${period.from}T00:00`)).label} · </span>}
-          {range(period, locale)}
-        </p>
       </div>
 
-      {(spending.isError || income.isError) && (
-        <Card className="p-pad text-sm text-muted">Reports are unavailable right now; they will be back shortly.</Card>
-      )}
+      <ReportFilters search={search} set={set} categories={categories} accounts={accounts} />
 
-      <section aria-label="Summary" className="grid gap-3 sm:grid-cols-3">
+      <p className="-mt-3 text-sm text-muted" data-testid="report-range">
+        {period.key.endsWith('fy') && <span className="font-medium text-fg">{financialYear(new Date(`${period.from}T00:00`)).label} · </span>}
+        {range(period, locale)}
+        {narrowed && <span> · narrowed by the filters above</span>}
+      </p>
+
+      {isError && <Card className="p-pad text-sm text-muted">Reports are unavailable right now; they will be back shortly.</Card>}
+
+      <section aria-label="Summary" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          { label: 'Income', value: totalIncome, tone: '' },
-          { label: 'Spending', value: totalSpent, tone: '' },
-          { label: net >= 0 ? 'Saved' : 'Spent more than earned', value: Math.abs(net), tone: net >= 0 ? 'text-good-text' : 'text-critical' },
+          { label: 'Income', value: data?.earned ?? 0, tone: '', sub: '' },
+          { label: 'Spending', value: data?.spent ?? 0, tone: '', sub: data ? `${data.count} transaction${data.count === 1 ? '' : 's'}` : '' },
+          { label: net >= 0 ? 'Saved' : 'Spent more than earned', value: Math.abs(net), tone: net >= 0 ? 'text-good-text' : 'text-critical',
+            sub: net >= 0 && (data?.earned ?? 0) > 0 ? `${Math.round((net / data!.earned) * 100)}% of income` : '' },
+          { label: 'Average a day', value: data && data.days > 0 ? Math.round(data.spent / data.days) : 0, tone: '', sub: data ? `over ${data.days} day${data.days === 1 ? '' : 's'}` : '' },
         ].map((x) => (
           <Card key={x.label} className="p-pad">
             <div className="text-xs text-muted">{x.label}</div>
-            {spending.isPending || income.isPending
+            {isPending
               ? <Skeleton className="mt-1 h-8 w-32" />
               : <div className={cn('text-2xl font-semibold tracking-tight tabular', x.tone)} data-testid={`report-${x.label.toLowerCase().replace(/ /g, '-')}`}>{money(x.value)}</div>}
-            {x.label === 'Saved' && totalIncome > 0 && <div className="text-xs text-subtle">{Math.round((net / totalIncome) * 100)}% of income</div>}
+            <div className="text-xs text-subtle">{x.sub}</div>
           </Card>
         ))}
       </section>
 
-      <SpendingByCategory totals={spending.data} pending={spending.isPending} categories={categories} period={period} money={money} />
-      <MonthlyTrend period={period} locale={locale} />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ByCategory title="Spending by category" kind="EXPENSE" data={data} pending={isPending} categories={categories} period={period} money={money} txnSearch={txnSearch} />
+        <ByCategory title="Income by category" kind="INCOME" data={data} pending={isPending} categories={categories} period={period} money={money} txnSearch={txnSearch} />
+      </div>
+
+      <MonthlyTrend period={period} locale={locale} data={data} />
+      <DayByDay period={period} locale={locale} data={data} txnSearch={txnSearch} />
+
+      {data && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Breakdowns title="By account" empty="No spending from an account in this period."
+            items={data.byAccount.filter((a) => a.spent > 0).map((a, i) => ({ key: a.accountId, label: accounts.find((x) => x.id === a.accountId)?.name ?? 'Account', value: a.spent, slot: (i % 8) + 1 }))}
+            money={money} onSelect={(id) => void navigate({ to: '/transactions', search: { ...txnSearch, account: id } })} />
+          <Breakdowns title="Top places" empty="No spending in this period."
+            items={data.places.map((p, i) => ({ key: p.name, label: `${p.name} · ${p.count}×`, value: p.spent, slot: (i % 8) + 1 }))}
+            money={money} onSelect={(name) => void navigate({ to: '/transactions', search: { ...txnSearch, q: name } })} />
+          {data.byTag.length > 0 && (
+            <Breakdowns title="By tag" empty=""
+              items={data.byTag.map((t, i) => ({ key: t.tag, label: `#${t.tag} · ${t.count}`, value: t.spent, slot: (i % 8) + 1 }))}
+              money={money} onSelect={(tag) => void navigate({ to: '/transactions', search: { ...txnSearch, tag } })} />
+          )}
+          <Biggest data={data} categories={categories} money={money} locale={locale} />
+        </div>
+      )}
+
       <BudgetAgainstActual period={period} locale={locale} money={money} />
     </div>
   )
 }
 
+/** Account, category, tag and words: the same filters as the transactions list. */
+function ReportFilters({ search, set, categories, accounts }: {
+  search: ReportsSearch; set: (s: Partial<ReportsSearch>) => void; categories: Category[]; accounts: { id: string; name: string; archived?: boolean }[]
+}) {
+  const [text, setText] = useState(search.q ?? '')
+  useEffect(() => setText(search.q ?? ''), [search.q])
+  useEffect(() => {
+    const next = text.trim() || undefined
+    if (next === search.q) return
+    const t = setTimeout(() => set({ q: next }), 300)
+    return () => clearTimeout(t)
+  }, [text]) // eslint-disable-line react-hooks/exhaustive-deps
+  const parents = categories.filter((c) => !c.parentId)
+  const any = search.account || search.category || search.tag || search.q
+  return (
+    <div className="flex flex-wrap items-center gap-2 print:hidden" role="group" aria-label="Report filters">
+      <label className="relative min-w-0 flex-1 basis-48">
+        <span className="sr-only">Search in the report</span>
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-subtle" />
+        <Input type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder="Words or an amount" className="pl-9" />
+      </label>
+      <Select aria-label="Account" value={search.account ?? ''} className="w-auto min-w-36 flex-none" onChange={(e) => set({ account: e.target.value || undefined })}>
+        <option value="">All accounts</option>
+        {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}{a.archived ? ' (archived)' : ''}</option>)}
+      </Select>
+      <Select aria-label="Category" value={search.category ?? ''} className="w-auto min-w-40 flex-none" onChange={(e) => set({ category: e.target.value || undefined })}>
+        <option value="">All categories</option>
+        {(['EXPENSE', 'INCOME'] as const).map((kind) => (
+          <optgroup key={kind} label={kind === 'EXPENSE' ? 'Spending' : 'Income'}>
+            {parents.filter((p) => p.kind === kind).flatMap((p) => [p, ...categories.filter((c) => c.parentId === p.id)])
+              .map((c) => <option key={c.id} value={c.id}>{c.parentId ? `  ${c.name}` : c.name}</option>)}
+          </optgroup>
+        ))}
+      </Select>
+      <Input aria-label="Tag" value={search.tag ?? ''} placeholder="Tag" maxLength={40} className="w-28 flex-none"
+        onChange={(e) => set({ tag: e.target.value.replace(/^#/, '') || undefined })} />
+      {any && (
+        <Button variant="ghost" size="sm" onClick={() => { setText(''); set({ account: undefined, category: undefined, tag: undefined, q: undefined }) }}>
+          <X />Clear filters
+        </Button>
+      )}
+    </div>
+  )
+}
+
 /** Each top-level category with its subcategories folded in; a row opens its transactions. */
-function SpendingByCategory({ totals, pending, categories, period, money }: {
-  totals: CategoryTotal[] | undefined; pending: boolean; categories: Category[]; period: Period; money: (m: number) => string
+function ByCategory({ title, kind, data, pending, categories, period, money, txnSearch }: {
+  title: string; kind: 'EXPENSE' | 'INCOME'; data?: Breakdown; pending: boolean; categories: Category[]; period: Period
+  money: (m: number) => string; txnSearch: Record<string, string | undefined>
 }) {
   const rows = useMemo(() => {
     const byParent = new Map<string, number>()
-    for (const t of totals ?? []) {
+    for (const t of (data?.byCategory ?? []).filter((x) => x.kind === kind && x.categoryId)) {
       const c = categories.find((x) => x.id === t.categoryId)
-      const key = c?.parentId ?? t.categoryId
+      const key = c?.parentId ?? t.categoryId!
       byParent.set(key, (byParent.get(key) ?? 0) + t.amount)
     }
     return [...byParent.entries()].map(([id, amount]) => ({ category: categories.find((c) => c.id === id), id, amount }))
       .filter((r) => r.amount !== 0).sort((a, b) => b.amount - a.amount)
-  }, [totals, categories])
+  }, [data, categories, kind])
   const total = rows.reduce((s, r) => s + r.amount, 0)
   const max = Math.max(...rows.map((r) => r.amount), 1)
 
   return (
-    <section aria-label="Spending by category" className="flex flex-col gap-2">
-      <h2 className="text-sm font-medium text-muted">Spending by category</h2>
+    <section aria-label={title} className="flex flex-col gap-2">
+      <h2 className="text-sm font-medium text-muted">{title}</h2>
       <Card className="p-0">
         {pending ? <Skeleton className="m-pad h-40" /> : rows.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-pad py-10 text-center text-sm text-muted">
-            <BarChart3 className="size-6" />No spending in this period.
+            <BarChart3 className="size-6" />{kind === 'EXPENSE' ? 'No spending in this period.' : 'No income in this period.'}
           </div>
         ) : (
           <ul className="divide-y divide-border">
             {rows.map((r) => (
               <li key={r.id}>
-                <Link to="/transactions" search={{ category: r.id, from: period.from, to: period.to }}
+                <Link to="/transactions" search={{ ...txnSearch, category: r.id, from: period.from, to: period.to }}
                   className="flex items-center gap-3 px-pad py-2.5 hover:bg-surface-2" aria-label={`${r.category?.name ?? 'Category'}: ${money(r.amount)}, see transactions`}>
                   <CategoryIcon category={r.category} />
                   <span className="min-w-0 flex-1">
@@ -147,35 +267,104 @@ function SpendingByCategory({ totals, pending, categories, period, money }: {
   )
 }
 
-/** Income against spending per calendar month, when the period spans more than one. */
-function MonthlyTrend({ period, locale }: { period: Period; locale: string }) {
+/** Income against spending per calendar month, when the period spans more than one; a column zooms into that month. */
+function MonthlyTrend({ period, locale, data }: { period: Period; locale: string; data?: Breakdown }) {
   const navigate = useNavigate({ from: '/reports' })
   const months = monthsIn(period.from, period.to)
-  const multi = months.length > 1
-  const income = useCategoryTotals('INCOME', period.from, period.to, true, multi)
-  const spending = useCategoryTotals('EXPENSE', period.from, period.to, true, multi)
-  if (!multi) return null
-  const at = (rows: CategoryTotal[] | undefined, month: string) => (rows ?? []).filter((r) => r.month === month).reduce((s, r) => s + r.amount, 0)
+  if (months.length <= 1 || !data) return null
+  const at = (m: string) => data.byMonth.find((x) => x.month === m.slice(0, 7))
   return (
     <section aria-label="Month by month" className="flex flex-col gap-2">
       <h2 className="text-sm font-medium text-muted">Month by month</h2>
       <Card className="p-pad">
-        {income.isPending || spending.isPending ? <Skeleton className="h-48" /> : (
-          <GroupedBars
-            data={months.map((m) => {
-              const [y, mo] = m.split('-').map(Number)
-              return { label: new Date(y!, mo! - 1, 1).toLocaleDateString(locale, { month: 'short' }), values: [at(income.data, m), at(spending.data, m)] }
-            })}
-            series={[{ name: 'Income', slot: 1 }, { name: 'Spending', slot: 2 }]}
-            format={(v) => formatMoneyWhole(v, 'INR', locale)}
-            formatAxis={(v) => formatMoneyShort(v, 'INR', locale)}
-            onSelect={(i) => {
-              const [y, mo] = months[i]!.split('-').map(Number)
-              const last = new Date(y!, mo!, 0).getDate()
-              void navigate({ search: { period: 'custom', from: `${months[i]!.slice(0, 7)}-01`, to: `${months[i]!.slice(0, 7)}-${String(last).padStart(2, '0')}` } })
-            }}
-          />
+        <GroupedBars
+          data={months.map((m) => {
+            const [y, mo] = m.split('-').map(Number)
+            return { label: new Date(y!, mo! - 1, 1).toLocaleDateString(locale, { month: 'short' }), values: [at(m)?.earned ?? 0, at(m)?.spent ?? 0] }
+          })}
+          series={[{ name: 'Income', slot: 1 }, { name: 'Spending', slot: 2 }]}
+          format={(v) => formatMoneyWhole(v, 'INR', locale)}
+          formatAxis={(v) => formatMoneyShort(v, 'INR', locale)}
+          onSelect={(i) => {
+            const [y, mo] = months[i]!.split('-').map(Number)
+            const last = new Date(y!, mo!, 0).getDate()
+            void navigate({ search: (s: ReportsSearch) => ({ ...s, period: 'custom', from: `${months[i]!.slice(0, 7)}-01`, to: `${months[i]!.slice(0, 7)}-${String(last).padStart(2, '0')}` }) })
+          }}
+        />
+      </Card>
+    </section>
+  )
+}
+
+/**
+ * When the money goes: for a month or less, a calendar shaded by each day's spending (a day opens its transactions);
+ * for longer, which weekdays you spend most on.
+ */
+function DayByDay({ period, locale, data, txnSearch }: { period: Period; locale: string; data?: Breakdown; txnSearch: Record<string, string | undefined> }) {
+  const navigate = useNavigate()
+  const days = (Date.parse(`${period.to}T00:00`) - Date.parse(`${period.from}T00:00`)) / 86_400_000 + 1
+  const [view, setView] = useState<'calendar' | 'weekdays'>('calendar')
+  if (!data || data.spent === 0) return null
+  const short = (m: number) => formatMoneyShort(m, 'INR', locale)
+  const calendar = days <= 42 && view === 'calendar'
+  const spentOn = (day: string) => data.byDay.find((d) => d.day === day)?.spent ?? 0
+  const max = Math.max(1, ...data.byDay.map((d) => d.spent))
+  const weekdays = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(locale, { weekday: 'short' }))
+  return (
+    <section aria-label="Day by day" className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-medium text-muted">{calendar ? 'Day by day' : 'Which days you spend'}</h2>
+        {days <= 42 && (
+          <Segmented label="Days view" value={view} onChange={setView} className="print:hidden"
+            options={[{ value: 'calendar', label: 'Calendar' }, { value: 'weekdays', label: 'Weekdays' }]} />
         )}
+      </div>
+      {calendar ? (
+        <MonthCalendar start={period.from} end={period.to} locale={locale} label="Spending calendar" maxChips={0}
+          heat={(day) => spentOn(day) / max}
+          note={(day) => spentOn(day) > 0 ? <span className="text-critical">−{short(spentOn(day))}</span> : null}
+          chips={() => []}
+          actions={(date) => [{ key: 'list', label: "See this day's transactions", onSelect: () => void navigate({ to: '/transactions', search: { ...txnSearch, from: date, to: date } }) }]} />
+      ) : (
+        <Card className="p-pad">
+          <GroupedBars format={(v) => formatMoneyWhole(v, 'INR', locale)} formatAxis={short}
+            data={weekdays.map((label, i) => ({ label, values: [data.byWeekday.find((w) => w.weekday === i + 1)?.spent ?? 0] }))}
+            series={[{ name: 'Spent', slot: 2 }]} />
+        </Card>
+      )}
+    </section>
+  )
+}
+
+function Breakdowns({ title, items, money, onSelect, empty }: {
+  title: string; items: { key: string; label: string; value: number; slot: number }[]; money: (m: number) => string
+  onSelect: (key: string) => void; empty: string
+}) {
+  return (
+    <section aria-label={title} className="flex flex-col gap-2">
+      <h2 className="text-sm font-medium text-muted">{title}</h2>
+      <Card className="p-pad">
+        {items.length === 0 ? <p className="text-sm text-muted">{empty}</p> : <BarList items={items.slice(0, 8)} format={money} onSelect={onSelect} />}
+      </Card>
+    </section>
+  )
+}
+
+function Biggest({ data, categories, money, locale }: { data: Breakdown; categories: Category[]; money: (m: number) => string; locale: string }) {
+  if (data.biggest.length === 0) return null
+  return (
+    <section aria-label="Biggest expenses" className="flex flex-col gap-2">
+      <h2 className="text-sm font-medium text-muted">Biggest expenses</h2>
+      <Card className="divide-y divide-border p-0">
+        {data.biggest.slice(0, 6).map((b) => (
+          <Link key={b.id} to="/transactions" search={{ open: b.id }} aria-label={`Open ${b.description}`}
+            className="flex items-center gap-3 px-pad py-2 text-sm hover:bg-surface-2 first:rounded-t-card last:rounded-b-card">
+            <CategoryIcon category={categories.find((c) => c.id === b.categoryId)} className="size-7" />
+            <span className="min-w-0 flex-1 truncate">{b.description}</span>
+            <span className="text-xs text-subtle">{new Date(`${b.occurredOn}T00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}</span>
+            <span className="tabular">{money(b.amount)}</span>
+          </Link>
+        ))}
       </Card>
     </section>
   )
@@ -230,8 +419,48 @@ function BudgetAgainstActual({ period, locale, money }: { period: Period; locale
   )
 }
 
-function sum(rows: CategoryTotal[] | undefined): number {
-  return (rows ?? []).reduce((s, r) => s + r.amount, 0)
+/** The report's numbers as one CSV a spreadsheet opens: totals, categories, months, accounts, places and tags. */
+function downloadSummary(data: Breakdown, categories: Category[], accounts: { id: string; name: string }[], period: Period, locale: string) {
+  const rupees = (m: number) => (m / 100).toFixed(2)
+  // A cell that starts with = + - @ would run as a formula in Excel; a quote mark keeps it text.
+  const cell = (v: string | number) => {
+    const s = String(v)
+    const safe = /^[=+\-@\t\r]/.test(s) && typeof v === 'string' ? `'${s}` : s
+    return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
+  }
+  const name = (id: string | null) => {
+    const c = categories.find((x) => x.id === id)
+    const p = c?.parentId ? categories.find((x) => x.id === c.parentId) : undefined
+    return c ? (p ? `${p.name} / ${c.name}` : c.name) : 'Uncategorised'
+  }
+  const rows: (string | number)[][] = [
+    ['PayLedger report', `${period.from} to ${period.to}`],
+    [],
+    ['Total', 'Amount (INR)'],
+    ['Income', rupees(data.earned)], ['Spending', rupees(data.spent)], ['Saved', rupees(data.earned - data.spent)],
+    ['Average spending a day', rupees(data.days > 0 ? Math.round(data.spent / data.days) : 0)],
+    [],
+    ['Category', 'Type', 'Amount (INR)', 'Transactions'],
+    ...data.byCategory.map((c) => [name(c.categoryId), c.kind === 'EXPENSE' ? 'Spending' : 'Income', rupees(c.amount), c.count]),
+    [],
+    ['Month', 'Income (INR)', 'Spending (INR)'],
+    ...data.byMonth.map((m) => [m.month, rupees(m.earned), rupees(m.spent)]),
+    [],
+    ['Account', 'Spending (INR)', 'Income (INR)', 'Transactions'],
+    ...data.byAccount.map((a) => [accounts.find((x) => x.id === a.accountId)?.name ?? 'Account', rupees(a.spent), rupees(a.earned), a.count]),
+    [],
+    ['Place', 'Spending (INR)', 'Times'],
+    ...data.places.map((p) => [p.name, rupees(p.spent), p.count]),
+    ...(data.byTag.length ? [[], ['Tag', 'Spending (INR)', 'Transactions'], ...data.byTag.map((t) => [t.tag, rupees(t.spent), t.count])] : []),
+  ]
+  const csv = '﻿' + rows.map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n'
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `payledger-report-${period.from}-to-${period.to}.csv`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  void locale
 }
 
 function range(period: Period, locale: string): string {
