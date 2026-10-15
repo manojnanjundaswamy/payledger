@@ -128,7 +128,7 @@ export function TransactionsPage() {
                     <span className="block truncate text-xs text-subtle">
                       {t.kind === 'TRANSFER'
                         ? `${accountName(t.accountId)} → ${accountName(t.toAccountId)}`
-                        : `${category?.name ?? 'Category'} · ${accountName(t.accountId)}`}
+                        : `${category?.name ?? 'Category'} · ${accountName(t.accountId)}${t.counterparty ? ` · ${t.kind === 'INCOME' ? 'from' : 'to'} ${t.counterparty}` : ''}`}
                     </span>
                   </span>
                   <span className={cn('shrink-0 text-sm font-medium tabular', sign > 0 && 'text-good-text', sign === 0 && 'text-muted')}>

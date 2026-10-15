@@ -47,6 +47,7 @@ export interface Transaction {
   version: number
   /** The savings goal it's for, if any. */
   goalId?: string | null
+  counterparty?: string | null
 }
 
 export interface TransactionFields {
@@ -60,6 +61,8 @@ export interface TransactionFields {
   note?: string | null
   tags?: string[]
   goalId?: string | null
+  /** Who it was with: who paid you, or whom you paid (optional). */
+  counterparty?: string | null
 }
 
 /** What to find (all optional): the same filter for the list, its totals and exports. Amounts are paise. */
@@ -75,6 +78,8 @@ export interface TransactionFilter {
   maxAmount?: number
   tag?: string
   goalId?: string
+  /** Who it was with, exactly (ignoring case). */
+  person?: string
 }
 
 /** A filter as query parameters, leaving out what isn't set. */

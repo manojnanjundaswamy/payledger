@@ -1,4 +1,5 @@
 import { uuid7 } from '@/lib/uuid'
+import { usePeople } from '@/state/people'
 import { AccountPicker, CategoryPicker } from '@/pages/money/pickers'
 import { useGoals } from '@/state/goals'
 import { SearchSelect } from '@/components/ui/search-select'
@@ -25,6 +26,7 @@ interface Draft {
   description: string
   note: string
   goalId: string
+  counterparty: string
 }
 
 function draftOf(t: Transaction | undefined, kind: TxnKind, accountId: string, date?: string): Draft {
@@ -32,8 +34,9 @@ function draftOf(t: Transaction | undefined, kind: TxnKind, accountId: string, d
     ? {
         kind: t.kind, amount: minorToInput(t.amount, t.currency), accountId: t.accountId, toAccountId: t.toAccountId ?? '',
         categoryId: t.categoryId ?? '', occurredOn: t.occurredOn, description: t.description, note: t.note ?? '', goalId: t.goalId ?? '',
+        counterparty: t.counterparty ?? '',
       }
-    : { kind, amount: '', accountId, toAccountId: '', categoryId: '', occurredOn: date ?? today(), description: '', note: '', goalId: '' }
+    : { kind, amount: '', accountId, toAccountId: '', categoryId: '', occurredOn: date ?? today(), description: '', note: '', goalId: '', counterparty: '' }
 }
 
 /**
@@ -107,6 +110,9 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
   const spaceId = useSpaceId()
   const saveRule = useSaveCategoryRule()
   const { data: goals = [] } = useGoals()
+  // Your people (from groups and loans) as choices; anyone else can be typed.
+  const { data: people } = usePeople()
+  const personOptions = (people?.people ?? []).map((p) => ({ value: p.name, label: p.name, keywords: p.email ?? undefined }))
   const [guess, setGuess] = useState<CategoryGuess | null>(null)
   const [guessed, setGuessed] = useState(false)
   const [remember, setRemember] = useState(false)
@@ -163,6 +169,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
       description: draft.description.trim() || defaultDescription(draft, categories, accounts),
       note: draft.note.trim() || null,
       goalId: draft.goalId || null,
+      counterparty: transfer ? null : draft.counterparty.trim() || null,
       ...(!transaction && carried.length && fromFilter?.tag ? { tags: [fromFilter.tag] } : {}),
     }
     try {
@@ -262,6 +269,13 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
         <Field label="Note" htmlFor="txn-note">
           <Input id="txn-note" maxLength={1000} value={draft.note} onChange={(e) => set('note', e.target.value)} />
         </Field>
+        {draft.kind !== 'TRANSFER' && (
+          <Field label={draft.kind === 'INCOME' ? 'From whom (optional)' : 'Paid to (optional)'} htmlFor="txn-person"
+            hint={draft.kind === 'INCOME' ? 'Someone who paid you: find it again under People.' : 'A person you paid, if it was a person.'}>
+            <SearchSelect id="txn-person" value={draft.counterparty} onChange={(v) => set('counterparty', v)} allowCustom customLabel="Use"
+              placeholder="No one in particular" options={[{ value: '', label: 'No one in particular' }, ...personOptions]} />
+          </Field>
+        )}
         {(goals.length > 0 || draft.goalId) && (
           <Field label="For a goal (optional)" htmlFor="txn-goal"
             hint={draft.goalId ? (draft.kind === 'EXPENSE' ? 'Shows as spent on the goal.' : 'Counts as saved towards the goal.') : undefined}>

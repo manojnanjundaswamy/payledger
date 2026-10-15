@@ -164,7 +164,8 @@ public class CaptureService {
     }
 
     /** What you checked becomes a transaction; the original text is then let go. */
-    public record Add(String kind, Long amount, UUID accountId, UUID categoryId, LocalDate occurredOn, String description) {
+    /** @param counterparty who it was with: who paid you, or whom you paid (optional) */
+    public record Add(String kind, Long amount, UUID accountId, UUID categoryId, LocalDate occurredOn, String description, String counterparty) {
     }
 
     @Transactional
@@ -184,7 +185,8 @@ public class CaptureService {
         Transaction t = transactions.create(user, user.personalSpaceId(), new TransactionRequests.Create(
                 null, kind, a.amount() != null ? a.amount() : item.amount(), a.accountId(), null,
                 category, a.occurredOn() != null ? a.occurredOn() : item.occurredOn(),
-                description.length() > 120 ? description.substring(0, 120) : description, null, List.of("captured"), null)).transaction();
+                description.length() > 120 ? description.substring(0, 120) : description, null, List.of("captured"), null,
+                a.counterparty() == null || a.counterparty().isBlank() ? null : a.counterparty().strip())).transaction();
         jdbc.sql("update captured_items set status = 'ADDED', transaction_id = :t, body = null, decided_at = now() where id = :id")
                 .param("t", t.id()).param("id", id).update();
         return own(user, id);
@@ -340,7 +342,7 @@ public class CaptureService {
                 continue;
             }
             add(user, i.id(), new Add(i.kind(), i.amount(), i.accountId(), i.categoryId(), i.occurredOn(),
-                    i.merchant() != null ? i.merchant() : i.body() != null && i.body().length() <= 120 ? i.body() : null));
+                    i.merchant() != null ? i.merchant() : i.body() != null && i.body().length() <= 120 ? i.body() : null, null));
             added++;
         }
         return new AddedAll(added, ids.size() - added);

@@ -165,6 +165,8 @@ function ReviewCard({ item }: { item: CapturedItem }) {
   const [date, setDate] = useState(item.occurredOn ?? today())
   const [account, setAccount] = useState(item.accountId ?? '')
   const [category, setCategory] = useState(item.categoryId ?? '')
+  // "NEHA SHARMA sent you 1,500": the sender is who it was with.
+  const [person, setPerson] = useState(item.kind === 'INCOME' ? item.merchant ?? '' : '')
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string>()
   const payable = (accounts ?? []).filter((a) => a.kind !== 'OWED' && !a.archived)
@@ -178,7 +180,7 @@ function ReviewCard({ item }: { item: CapturedItem }) {
     if (!account) return setError('Which account was it?')
     try {
       await add.mutateAsync({ id: item.id, kind, amount: value, accountId: account, categoryId: category || null, occurredOn: date,
-        description: description.trim() || (out ? 'Spent' : 'Received') })
+        description: description.trim() || (out ? 'Spent' : 'Received'), counterparty: person.trim() || null })
       toast.success(`${description || 'Entry'} added`)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not add it. Try again.')
@@ -220,6 +222,8 @@ function ReviewCard({ item }: { item: CapturedItem }) {
           placeholder="Category (else Other)" />
         <Input aria-label="Amount" inputMode="decimal" className="tabular" value={amount} onChange={(e) => setAmount(e.target.value)} />
         <Input aria-label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <Input aria-label={out ? 'Paid to' : 'From whom'} value={person} onChange={(e) => setPerson(e.target.value)} maxLength={80}
+          placeholder={out ? 'Paid to (optional)' : 'From whom (optional)'} className="sm:col-span-2" />
       </div>
       {item.categorySource && category === item.categoryId && (
         <p className="flex items-center gap-1.5 text-xs text-subtle"><Sparkles className="size-3.5" />Category guessed from {item.categorySource === 'RULE' ? 'your rule' : 'what you chose before'}.</p>

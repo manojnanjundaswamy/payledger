@@ -74,6 +74,7 @@ export interface AddCaptured {
   categoryId: string | null
   occurredOn: string
   description: string
+  counterparty?: string | null
 }
 
 export function useAddCaptured() {

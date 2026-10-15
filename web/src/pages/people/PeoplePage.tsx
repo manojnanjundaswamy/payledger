@@ -150,6 +150,7 @@ function PersonRow({ person: p, open, onToggle, money, myUpi, myName, onLend }: 
                 <Button size="sm"><MessageCircle />Remind on WhatsApp</Button>
               </a>
             )}
+            <Link to="/transactions" search={{ person: p.name }}><Button size="sm" variant="ghost">Their entries</Button></Link>
             <Button size="sm" variant="ghost" onClick={() => onLend('LENT')}>Lend</Button>
             <Button size="sm" variant="ghost" onClick={() => onLend('BORROWED')}>Borrow</Button>
           </div>

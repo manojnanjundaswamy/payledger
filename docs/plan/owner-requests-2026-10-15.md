@@ -9,7 +9,7 @@ Each is ticked when built, tested on staging and committed to `develop`.
    one is chosen when it closes.
 4. [x] **Unlinking a paid bill**: "Mark paid" records an expense; unlinking it left that expense behind with no way to
    remove it there. Unlinking now asks: keep the expense, or delete it (it was a mistake).
-5. [ ] **Who it was with**: an optional "From whom / To whom" on entries (incomes especially), from your people or a new
+5. [x] **Who it was with**: an optional "From whom / To whom" on entries (incomes especially), from your people or a new
    name; shown in lists, filterable, used by captured alerts ("Neha sent you 1,500").
 6. [ ] **Capture learns from corrections**: what you fix in To review (the name, in or out, an alert it couldn't read)
    becomes a pattern used next time, so accuracy keeps improving (and any future AI reading feeds the same patterns).

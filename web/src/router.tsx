@@ -255,6 +255,7 @@ const transactions = createRoute({
     max: z.coerce.number().nonnegative().optional().catch(undefined),
     tag: z.string().max(40).optional().catch(undefined),
     goal: z.string().uuid().optional().catch(undefined),
+    person: z.string().max(80).optional().catch(undefined),
     view: z.enum(['list', 'calendar']).optional().catch(undefined),
     month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional().catch(undefined),
   }),
