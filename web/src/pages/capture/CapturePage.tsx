@@ -421,7 +421,7 @@ function EmailSetup({ data, onDone }: { data: CaptureView; onDone?: () => void }
           <div className="grid gap-3 sm:grid-cols-[1fr_16rem] sm:items-start">
             <ol className="list-decimal space-y-1 pl-4 text-sm text-muted">
               <li>In Gmail's search box, open the filter options (the sliders icon).</li>
-              <li>Paste this into <b className="text-fg">From</b>:</li>
+              <li>Paste this into the <b className="text-fg">From</b> box, as it is:</li>
             </ol>
             <GmailSettings step="filter" />
           </div>

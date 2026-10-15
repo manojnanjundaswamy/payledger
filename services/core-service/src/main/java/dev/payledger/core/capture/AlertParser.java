@@ -49,7 +49,9 @@ public final class AlertParser {
             Pattern.compile("\\b(?:to|towards|at|for)\\s+(?:VPA\\s+)?([A-Za-z0-9][A-Za-z0-9 &'._@-]{1,40}?)(?=\\s+(?:on|via|ref|upi|avl|bal|thru|using|from|dated|is)\\b|[.,;(]|\\s*-\\s|$)",
                     Pattern.CASE_INSENSITIVE),
             Pattern.compile("\\b(?:by|from)\\s+(?:VPA\\s+)?([A-Za-z0-9][A-Za-z0-9 &'._@-]{1,40}?)(?=\\s+(?:on|via|ref|upi|avl|bal|thru|to|dated|is)\\b|[.,;(]|\\s*-\\s|$)",
-                    Pattern.CASE_INSENSITIVE));
+                    Pattern.CASE_INSENSITIVE),
+            // HDFC masks the UPI id and names the payee in brackets: "towards VPA ****my-3@okhdfcbank (ASHA K)".
+            Pattern.compile("\\bVPA\\s+\\S*@[a-z]+\\s*\\(([^)\\n]{2,40})\\)", Pattern.CASE_INSENSITIVE));
     /** Words that look like a merchant but aren't one. */
     private static final Pattern NOT_A_MERCHANT = Pattern.compile(
             "^(your|you|a/c|acct|account|card|the|rs|inr|bank|upi|imps|neft|rtgs|self|xx+\\d*|\\d+|ending.*|a\\s.*|beneficiary)$", Pattern.CASE_INSENSITIVE);
@@ -213,7 +215,7 @@ public final class AlertParser {
 
     private static String merchant(String text, boolean out) {
         // "to"/"at" names whom you paid; "by"/"from" who paid you.
-        for (int i : out ? new int[]{0, 1, 2} : new int[]{0, 1, 3, 2}) {
+        for (int i : out ? new int[]{4, 0, 1, 2} : new int[]{4, 0, 1, 3, 2}) {
             Matcher m = MERCHANT.get(i).matcher(text);
             while (m.find()) {
                 String name = tidy(m.group(1));
