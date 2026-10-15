@@ -44,7 +44,7 @@ export function ReportsPage() {
   const locale = profile?.settings.locale ?? 'en-IN'
   const fyStart = profile?.settings.fyStartMonth ?? 4
   const period = reportPeriod(search.period ?? 'this-month', profile?.settings.budgetStartDay ?? 1, new Date(), search, fyStart)
-  const money = (minor: number) => formatMoneyWhole(minor, 'INR', locale)
+  const money = (minor: number) => formatMoneyWhole(minor, undefined, locale)
   const spaceId = useSpaceId()
   const { data: categories = [] } = useCategories()
   const { data: accounts = [] } = useAccounts(true)
@@ -82,7 +82,7 @@ export function ReportsPage() {
         {spaceId && (
           <div className="ml-auto flex flex-wrap items-center gap-1 pb-1" role="group" aria-label="Download">
             <Button asChild variant="ghost" size="sm"><a href={exportUrl(spaceId, 'xlsx', filter)} download><Download />Excel</a></Button>
-            <Button asChild variant="ghost" size="sm"><Link to="/tax">Tax (80C, 80D…)</Link></Button>
+            {(profile?.settings.country ?? 'IN') === 'IN' && <Button asChild variant="ghost" size="sm"><Link to="/tax">Tax (80C, 80D…)</Link></Button>}
             <Button asChild variant="ghost" size="sm"><a href={exportUrl(spaceId, 'csv', filter)} download><Download />CSV</a></Button>
             <Button variant="ghost" size="sm" disabled={!data} aria-label="Download the summary"
               onClick={() => data && downloadSummary(data, categories, accounts, period, locale)}><FileSpreadsheet />Summary</Button>
@@ -254,8 +254,8 @@ function MonthlyTrend({ period, locale, data }: { period: Period; locale: string
             return { label: new Date(y!, mo! - 1, 1).toLocaleDateString(locale, { month: 'short' }), values: [at(m)?.earned ?? 0, at(m)?.spent ?? 0] }
           })}
           series={[{ name: 'Income', slot: 1 }, { name: 'Spending', slot: 2 }]}
-          format={(v) => formatMoneyWhole(v, 'INR', locale)}
-          formatAxis={(v) => formatMoneyShort(v, 'INR', locale)}
+          format={(v) => formatMoneyWhole(v, undefined, locale)}
+          formatAxis={(v) => formatMoneyShort(v, undefined, locale)}
           onSelect={(i) => {
             const [y, mo] = months[i]!.split('-').map(Number)
             const last = new Date(y!, mo!, 0).getDate()
@@ -276,7 +276,7 @@ function DayByDay({ period, locale, data, txnSearch }: { period: Period; locale:
   const days = (Date.parse(`${period.to}T00:00`) - Date.parse(`${period.from}T00:00`)) / 86_400_000 + 1
   const [view, setView] = useState<'calendar' | 'weekdays'>('calendar')
   if (!data || data.spent === 0) return null
-  const short = (m: number) => formatMoneyShort(m, 'INR', locale)
+  const short = (m: number) => formatMoneyShort(m, undefined, locale)
   const calendar = days <= 42 && view === 'calendar'
   const on = (day: string) => data.byDay.find((d) => d.day === day)
   const weekdays = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(locale, { weekday: 'short' }))
@@ -296,7 +296,7 @@ function DayByDay({ period, locale, data, txnSearch }: { period: Period; locale:
           actions={(date) => [{ key: 'list', label: "See this day's transactions", onSelect: () => void navigate({ to: '/transactions', search: { ...txnSearch, from: date, to: date } }) }]} />
       ) : (
         <Card className="p-pad">
-          <GroupedBars format={(v) => formatMoneyWhole(v, 'INR', locale)} formatAxis={short}
+          <GroupedBars format={(v) => formatMoneyWhole(v, undefined, locale)} formatAxis={short}
             data={weekdays.map((label, i) => ({ label, values: [data.byWeekday.find((w) => w.weekday === i + 1)?.spent ?? 0] }))}
             series={[{ name: 'Spent', slot: 2 }]} />
         </Card>

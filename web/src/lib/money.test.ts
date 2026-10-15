@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatMoney, formatMoneyShort, formatMoneyWhole, minorToInput, parseMoney } from './money'
+import { allCurrencies, currencySymbol, formatMoney, formatMoneyShort, formatMoneyWhole, minorToInput, parseMoney, setMoneyDefaults } from './money'
 
 describe('formatMoney', () => {
   it('uses lakh and crore grouping for en-IN', () => {
@@ -40,5 +40,30 @@ describe('parseMoney', () => {
     for (const minor of [0, 5, 48_650, 1_20_000_00]) expect(parseMoney(minorToInput(minor))).toBe(minor)
     expect(minorToInput(48_650)).toBe('486.50')
     expect(minorToInput(1_20_000_00)).toBe('120000')
+  })
+})
+
+describe('money, anywhere', () => {
+  it('reads amounts typed the way each place writes them', () => {
+    expect(parseMoney('AED 1,200.50', 'AED', 'en-AE')).toBe(1_200_50)
+    expect(parseMoney('1.234,56 €', 'EUR', 'de-DE')).toBe(1_234_56)
+    expect(parseMoney('1200.50', 'EUR', 'de-DE')).toBe(1_200_50)
+    expect(parseMoney('1 234,5', 'EUR', 'fr-FR')).toBe(1_234_50)
+    expect(parseMoney('¥1,500', 'JPY', 'ja-JP')).toBe(1_500)
+    expect(parseMoney('2.500', 'KWD', 'en-KW')).toBe(2_500)
+    expect(parseMoney('$-5', 'USD', 'en-US')).toBeNull()
+  })
+  it('knows each currency\'s symbol and the full list', () => {
+    expect(currencySymbol('INR', 'en-IN')).toBe('₹')
+    expect(currencySymbol('USD', 'en-US')).toBe('$')
+    expect(currencySymbol('EUR', 'de-DE')).toBe('€')
+    expect(allCurrencies('en').some((c) => c.code === 'AED' && c.name.includes('Dirham'))).toBe(true)
+    expect(allCurrencies('en').length).toBeGreaterThan(100)
+  })
+  it('formats with the space on screen when a call does not say', () => {
+    setMoneyDefaults('USD', 'en-US')
+    expect(formatMoney(1_234_56)).toBe('$1,234.56')
+    setMoneyDefaults('INR', 'en-IN')
+    expect(formatMoney(1_00_000_00)).toBe('₹1,00,000.00')
   })
 })

@@ -1,5 +1,8 @@
 import { useState, type FormEvent } from 'react'
-import { CURRENCIES, LOCALES, MONTHS, REGIONS, regionOf } from '@/lib/regions'
+import { CurrencyChangeDialog } from '@/components/CurrencyChangeDialog'
+import { SearchSelect } from '@/components/ui/search-select'
+import { allCurrencies, currencySymbol } from '@/lib/money'
+import { LOCALES, MONTHS, REGIONS, regionOf } from '@/lib/regions'
 import { Check, Download, ExternalLink, FileJson, LogOut, RotateCcw, Trash2, Upload } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -41,7 +44,8 @@ export function ProfileSettings() {
           <Button type="submit" disabled={!name.trim() || name.trim() === profile.displayName}>Save</Button>
         </form>
       </Field>
-      <Field label="UPI ID" htmlFor="upi-id" hint="Friends who owe you in a group get a one-tap Pay button. Only people you share a group with see it.">
+      {/* UPI is India's: asked of people there, or who already set one. */}
+      {(profile.settings.country === 'IN' || !profile.settings.country || profile.settings.upiId) && <Field label="UPI ID" htmlFor="upi-id" hint="Friends who owe you in a group get a one-tap Pay button. Only people you share a group with see it.">
         <form className="flex w-full flex-col gap-1 sm:w-auto" onSubmit={(e) => { e.preventDefault(); if (upiOk) save({ upiId: upi.trim() }, 'UPI ID') }}>
           <span className="flex gap-2">
             <Input id="upi-id" value={upi} maxLength={100} placeholder="name@okhdfcbank" onChange={(e) => setUpi(e.target.value)} className="sm:w-56" aria-invalid={!upiOk} />
@@ -49,7 +53,7 @@ export function ProfileSettings() {
           </span>
           {!upiOk && <span className="text-xs text-critical">That doesn't look like a UPI ID (name@bank).</span>}
         </form>
-      </Field>
+      </Field>}
       <Field label="Email" hint="Your sign-in email. Change it under Account.">
         <span className="text-sm text-muted">{profile.email}</span>
       </Field>
@@ -61,8 +65,11 @@ export function ProfileSettings() {
 export function RegionalSettings() {
   const { data: profile } = useProfile()
   const save = useSaveSetting()
+  const [switchTo, setSwitchTo] = useState<string | null>(null)
   if (!profile) return null
-  const { currency, locale, timeZone, budgetStartDay } = profile.settings
+  const { locale, timeZone, budgetStartDay } = profile.settings
+  const personal = profile.spaces.find((s) => s.kind === 'PERSONAL')
+  const spaceCurrency = personal?.currency ?? profile.settings.currency
   const zones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [timeZone]
   const period = budgetPeriod(budgetStartDay)
   const fmt = (d: Date) => d.toLocaleDateString(locale, { day: 'numeric', month: 'short' })
@@ -72,18 +79,23 @@ export function RegionalSettings() {
       <Field label="Where you live" hint="Choosing a place fills in its usual currency, format, time zone and financial year.">
         <Select label="Where you live" value={profile.settings.country ?? ''} onChange={(v) => {
           const r = regionOf(v)
-          save(r ? { country: v, currency: r.currency, locale: r.locale, timeZone: r.timeZone, fyStartMonth: r.fyStartMonth } : { country: v }, 'Region')
+          save(r ? { country: v, locale: r.locale, timeZone: r.timeZone, fyStartMonth: r.fyStartMonth } : { country: v }, 'Region')
+          // The currency is the money's own: changing it is a choice (convert or keep the numbers), so it's offered.
+          if (r && r.currency !== spaceCurrency) setSwitchTo(r.currency)
         }} options={[...(profile.settings.country ? [] : [{ value: '', label: 'Not set yet' }]), ...REGIONS.map((r) => ({ value: r.code, label: `${r.flag} ${r.name}` }))]} />
       </Field>
-      <Field label="Currency" hint="Of your money in PayLedger. Once a space has accounts or entries, it keeps the currency they were recorded in.">
-        <Select label="Currency" value={currency} onChange={(v) => save({ currency: v }, 'Currency')}
-          options={[...new Set([currency, ...CURRENCIES])].map((c) => ({ value: c, label: `${c} · ${new Intl.DisplayNames([locale], { type: 'currency' }).of(c) ?? c}` }))} />
+      <Field label="Currency" hint="Your money's currency. Changing it asks whether to convert at an exchange rate or keep the numbers.">
+        <SearchSelect id="settings-currency" aria-label="Currency" value={spaceCurrency} onChange={(v) => v !== spaceCurrency && setSwitchTo(v)}
+          options={allCurrencies(locale).map((c) => ({ value: c.code, label: `${c.code} · ${c.name}`, icon: <span className="w-6 text-center text-xs font-semibold" aria-hidden>{currencySymbol(c.code, locale)}</span> }))} />
       </Field>
-      <Field label="Financial year starts" hint="For yearly reports. India: April; most places: January.">
+      {personal && switchTo && (
+        <CurrencyChangeDialog spaceId={personal.id} to={switchTo} open={!!switchTo} onOpenChange={(o) => !o && setSwitchTo(null)} />
+      )}
+      <Field label="Financial year starts" hint="For yearly reports. India, the UK and Japan: April; Australia: July; most places: January.">
         <Select label="Financial year starts" value={String(profile.settings.fyStartMonth ?? 4)} onChange={(v) => save({ fyStartMonth: Number(v) }, 'Financial year')}
           options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))} />
       </Field>
-      <Field label="Number format" hint={`Example: ${formatMoney(12_34_567_89, currency, locale)}`}>
+      <Field label="Number format" hint={`Example: ${formatMoney(12_34_567_89, spaceCurrency, locale)}`}>
         <Select label="Number format" value={locale} onChange={(v) => save({ locale: v }, 'Number format')}
           options={LOCALES.some((l) => l.value === locale) ? LOCALES : [{ value: locale, label: locale }, ...LOCALES]} />
       </Field>

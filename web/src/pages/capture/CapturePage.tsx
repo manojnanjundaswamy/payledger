@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { MoneyInput } from '@/components/ui/money-input'
 import { AccountPicker, CategoryPicker } from '@/pages/money/pickers'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Check, ChevronDown, Copy, ExternalLink, FileUp, Inbox, Loader2, RefreshCw, ShieldCheck, Sparkles, X } from 'lucide-react'
@@ -106,7 +107,7 @@ export function CapturePage() {
               <div key={i.id} className="flex items-center gap-3 px-pad py-2 text-sm">
                 {i.status === 'ADDED' ? <Check className="size-4 text-good-text" /> : <X className="size-4 text-subtle" />}
                 <span className="min-w-0 flex-1 truncate">{i.merchant ?? i.bank ?? 'Bank alert'}</span>
-                {i.amount !== null && <span className={cn('tabular text-xs', i.kind === 'INCOME' ? 'text-[var(--flow-in)]' : 'text-muted')}>{i.kind === 'INCOME' ? '+' : '−'}{formatMoneyWhole(i.amount, 'INR', 'en-IN')}</span>}
+                {i.amount !== null && <span className={cn('tabular text-xs', i.kind === 'INCOME' ? 'text-[var(--flow-in)]' : 'text-muted')}>{i.kind === 'INCOME' ? '+' : '−'}{formatMoneyWhole(i.amount)}</span>}
                 {i.status === 'ADDED' && i.transactionId
                   ? <Link to="/transactions" search={{ open: i.transactionId }} className="text-xs underline underline-offset-4">Open</Link>
                   : <span className="text-xs text-subtle">dismissed</span>}
@@ -167,7 +168,7 @@ function ReviewCard({ item }: { item: CapturedItem }) {
   const money = useMoneyFormat()
   const [kind, setKind] = useState<'EXPENSE' | 'INCOME'>(item.kind ?? 'EXPENSE')
   const [description, setDescription] = useState(item.merchant ?? item.bank ?? '')
-  const [amount, setAmount] = useState(item.amount ? minorToInput(item.amount, 'INR') : '')
+  const [amount, setAmount] = useState(item.amount ? minorToInput(item.amount) : '')
   const [date, setDate] = useState(item.occurredOn ?? today())
   const [account, setAccount] = useState(item.accountId ?? '')
   const [category, setCategory] = useState(item.categoryId ?? '')
@@ -239,7 +240,7 @@ function ReviewCard({ item }: { item: CapturedItem }) {
         <AccountPicker space={personalSpace} aria-label="Account" value={account} onChange={setAccount} options={accountOptions(payable)} placeholder="Which account?" />
         <CategoryPicker space={personalSpace} kind={kind} aria-label="Category" value={category} onChange={setCategory} options={categoryOptions(choices, categories ?? [])}
           placeholder="Category (else Other)" />
-        <Input aria-label="Amount" inputMode="decimal" className="tabular" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <MoneyInput aria-label="Amount" className="tabular" value={amount} onChange={(e) => setAmount(e.target.value)} />
         <Input aria-label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <Input aria-label={out ? 'Paid to' : 'From whom'} value={person} onChange={(e) => setPerson(e.target.value)} maxLength={80}
           placeholder={out ? 'Paid to (optional)' : 'From whom (optional)'} className="sm:col-span-2" />

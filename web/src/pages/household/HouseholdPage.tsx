@@ -21,7 +21,7 @@ import { chooseSpace } from '@/state/space'
 
 function useMoney() {
   const locale = useProfile().data?.settings.locale ?? 'en-IN'
-  return (m: number, currency = 'INR') => formatMoneyWhole(m, currency, locale)
+  return (m: number, currency?: string) => formatMoneyWhole(m, currency, locale)
 }
 
 /** Switch the money pages to this household and open its dashboard. */

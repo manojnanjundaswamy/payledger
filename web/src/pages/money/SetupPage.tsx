@@ -65,7 +65,7 @@ export function SetupPage() {
   const [budgets, setBudgets] = useState<BudgetRow[]>(BUDGETS.map((b) => ({ ...b, on: true, amount: '' })))
   const [error, setError] = useState<string>()
 
-  const money = (m: number) => formatMoneyWhole(m, 'INR', locale)
+  const money = (m: number) => formatMoneyWhole(m, undefined, locale)
   const takeHome = parseMoney(income)
   // Budgets follow the take-home pay until someone types their own number.
   const shownBudgets = useMemo(() => budgets.map((b) => ({

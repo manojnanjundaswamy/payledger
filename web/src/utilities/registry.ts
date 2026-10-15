@@ -26,12 +26,12 @@ export const TOOLS = {
   fd: { name: 'Fixed deposit', does: 'Maturity value of an FD or any one-time investment.', icon: PiggyBank, group: 'Loans & savings', component: FdCalculator, size: { w: 480, h: 460 } },
   rd: { name: 'Recurring deposit', does: 'What a monthly RD pays at maturity.', icon: Repeat, group: 'Loans & savings', component: RdCalculator, size: { w: 480, h: 420 } },
   inflation: { name: 'Future cost', does: 'What something will cost in a few years, with inflation.', icon: Coins, group: 'Loans & savings', component: InflationCalculator, size: { w: 480, h: 420 } },
-  tax: { name: 'Income tax', does: 'Old regime against new for this year, with deductions.', icon: ReceiptIndianRupee, group: 'Tax', component: TaxCalculator, size: { w: 600, h: 680 } },
+  tax: { name: 'Income tax (India)', does: 'Old regime against new for this year, with deductions.', icon: ReceiptIndianRupee, group: 'Tax', component: TaxCalculator, size: { w: 600, h: 680 } },
   gst: { name: 'GST', does: 'Add or take out GST; CGST, SGST or IGST.', icon: Receipt, group: 'Tax', component: GstCalculator, size: { w: 480, h: 480 } },
   currency: { name: 'Currency', does: 'Rupees to dollars, dirhams, euros and back.', icon: Banknote, group: 'Everyday', component: CurrencyConverter, size: { w: 480, h: 520 } },
   split: { name: 'Split a bill', does: 'Each person’s share, with a tip.', icon: Users, group: 'Everyday', component: BillSplitter, size: { w: 420, h: 440 } },
   afford: { name: 'Can I afford it?', does: 'A purchase or a new EMI, checked against your plan and savings.', icon: Scale, group: 'Everyday', component: AffordTool, size: { w: 460, h: 440 } },
-  words: { name: 'Amount in words', does: 'For cheques and forms, the Indian way.', icon: FileText, group: 'Everyday', component: AmountInWords, size: { w: 440, h: 340 } },
+  words: { name: 'Amount in words', does: 'For cheques and forms, in lakh and crore (India).', icon: FileText, group: 'Everyday', component: AmountInWords, size: { w: 440, h: 340 } },
 } satisfies Record<string, Tool>
 
 export type ToolId = keyof typeof TOOLS

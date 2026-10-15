@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { moneyDefaults } from '@/lib/money'
 import { useState } from 'react'
 import { CalendarPlus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -22,7 +23,7 @@ export function num(text: string): number | null {
 
 /** ₹1,23,456 (or with paise when asked). */
 export function rupees(v: number, decimals = 0): string {
-  return v.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: decimals, minimumFractionDigits: decimals })
+  return v.toLocaleString(moneyDefaults().locale, { style: 'currency', currency: moneyDefaults().currency, maximumFractionDigits: decimals, minimumFractionDigits: decimals })
 }
 
 export function NumberField({ id, label, value, onChange, suffix, hint, placeholder }: {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowLeft, ArrowRight, Bell, CalendarCheck, Compass, IndianRupee, PieChart, Plus, Sparkles, Users, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Bell, CalendarCheck, Coins as CoinsIcon, Compass, PieChart, Plus, Sparkles, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Segmented } from '@/components/ui/controls'
 import { ThemePalettePicker } from '@/components/ThemePalettePicker'
@@ -126,7 +126,7 @@ function MakeItYours({ onDone }: { onDone: () => void }) {
 
 /** A few coins and icons drifting up behind the greeting. */
 function Coins() {
-  const icons = [IndianRupee, PieChart, CalendarCheck, Users, Bell, Sparkles]
+  const icons = [CoinsIcon, PieChart, CalendarCheck, Users, Bell, Sparkles]
   return (
     <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-4 h-40 overflow-hidden">
       {icons.map((Icon, i) => (

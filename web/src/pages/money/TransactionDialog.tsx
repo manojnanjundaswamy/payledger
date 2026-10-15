@@ -1,4 +1,5 @@
 import { uuid7 } from '@/lib/uuid'
+import { MoneyInput } from '@/components/ui/money-input'
 import { useQueryClient } from '@tanstack/react-query'
 import { useProfile } from '@/state/profile'
 import { NOT_SHARED, SharedFields, type Shared } from './SharedFields'
@@ -14,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input, Segmented } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/overlay'
 import { ApiError, api } from '@/lib/api'
-import { minorToInput, parseMoney, formatMoney } from '@/lib/money'
+import { minorToInput, parseMoney, formatMoney, moneyDefaults } from '@/lib/money'
 import {
   useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useUpdateTransaction, type Transaction, type TransactionFields, type TxnKind, useSpaceId, useSaveCategoryRule, fetchCategoryGuess, ruleWords, type CategoryGuess, type TransactionFilter } from '@/state/money'
 import { Field, TXN_KINDS, today, accountOptions, categoryOptions } from './parts'
@@ -151,7 +152,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
   const canRemember = !transaction && draft.kind !== 'TRANSFER' && !!draft.categoryId && ruleMatch.length >= 2
     && !(guessHint && guess?.source === 'RULE')
   const account = accounts.find((a) => a.id === draft.accountId)
-  const currency = account?.currency ?? 'INR'
+  const currency = account?.currency ?? moneyDefaults().currency
   const choices = useMemo(
     () => categories.filter((c) => c.kind === draft.kind && (!c.hidden || c.id === transaction?.categoryId)),
     [categories, draft.kind, transaction?.categoryId],
@@ -252,7 +253,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
           className="w-full"
         />
         <Field label="Amount" htmlFor="txn-amount">
-          <Input id="txn-amount" inputMode="decimal" autoFocus autoComplete="off" placeholder="0" value={draft.amount}
+          <MoneyInput currency={currency} id="txn-amount" autoFocus autoComplete="off" placeholder="0" value={draft.amount}
             onChange={(e) => set('amount', e.target.value)} className="h-12 text-xl font-semibold tabular" />
         </Field>
         <div className="grid gap-4 sm:grid-cols-[1fr_auto]">

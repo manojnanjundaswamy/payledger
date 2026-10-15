@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/controls'
 import { SearchSelect } from '@/components/ui/search-select'
 import { ApiError } from '@/lib/api'
-import { formatMoney } from '@/lib/money'
-import { CURRENCIES, LOCALES, MONTHS, REGIONS, guessRegion, regionOf } from '@/lib/regions'
+import { allCurrencies, currencySymbol, formatMoney } from '@/lib/money'
+import { CurrencyChangeDialog } from '@/components/CurrencyChangeDialog'
+import { useAccounts } from '@/state/money'
+import { LOCALES, MONTHS, REGIONS, guessRegion, regionOf } from '@/lib/regions'
 import { Field, Select } from '@/pages/money/parts'
 import { useProfile, useUpdateProfile } from '@/state/profile'
 
@@ -30,6 +32,9 @@ export function RegionSetup({ onDone, onLater }: { onDone: () => void; onLater: 
   const [fy, setFy] = useState(profile?.settings.country ? (profile.settings.fyStartMonth ?? start.fyStartMonth) : start.fyStartMonth)
   const [payday, setPayday] = useState(profile?.settings.budgetStartDay ?? 1)
   const [error, setError] = useState<string>()
+  const personal = profile?.spaces.find((s) => s.kind === 'PERSONAL')
+  const hasMoney = (useAccounts(false, personal?.id).data ?? []).some((a) => a.kind !== 'OWED')
+  const [switchTo, setSwitchTo] = useState<string | null>(null)
   const zones = useMemo(() => (typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : [timeZone]), [timeZone])
 
   function chooseCountry(code: string) {
@@ -47,10 +52,13 @@ export function RegionSetup({ onDone, onLater }: { onDone: () => void; onLater: 
     if (!name.trim()) return setError('What should we call you?')
     setError(undefined)
     try {
-      await update.mutateAsync({ displayName: name.trim(), country, currency, locale, timeZone, fyStartMonth: fy, budgetStartDay: payday })
+      // With money already recorded in another currency, changing it is a choice (convert, or keep the numbers): asked next.
+      const ask = hasMoney && personal && currency !== personal.currency
+      await update.mutateAsync({ displayName: name.trim(), country, currency: ask ? undefined : currency, locale, timeZone, fyStartMonth: fy, budgetStartDay: payday })
       // A new space follows the currency: everything showing money reloads.
       void client.invalidateQueries()
-      onDone()
+      if (ask) setSwitchTo(currency)
+      else onDone()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save. Try again.')
     }
@@ -79,9 +87,8 @@ export function RegionSetup({ onDone, onLater }: { onDone: () => void; onLater: 
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Currency" htmlFor="region-currency">
-              <Select id="region-currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                {[...new Set([currency, ...CURRENCIES])].map((c) => <option key={c} value={c}>{c}</option>)}
-              </Select>
+              <SearchSelect id="region-currency" aria-label="Currency" value={currency} onChange={setCurrency}
+                options={allCurrencies().map((c) => ({ value: c.code, label: `${c.code} · ${c.name}`, icon: <span className="w-6 text-center text-xs font-semibold" aria-hidden>{currencySymbol(c.code)}</span> }))} />
             </Field>
             <Field label="Number format" htmlFor="region-locale">
               <Select id="region-locale" value={locale} onChange={(e) => setLocale(e.target.value)}>
@@ -112,6 +119,9 @@ export function RegionSetup({ onDone, onLater }: { onDone: () => void; onLater: 
         </section>
 
         {error && <p className="text-sm text-critical" role="alert">{error}</p>}
+        {switchTo && personal && (
+          <CurrencyChangeDialog spaceId={personal.id} to={switchTo} open onOpenChange={(o) => { if (!o) { setSwitchTo(null); onDone() } }} />
+        )}
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button variant="ghost" type="button" onClick={onLater}>Later</Button>
           <Button variant="primary" size="lg" type="submit" disabled={update.isPending}>{update.isPending ? 'Saving…' : 'Save and continue'}<ArrowRight /></Button>

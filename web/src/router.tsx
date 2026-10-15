@@ -1,4 +1,6 @@
 import { Outlet, createRootRouteWithContext, createRoute, createRouter, lazyRouteComponent, redirect, useRouter } from '@tanstack/react-router'
+import { setMoneyDefaults } from '@/lib/money'
+import { useSpaceId } from '@/state/money'
 import type { QueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
@@ -78,7 +80,10 @@ function recall(): string | null {
 
 function AppRoot() {
   const { data: profile } = useProfile()
+  const spaceId = useSpaceId()
   if (!profile) return <AppPending />
+  // Every amount on screen is in the space being looked at (a household can use another currency than you).
+  setMoneyDefaults(profile.spaces.find((s) => s.id === spaceId)?.currency ?? profile.settings.currency, profile.settings.locale)
   return (
     <PreferencesProvider key={profile.id} initial={profile.preferences}>
       <AppShell />

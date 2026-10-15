@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge, Card, Skeleton } from '@/components/ui/card'
 import { Switch } from '@/components/ui/controls'
 import { cn } from '@/lib/cn'
-import { formatMoneyShort } from '@/lib/money'
+import { formatMoneyShort, moneyDefaults } from '@/lib/money'
 import { useGoals } from '@/state/goals'
 import { useAccounts, useBreakdown, type Account } from '@/state/money'
 import { useProfile } from '@/state/profile'
@@ -37,7 +37,7 @@ export function AccountsPage() {
 
   const open = (accounts ?? []).filter((a) => !a.archived)
   const known = open.every((a) => a.balance !== null)
-  const inr = open.filter((a) => a.currency === 'INR')
+  const inr = open.filter((a) => a.currency === moneyDefaults().currency)
   // What friends owe you is yours too (net worth), and below zero it's what you owe them.
   const have = inr.filter((a) => a.kind !== 'CARD').reduce((s, a) => s + (a.balance ?? 0), 0)
   const owe = inr.filter((a) => a.kind === 'CARD').reduce((s, a) => s + (a.balance ?? 0), 0)
@@ -134,7 +134,7 @@ function AccountCard({ account: a, range, onEdit }: { account: Account; range: R
           <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted"><Icon className="size-5" /></span>
           <span className="min-w-0 flex-1">
             <span className="block truncate font-medium">{a.name}</span>
-            <span className="block text-xs text-subtle">{label}{a.currency !== 'INR' && ` · ${a.currency}`}</span>
+            <span className="block text-xs text-subtle">{label}{a.currency !== moneyDefaults().currency && ` · ${a.currency}`}</span>
           </span>
         </Link>
         <span className="text-right">

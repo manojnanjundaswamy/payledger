@@ -1,7 +1,8 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { MoneyInput } from '@/components/ui/money-input'
 import { AccountPicker } from '@/pages/money/pickers'
 import { Link } from '@tanstack/react-router'
-import { CalendarClock, ChevronDown, HandCoins, IndianRupee, MessageCircle, Search, UserRoundPlus } from 'lucide-react'
+import { CalendarClock, ChevronDown, HandCoins, MessageCircle, Search, UserRoundPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, Skeleton } from '@/components/ui/card'
@@ -10,7 +11,7 @@ import { Dialog } from '@/components/ui/overlay'
 import { SearchSelect } from '@/components/ui/search-select'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
-import { formatMoney, formatMoneyWhole, parseMoney } from '@/lib/money'
+import { formatMoney, formatMoneyWhole, parseMoney, moneyDefaults } from '@/lib/money'
 import { upiPayLink } from '@/lib/upi'
 import { uuid7 } from '@/lib/uuid'
 import { whatsAppShare } from '@/lib/whatsapp'
@@ -33,7 +34,7 @@ export function PeoplePage() {
   const [open, setOpen] = useState<string | null>(null)
   const profile = useProfile().data
   const locale = profile?.settings.locale ?? 'en-IN'
-  const money = (m: number) => formatMoneyWhole(m, 'INR', locale)
+  const money = (m: number) => formatMoneyWhole(m, undefined, locale)
 
   const needle = q.trim().toLowerCase()
   const shown = (data?.people ?? []).filter((p) => (!needle || p.name.toLowerCase().includes(needle) || (p.email ?? '').toLowerCase().includes(needle))
@@ -138,10 +139,11 @@ function PersonRow({ person: p, open, onToggle, money, myUpi, myName, onLend }: 
           <div className="flex flex-wrap gap-2">
             {settleIn && p.net !== 0 && (
               <Link to="/groups/$groupId" params={{ groupId: settleIn.groupId }} search={{ tab: 'overview' }}>
-                <Button size="sm" variant="primary"><IndianRupee />Settle up</Button>
+                <Button size="sm" variant="primary"><HandCoins />Settle up</Button>
               </Link>
             )}
-            {p.net < 0 && p.upiId && (
+            {/* UPI pays in rupees only. */}
+            {p.net < 0 && p.upiId && moneyDefaults().currency === 'INR' && (
               <a href={upiPayLink(p.upiId, p.name, -p.net, 'PayLedger settle-up')}><Button size="sm">Pay by UPI</Button></a>
             )}
             {p.net > 0 && (
@@ -217,7 +219,7 @@ function LoanDialog({ open, onOpenChange, person, direction: initial, people }: 
           </Field>
         )}
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Amount" htmlFor="loan-amount"><Input id="loan-amount" inputMode="decimal" className="tabular" placeholder="5,000" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
+          <Field label="Amount" htmlFor="loan-amount"><MoneyInput id="loan-amount" className="tabular" placeholder="5,000" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
           <Field label="Date" htmlFor="loan-date"><Input id="loan-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
         </div>
         <Field label="Pay back by (optional)" htmlFor="loan-due" hint="A reminder on the day, to both of you.">

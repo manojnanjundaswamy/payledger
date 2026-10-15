@@ -28,7 +28,7 @@ export function PlanPage() {
   const [editing, setEditing] = useState<Commitment | 'new' | null>(null)
   // A new bill's first due date, when it was started from a day on the calendar.
   const [newDue, setNewDue] = useState<string>()
-  const money = (minor: number) => formatMoneyWhole(minor, 'INR', locale)
+  const money = (minor: number) => formatMoneyWhole(minor, undefined, locale)
   const { open, due } = useSearch({ from: '/app/plan' })
   const navigate = useNavigate({ from: '/plan' })
   const openById = (id: string) => {

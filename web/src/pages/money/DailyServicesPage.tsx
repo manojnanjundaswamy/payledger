@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { MoneyInput } from '@/components/ui/money-input'
 import { ChevronLeft, ChevronRight, Lock, MoreHorizontal, Pencil, Plus, Trash2, Undo2, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -263,7 +264,7 @@ function ServiceForm({ onOpenChange, service, preset }: { onOpenChange: (o: bool
         <Segmented label="Rate" value={per} onChange={setPer} className="self-start" options={[{ value: 'DAY', label: 'Per day' }, { value: 'MONTH', label: 'Per month' }]} />
         <div className="grid grid-cols-2 gap-3">
           <Field label={per === 'DAY' ? 'A normal day costs (₹)' : 'Monthly pay (₹)'} htmlFor="svc-rate">
-            <Input id="svc-rate" value={rate} onChange={(e) => setRate(e.target.value)} inputMode="decimal" />
+            <MoneyInput id="svc-rate" value={rate} onChange={(e) => setRate(e.target.value)} />
           </Field>
           {per === 'MONTH' ? (
             <Field label="Paid leaves a month" htmlFor="svc-leaves"><Input id="svc-leaves" value={leaves} onChange={(e) => setLeaves(e.target.value.replace(/\D/g, ''))} inputMode="numeric" /></Field>

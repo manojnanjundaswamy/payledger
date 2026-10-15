@@ -1,4 +1,5 @@
 import { useGoals } from '@/state/goals'
+import { moneyDefaults } from '@/lib/money'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQueries } from '@tanstack/react-query'
@@ -670,7 +671,7 @@ function NetWorth() {
   const { money } = useWidgetEnv()
   const { data: accounts, isPending } = useAccounts()
   if (isPending) return <div className="h-24 animate-pulse rounded-control bg-surface-2" />
-  const live = (accounts ?? []).filter((a) => !a.archived && a.currency === 'INR' && a.balance !== null)
+  const live = (accounts ?? []).filter((a) => !a.archived && a.currency === moneyDefaults().currency && a.balance !== null)
   if (live.length === 0) {
     return <div className="flex min-h-24 flex-col items-start justify-center gap-1.5 text-sm text-muted">Add your accounts to see your net worth.<Link to="/accounts" className="text-fg underline underline-offset-4">Accounts</Link></div>
   }

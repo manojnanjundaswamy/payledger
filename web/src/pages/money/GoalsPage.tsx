@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { MoneyInput } from '@/components/ui/money-input'
 import { AccountPicker } from '@/pages/money/pickers'
 import { Link } from '@tanstack/react-router'
 import { Archive, ArchiveRestore, ArrowLeftRight, CalendarClock, CalendarDays, Goal as GoalIcon, Landmark, Pencil, Plus, Trash2 } from 'lucide-react'
@@ -28,7 +29,7 @@ export function GoalsPage() {
   const [editing, setEditing] = useState<Goal | 'new' | null>(null)
   const [adding, setAdding] = useState<Goal | null>(null)
   const locale = useProfile().data?.settings.locale ?? 'en-IN'
-  const money = (m: number) => formatMoneyWhole(m, 'INR', locale)
+  const money = (m: number) => formatMoneyWhole(m, undefined, locale)
   const live = (goals ?? []).filter((g) => !g.archived)
   const monthly = live.reduce((s, g) => s + (g.perMonth ?? 0), 0)
   const saved = live.reduce((s, g) => s + (g.saved ?? 0), 0)
@@ -156,9 +157,9 @@ function GoalCard({ goal: g, money, locale, onEdit, onAdd }: { goal: Goal; money
       </div>
       {/* A transfer into savings (or income set aside) marked for this goal; the form opens with the goal chosen. */}
       <TransactionDialog open={recording} onOpenChange={setRecording} initialKind="TRANSFER"
-        prefill={{ amount: g.perMonth ? minorToInput(g.perMonth, 'INR') : '', description: `Saving for ${g.name}`, goalId: g.id }} />
+        prefill={{ amount: g.perMonth ? minorToInput(g.perMonth) : '', description: `Saving for ${g.name}`, goalId: g.id }} />
       <CommitmentDialog open={planning} onOpenChange={setPlanning}
-        prefill={{ kind: 'SAVING', name: `Saving for ${g.name}`, amount: g.perMonth ? minorToInput(g.perMonth, 'INR') : '', everyMonths: 1,
+        prefill={{ kind: 'SAVING', name: `Saving for ${g.name}`, amount: g.perMonth ? minorToInput(g.perMonth) : '', everyMonths: 1,
           endsOn: g.targetDate ?? undefined, goalId: g.id, toAccountId: g.accountId ?? undefined }} />
     </Card>
   )
@@ -196,7 +197,7 @@ function GoalDialog({ open, onOpenChange, goal }: { open: boolean; onOpenChange:
     if (!open) return
     setName(goal?.name ?? '')
     setEmoji(goal?.emoji ?? EMOJIS[0]!)
-    setTarget(goal ? minorToInput(goal.target, 'INR') : '')
+    setTarget(goal ? minorToInput(goal.target) : '')
     setDate(goal?.targetDate ?? '')
     setTrack(goal?.accountId ? 'account' : 'manual')
     setAccountId(goal?.accountId ?? '')
@@ -237,7 +238,7 @@ function GoalDialog({ open, onOpenChange, goal }: { open: boolean; onOpenChange:
           </div>
         </fieldset>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Amount" htmlFor="goal-target"><Input id="goal-target" inputMode="decimal" className="tabular" placeholder="50,000" value={target} onChange={(e) => setTarget(e.target.value)} /></Field>
+          <Field label="Amount" htmlFor="goal-target"><MoneyInput id="goal-target" className="tabular" placeholder="50,000" value={target} onChange={(e) => setTarget(e.target.value)} /></Field>
           <Field label="By (optional)" htmlFor="goal-date"><Input id="goal-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
         </div>
         <div className="flex flex-col gap-2">
@@ -267,7 +268,7 @@ function AddMoneyDialog({ goal, onClose, money }: { goal: Goal | null; onClose: 
   const [note, setNote] = useState('')
   const [out, setOut] = useState(false)
   const [error, setError] = useState<string>()
-  useEffect(() => { if (goal) { setAmount(goal.perMonth ? minorToInput(goal.perMonth, 'INR') : ''); setNote(''); setOut(false); setError(undefined) } }, [goal])
+  useEffect(() => { if (goal) { setAmount(goal.perMonth ? minorToInput(goal.perMonth) : ''); setNote(''); setOut(false); setError(undefined) } }, [goal])
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -289,7 +290,7 @@ function AddMoneyDialog({ goal, onClose, money }: { goal: Goal | null; onClose: 
         <Segmented label="Put in or take out" value={out ? 'out' : 'in'} onChange={(v) => setOut(v === 'out')} className="self-start"
           options={[{ value: 'in', label: 'Put in' }, { value: 'out', label: 'Take out' }]} />
         <Field label="Amount" htmlFor="goal-add" hint={goal?.perMonth ? `This month's share: ${money(goal.perMonth)}` : undefined}>
-          <Input id="goal-add" autoFocus inputMode="decimal" className="tabular" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <MoneyInput id="goal-add" autoFocus className="tabular" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>
         <Field label="Note (optional)" htmlFor="goal-note"><Input id="goal-note" maxLength={120} placeholder="Diwali bonus" value={note} onChange={(e) => setNote(e.target.value)} /></Field>
         {error && <p className="rounded-control bg-critical/10 px-3 py-2 text-sm text-critical" role="alert">{error}</p>}

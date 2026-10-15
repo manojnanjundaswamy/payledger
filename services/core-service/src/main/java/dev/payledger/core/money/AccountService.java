@@ -158,6 +158,24 @@ public class AccountService {
         return account;
     }
 
+    /**
+     * Moves an account to another currency (CurrencyChange): the opening balance in the new currency, the old opening
+     * reversed and the new one posted, like an edit. Its entries are moved by the caller.
+     */
+    void changeCurrency(Space space, UUID accountId, String currency, long opening) {
+        MoneyAccount before = find(space.id(), accountId, true);
+        int version = jdbc.sql("""
+                        update money_accounts set currency = :currency, opening_balance = :opening, opening_version = opening_version + 1,
+                            updated_at = now()
+                        where id = :id returning opening_version
+                        """).param("currency", currency).param("opening", opening).param("id", accountId).query(Integer.class).single();
+        if (before.openingBalance() != 0) {
+            ledger.reverse(space, openingKey(accountId, version - 1) + ":reversal", openingKey(accountId, version - 1),
+                    "Currency changed: " + before.name());
+        }
+        postOpening(space, find(space.id(), accountId, false), version);
+    }
+
     /** A restore (DataImportService): the account as it was, opening balance posted, without Free's limits. */
     MoneyAccount restore(Space space, CurrentUser user, AccountKind kind, String name, String currency, long opening, LocalDate openingDate,
                          boolean archived) {

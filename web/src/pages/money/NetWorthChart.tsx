@@ -47,13 +47,13 @@ export function NetWorthChart() {
   return (
     <figure className="flex flex-col gap-2" aria-label="Net worth over the last 12 months">
       <figcaption className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-muted">
-        <span>{label(data[shown]!.month)}: <span className="font-medium text-fg tabular">{formatMoneyWhole(data[shown]!.netWorth, 'INR', locale)}</span></span>
+        <span>{label(data[shown]!.month)}: <span className="font-medium text-fg tabular">{formatMoneyWhole(data[shown]!.netWorth, undefined, locale)}</span></span>
         <span className={change >= 0 ? 'text-good-text' : 'text-critical'}>
-          {change >= 0 ? '+' : '−'}{formatMoneyShort(Math.abs(change), 'INR', locale)} in 12 months
+          {change >= 0 ? '+' : '−'}{formatMoneyShort(Math.abs(change), undefined, locale)} in 12 months
         </span>
       </figcaption>
       <svg viewBox={`0 0 ${W} ${H}`} className="h-32 w-full overflow-visible" preserveAspectRatio="none" role="img"
-        aria-label={data.map((p) => `${label(p.month)} ${formatMoneyWhole(p.netWorth, 'INR', locale)}`).join(', ')}
+        aria-label={data.map((p) => `${label(p.month)} ${formatMoneyWhole(p.netWorth, undefined, locale)}`).join(', ')}
         onMouseLeave={() => setActive(null)}>
         <defs>
           <linearGradient id={gradient} x1="0" x2="0" y1="0" y2="1">

@@ -243,7 +243,7 @@ function ReadyRows({ preview }: { preview: ImportPreview }) {
               </span>
             </span>
             <span className={cn('tabular shrink-0', r.kind === 'INCOME' && 'text-good-text')}>
-              {r.amount !== null && money(r.kind === 'EXPENSE' ? -r.amount : r.amount, 'INR', { sign: r.kind === 'INCOME' })}
+              {r.amount !== null && money(r.kind === 'EXPENSE' ? -r.amount : r.amount, undefined, { sign: r.kind === 'INCOME' })}
             </span>
           </div>
         ))}

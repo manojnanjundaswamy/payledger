@@ -27,7 +27,7 @@ test('a new person makes it theirs, takes the tour, and can turn it off', async 
   await expect(region).toBeVisible()
   await region.getByLabel('Where you live').click()
   await page.getByRole('option', { name: /United Arab Emirates/ }).click()
-  await expect(region.getByLabel('Currency')).toHaveValue('AED')
+  await expect(region.getByLabel('Currency')).toContainText('AED')
   await expect(region.getByLabel('Time zone')).toHaveValue('Asia/Dubai')
   await expect(region.getByLabel('Financial year starts')).toHaveValue('1')
   await region.getByLabel('Your month starts on').selectOption('25')

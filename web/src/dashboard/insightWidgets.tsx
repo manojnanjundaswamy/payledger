@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
+import { MoneyInput } from '@/components/ui/money-input'
 import { AlertTriangle, CheckCircle2, ChevronDown, CircleSlash, HeartPulse } from 'lucide-react'
 import { motion } from 'motion/react'
 import { Button } from '@/components/ui/button'
-import { Input, Segmented } from '@/components/ui/controls'
+import { Segmented } from '@/components/ui/controls'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { parseMoney } from '@/lib/money'
@@ -102,7 +103,7 @@ export function CanIAfford() {
     <form onSubmit={check} className="flex flex-col gap-3" data-testid="can-i-afford">
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex min-w-32 flex-1 flex-col gap-1 text-xs font-medium text-muted">It costs (₹)
-          <Input value={amount} onChange={(e) => { setAmount(e.target.value); setAnswer(null) }} inputMode="decimal" placeholder="45,000" aria-label="It costs" />
+          <MoneyInput value={amount} onChange={(e) => { setAmount(e.target.value); setAnswer(null) }} placeholder="45,000" aria-label="It costs" />
         </label>
         <Segmented label="How often" value={often} onChange={(m) => { setOften(m); setAnswer(null) }}
           options={[{ value: 'once', label: 'Once' }, { value: 'monthly', label: 'Every month' }]} />
