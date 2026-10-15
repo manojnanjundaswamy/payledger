@@ -44,5 +44,5 @@ The full roadmap is in [product-plan.md](product-plan.md) (section 7); the owner
 ## How a release goes (for next time)
 
 1. Feature branch → `develop`; full tests on staging (`scripts/env.sh staging deploy`, then `… e2e`).
-2. Dump the production database (`docker exec payledger-core-db-1 pg_dump …` into `backups/`, not in git).
+2. Dump the production databases (core, ledger, Keycloak: `pg_dump -Fc`) into `../payledger-backups/<date>-before-<tag>/`, outside the repo.
 3. Merge `develop` into `main`, tag `vX.Y.Z`, `scripts/env.sh production deploy`, check the live site, push.
