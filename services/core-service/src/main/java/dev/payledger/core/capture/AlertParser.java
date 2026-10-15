@@ -76,7 +76,7 @@ public final class AlertParser {
     /** @return the transaction, or null when the text isn't one (or can't be read with confidence) */
     public static Parsed parse(String raw, String sender, LocalDate received) {
         String text = clean(raw);
-        if (text.isEmpty() || NOT_A_TRANSACTION.matcher(text).find() && !strongVerb(text)) {
+        if (text.isEmpty() || noiseIn(text)) {
             return null;
         }
         Matcher debit = DEBIT.matcher(text);
@@ -98,10 +98,29 @@ public final class AlertParser {
                 account(text), balance(text));
     }
 
+    /** A sentence warning not to share codes or details: in every bank's footer, never about the transaction. */
+    private static final Pattern SAFETY_NOTE = Pattern.compile(
+            "[^.!\\n]*\\b(?:never|not|don'?t|do not|beware|fraud|scam|victim)\\b[^.!\\n]*\\b(?:otp|one[- ]time password|cvv|pin|password|user ?id)\\b[^.!\\n]*[.!]?",
+            Pattern.CASE_INSENSITIVE);
+    /** How much of the start of an alert says what it is about (subject and first lines). */
+    private static final int LEAD = 400;
+
     /** An OTP, an offer, a bill reminder or a failed attempt: never shown for review. */
     public static boolean noise(String raw) {
-        String text = clean(raw);
-        return NOT_A_TRANSACTION.matcher(text).find() && !strongVerb(text);
+        return noiseIn(clean(raw));
+    }
+
+    /**
+     * Banks end every alert with safety notes ("never share your OTP or CVV", "if a transaction failed..."): those
+     * say nothing about this email, so they're left out before judging it. A debit or credit in the opening lines
+     * is what the email is about; an OTP or a decline counts only when it's there too.
+     */
+    private static boolean noiseIn(String text) {
+        String judged = SAFETY_NOTE.matcher(text).replaceAll(" ");
+        if (!NOT_A_TRANSACTION.matcher(judged).find()) {
+            return false;
+        }
+        return !strongVerb(judged.substring(0, Math.min(judged.length(), LEAD)));
     }
 
     /** Splits a paste of many messages: blank lines between them, or one per line when each line reads alone. */
