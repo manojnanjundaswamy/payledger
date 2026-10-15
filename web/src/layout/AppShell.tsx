@@ -13,6 +13,7 @@ import { usePreferences } from '@/state/PreferencesProvider'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { AddMenu } from './AddMenu'
 import { EdgeDock } from '@/utilities/EdgeDock'
+import { QuickAdd, openQuickAdd } from '@/components/QuickAdd'
 import { Onboarding } from './Onboarding'
 import { NotificationSignals } from './NotificationSignals'
 import { ProgressCelebrator } from './ProgressCelebrator'
@@ -79,6 +80,7 @@ export function AppShell() {
           <MobileTabBar pathname={pathname} />
           <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
           <EdgeDock />
+          <QuickAdd />
           <Onboarding pathname={pathname} />
           <NotificationSignals />
           <ProgressCelebrator />
@@ -242,11 +244,9 @@ function MobileTabBar({ pathname }: { pathname: string }) {
         {tab(primary[0]!)}
         {tab(primary[1]!)}
         <div className="flex flex-1 items-center justify-center" data-tour="add">
-          <AddMenu trigger={
-            <button className="-mt-6 flex size-14 items-center justify-center rounded-full bg-accent text-accent-fg shadow-lift transition-transform active:scale-95" aria-label="Add">
-              <Plus className="size-6" />
-            </button>
-          } />
+          <button onClick={() => openQuickAdd()} className="-mt-6 flex size-14 items-center justify-center rounded-full bg-accent text-accent-fg shadow-lift transition-transform active:scale-95" aria-label="Add">
+            <Plus className="size-6" />
+          </button>
         </div>
         {tab(primary[2]!)}
         {/* On a page from More, the tab shows which one, so you always know where you are. */}

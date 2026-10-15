@@ -256,6 +256,17 @@ services:
       # Auto-capture (docs/hosting.md): forwarding addresses are <token>@CAPTURE_DOMAIN; the Email Worker sends INBOUND_SECRET.
       CAPTURE_DOMAIN: ${CAPTURE_DOMAIN:-in.payledger.local}
       INBOUND_SECRET: ${INBOUND_SECRET:-}
+      # AI reading (docs/ai.md): no key = off. Provider-independent; prices only feed the cost log.
+      AI_PROVIDER: ${AI_PROVIDER:-anthropic}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-claude-haiku-5-5}
+      AI_PRICE_INPUT: ${AI_PRICE_INPUT:-1.0}
+      AI_PRICE_OUTPUT: ${AI_PRICE_OUTPUT:-5.0}
+      AI_TEXT_RETENTION: ${AI_TEXT_RETENTION:-180d}
+      STT_BASE_URL: ${STT_BASE_URL:-https://api.openai.com/v1}
+      STT_API_KEY: ${STT_API_KEY:-}
+      STT_MODEL: ${STT_MODEL:-gpt-4o-mini-transcribe}
       # Guests' session cookie (GuestController) is Secure on the hosted site, like the gateway's.
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:

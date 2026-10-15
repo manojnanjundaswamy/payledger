@@ -1,5 +1,9 @@
 package dev.payledger.core.capture;
 
+import dev.payledger.core.ai.AiContexts;
+import dev.payledger.core.ai.AiReader;
+import dev.payledger.core.ai.AiAudit;
+import dev.payledger.core.common.ApiException;
 import dev.payledger.core.common.InvalidRequestException;
 import dev.payledger.core.common.NotFoundException;
 import dev.payledger.core.common.Uuid7;
@@ -8,6 +12,7 @@ import dev.payledger.core.money.Transaction;
 import dev.payledger.core.money.TransactionRequests;
 import dev.payledger.core.money.TransactionService;
 import dev.payledger.core.notify.Inbox;
+import dev.payledger.core.plan.PlanService;
 import dev.payledger.core.user.CurrentUser;
 import jakarta.mail.BodyPart;
 import jakarta.mail.Multipart;
@@ -59,10 +64,15 @@ public class CaptureService {
     private final CategoryRuleService rules;
     private final Inbox inbox;
     private final CaptureLearning learning;
+    private final AiReader ai;
+    private final AiContexts aiContexts;
+    private final AiAudit aiAudit;
+    private final PlanService plans;
     private final String domain;
     private final boolean inboundEnabled;
 
     CaptureService(JdbcClient jdbc, TransactionService transactions, CategoryRuleService rules, Inbox inbox, CaptureLearning learning,
+                   AiReader ai, AiContexts aiContexts, AiAudit aiAudit, PlanService plans,
                    @Value("${payledger.capture.domain:in.payledger.local}") String domain,
                    @Value("${payledger.capture.inbound-secret:}") String secret) {
         this.jdbc = jdbc;
@@ -70,6 +80,10 @@ public class CaptureService {
         this.rules = rules;
         this.inbox = inbox;
         this.learning = learning;
+        this.ai = ai;
+        this.aiContexts = aiContexts;
+        this.aiAudit = aiAudit;
+        this.plans = plans;
         this.domain = domain;
         // Forwarding works only with the Email Worker's secret and a real domain (not the .local placeholder): until
         // then the page doesn't hand out an address that can't receive mail.
@@ -79,11 +93,12 @@ public class CaptureService {
     /** @param accountId the account it most likely came from (its bank or last digits in the account's name) */
     public record Item(UUID id, String source, String status, String sender, String subject, String body, String kind, Long amount,
                        LocalDate occurredOn, String merchant, String bank, String accountHint, Long balance, UUID transactionId,
-                       Instant receivedAt, UUID accountId, UUID categoryId, String categorySource, UUID duplicateOf, String readBy, String learned) {
+                       Instant receivedAt, UUID accountId, UUID categoryId, String categorySource, UUID duplicateOf, String readBy, String learned,
+                       Double confidence, boolean autoAdded) {
 
         Item withLearned(String lesson) {
             return new Item(id, source, status, sender, subject, body, kind, amount, occurredOn, merchant, bank, accountHint, balance, transactionId,
-                    receivedAt, accountId, categoryId, categorySource, duplicateOf, readBy, lesson);
+                    receivedAt, accountId, categoryId, categorySource, duplicateOf, readBy, lesson, confidence, autoAdded);
         }
     }
 
@@ -96,7 +111,7 @@ public class CaptureService {
      *                     confirmation on record), or the person said they confirmed it. Gmail itself never tells us.
      */
     public record View(String address, boolean emailReady, Confirmation confirmation, long pending, List<Item> items, Instant lastEmailAt,
-                       boolean forwardingOn, long emailsThisWeek, List<Received> recentEmails) {
+                       boolean forwardingOn, long emailsThisWeek, List<Received> recentEmails, boolean autoAdd) {
     }
 
     /** An email that reached the address, and what came of it (added, not-a-transaction, gmail-confirmation...). */
@@ -141,7 +156,15 @@ public class CaptureService {
         // An email through this address after Gmail's confirmation (or after the address was made, with none on record).
         Instant after = c.confirmationAt() != null ? c.confirmationAt() : c.addressSince();
         boolean on = c.forwardingConfirmedAt() != null || last != null && last.isAfter(after);
-        return new View(token + "@" + domain, inboundEnabled, confirmation, pending, items, last, on, week, recent);
+        boolean autoAdd = jdbc.sql("select auto_add_captured from users where id = :u").param("u", user.id()).query(Boolean.class).single();
+        return new View(token + "@" + domain, inboundEnabled, confirmation, pending, items, last, on, week, recent, autoAdd);
+    }
+
+    /** Add alerts we're at least 95% sure of without asking (on), or always ask (off). */
+    @Transactional
+    public View autoAdd(CurrentUser user, boolean on) {
+        jdbc.sql("update users set auto_add_captured = :on where id = :u").param("on", on).param("u", user.id()).update();
+        return view(user);
     }
 
     /** "I've confirmed it in Gmail": Gmail doesn't tell us, so the person does. */
@@ -181,13 +204,28 @@ public class CaptureService {
         int unreadable = 0;
         List<UUID> ids = new ArrayList<>();
         LocalDate today = today(user.id());
+        int asked = 0;
         for (String message : AlertParser.split(text)) {
-            CaptureLearning.Read read = learning.read(user.id(), message, null, today);
-            AlertParser.Parsed p = read.parsed();
-            if (p == null && (AlertParser.noise(message) || !looksLikeMoney(message))) {
+            if (AlertParser.noise(message) || !looksLikeMoney(message)) {
+                if (learning.read(user.id(), message, null, today).parsed() == null) {
+                    continue;
+                }
+            }
+            String print = fingerprint(AlertParser.clean(message));
+            if (seen(user.id(), print)) {
+                duplicates++;
                 continue;
             }
-            UUID id = store(user.id(), user.personalSpaceId(), source, null, null, message, fingerprint(AlertParser.clean(message)), p, null, null, read.by());
+            // The AI reads at most ten messages a paste: a pasted month of SMS is the statement's job, not the AI's.
+            Decision d = decide(user.id(), user.personalSpaceId(), message, null, source, today, asked < 10);
+            if (d.aiRequestId() != null) {
+                asked++;
+            }
+            if (d.notATransaction()) {
+                continue;
+            }
+            AlertParser.Parsed p = d.parsed();
+            UUID id = store(user.id(), user.personalSpaceId(), source, null, null, message, print, d);
             if (id == null) {
                 duplicates++;
             } else {
@@ -198,6 +236,10 @@ public class CaptureService {
                     added++;
                 }
             }
+        }
+        for (UUID id : ids) {
+            Double c = jdbc.sql("select confidence from captured_items where id = :id").param("id", id).query(Double.class).optional().orElse(null);
+            outcome(id, c != null && autoAdd(user.id(), id, c) ? "AUTO_ADDED" : "TO_REVIEW");
         }
         List<Item> items = ids.isEmpty() ? List.of() : items(user, "select * from captured_items where id in (:ids) order by received_at, id", ids);
         return new Pasted(added, duplicates, unreadable, items);
@@ -210,6 +252,11 @@ public class CaptureService {
 
     @Transactional
     public Item add(CurrentUser user, UUID id, Add a) {
+        return add(user, id, a, false);
+    }
+
+    /** @param keepBody keep the original text (added automatically: it can be undone and looked at) */
+    private Item add(CurrentUser user, UUID id, Add a, boolean keepBody) {
         Item item = own(user, id);
         if (!"PENDING".equals(item.status()) && !"UNREADABLE".equals(item.status())) {
             throw new InvalidRequestException("already-decided", "this one was already added or dismissed");
@@ -228,13 +275,13 @@ public class CaptureService {
                 description.length() > 120 ? description.substring(0, 120) : description, null, List.of("captured"), null,
                 a.counterparty() == null || a.counterparty().isBlank() ? null : a.counterparty().strip())).transaction();
         // Your answer teaches it: a misread (or unread) alert becomes a pattern, a corrected name an alias.
-        String lesson = item.source().equals("STATEMENT") ? null : learning.learn(user.id(), item.body(),
+        String lesson = item.source().equals("STATEMENT") || keepBody ? null : learning.learn(user.id(), item.body(),
                 "PENDING".equals(item.status()) && item.amount() != null
                         ? new AlertParser.Parsed(item.kind(), item.amount(), item.occurredOn(), item.merchant(), item.bank(), item.accountHint(), item.balance())
                         : null,
                 kind, t.amount(), description);
-        jdbc.sql("update captured_items set status = 'ADDED', transaction_id = :t, body = null, decided_at = now() where id = :id")
-                .param("t", t.id()).param("id", id).update();
+        jdbc.sql("update captured_items set status = 'ADDED', transaction_id = :t, body = case when :keep then body end, decided_at = now() where id = :id")
+                .param("t", t.id()).param("keep", keepBody).param("id", id).update();
         return own(user, id).withLearned(lesson);
     }
 
@@ -315,19 +362,46 @@ public class CaptureService {
         if (!deliberate && AlertParser.noise((subject == null ? "" : subject + "\n") + clean)) {
             return "not-a-transaction";
         }
-        CaptureLearning.Read read = learning.read(owner.userId(), (subject == null ? "" : subject + "\n") + clean, from, today(owner.userId()));
-        AlertParser.Parsed p = read.parsed();
         String print = fingerprint(messageId != null ? messageId : clean);
-        UUID id = store(owner.userId(), owner.spaceId(), "EMAIL", from, subject, clean, print, p, null, null, read.by());
+        if (seen(owner.userId(), print)) {
+            return "duplicate";
+        }
+        Decision d = decide(owner.userId(), owner.spaceId(), (subject == null ? "" : subject + "\n") + clean, from, "EMAIL", today(owner.userId()), true);
+        if (d.notATransaction() && !deliberate) {
+            return "not-a-transaction";
+        }
+        AlertParser.Parsed p = d.parsed();
+        UUID id = store(owner.userId(), owner.spaceId(), "EMAIL", from, subject, clean, print, d);
         if (id == null) {
             return "duplicate";
         }
         lastItem.set(id);
-        inbox.notify(owner.userId(), Inbox.Kind.CAPTURED, p != null ? "New entry to review" : "An email to look at",
-                p != null ? (p.kind().equals("EXPENSE") ? "Spent " : "Received ") + dev.payledger.core.notify.Reminders.money(p.amount())
-                        + (p.merchant() != null ? " · " + p.merchant() : "") : "We couldn't read it; you can add it by hand.",
+        boolean auto = p != null && autoAdd(owner.userId(), id, d.confidence());
+        outcome(id, auto ? "AUTO_ADDED" : "TO_REVIEW");
+        String what = p == null ? null : (p.kind().equals("EXPENSE") ? "Spent " : "Received ") + dev.payledger.core.notify.Reminders.money(p.amount())
+                + (p.merchant() != null ? " · " + p.merchant() : "");
+        inbox.notify(owner.userId(), Inbox.Kind.CAPTURED, auto ? "Added from your bank alert" : p != null ? "New entry to review" : "An email to look at",
+                auto ? what + ". Wrong? Undo it on Auto-capture." : p != null ? what : "We couldn't read it; you can add it by hand.",
                 "/capture", null, "captured:" + id, null);
-        return p != null ? "added" : "unreadable-kept";
+        return auto ? "added-automatically" : p != null ? "added" : "unreadable-kept";
+    }
+
+    /** Already received (same email, or the same message pasted twice): nothing to read again, and no AI spent on it. */
+    private boolean seen(UUID userId, String print) {
+        return jdbc.sql("select count(*) from captured_items where user_id = :u and fingerprint = :p").param("u", userId).param("p", print)
+                .query(Long.class).single() > 0;
+    }
+
+    /**
+     * What came of an AI reading, on its log row. In this transaction (not the log's own): the row it points to was
+     * just written here, and if this rolls back the outcome should too (the call itself stays logged).
+     */
+    private void outcome(UUID itemId, String outcome) {
+        jdbc.sql("""
+                        update ai_requests r set outcome = :outcome, confidence = coalesce(c.confidence, r.confidence), captured_item_id = c.id,
+                            transaction_ids = case when c.transaction_id is null then r.transaction_ids else array[c.transaction_id] end
+                        from captured_items c where c.id = :item and r.id = c.ai_request_id
+                        """).param("outcome", outcome).param("item", itemId).update();
     }
 
     /** The entry the email just made, for the log (set and read within one inbound call on one thread). */
@@ -425,6 +499,148 @@ public class CaptureService {
         return new AddedAll(added, ids.size() - added);
     }
 
+    // ---------------------------------------------------------------- reading: rules first, then AI
+
+    /**
+     * How a bank message was read, and how sure we are. {@code by}: RULES, LEARNED (your corrections) or AI.
+     * {@code notATransaction}: the AI says it isn't one (an OTP, an offer) and the rules found nothing either.
+     */
+    record Decision(AlertParser.Parsed parsed, String by, double confidence, UUID aiRequestId, String categoryHint, boolean notATransaction) {
+    }
+
+    /**
+     * The rules read it first (free, instant). When they get the amount, direction, date and payee, that's it. When they
+     * miss something, the AI reads it (masked, logged, one of the month's AI reads) and the two are compared: agreeing
+     * readings are trusted, disagreeing ones go to review. The account is always matched by us, never by the AI.
+     */
+    Decision decide(UUID userId, UUID spaceId, String text, String sender, String channel, LocalDate today, boolean allowAi) {
+        CaptureLearning.Read read = learning.read(userId, text, sender, today);
+        AlertParser.Parsed p = read.parsed();
+        boolean accountKnown = accountKnown(spaceId, p != null ? p.bank() : AlertParser.bank(text, sender), p != null ? p.accountHint() : AlertParser.account(text));
+        double rules = rulesConfidence(p, text, accountKnown, read.by());
+        boolean rulesComplete = p != null && p.merchant() != null && AlertParser.hasDate(text);
+        Decision byRules = new Decision(p, p == null ? null : read.by(), rules, null, null, false);
+        if (rulesComplete || !allowAi || !ai.enabled()) {
+            return byRules;
+        }
+        AiReader.Reading reading;
+        try {
+            plans.check(spaceId, PlanService.Limit.AI);
+            String name = jdbc.sql("select display_name from users where id = :u").param("u", userId).query(String.class).single();
+            reading = ai.read(userId, name, "CAPTURE", channel, text, aiContexts.of(userId, spaceId, true).context(), true);
+        } catch (ApiException e) {
+            // Over the month's allowance, or the AI is down: the rules' reading (or none) goes to review as before.
+            return byRules;
+        }
+        if (!reading.transaction()) {
+            if (p == null) {
+                aiAudit.outcome(reading.requestId(), "NOT_A_TRANSACTION", null, null, null);
+                return new Decision(null, null, 0, reading.requestId(), null, true);
+            }
+            // The rules saw a transaction and the AI didn't: a person decides.
+            return new Decision(p, read.by(), Math.min(rules, 0.8), reading.requestId(), null, false);
+        }
+        AiReader.Entry e = reading.entries().getFirst();
+        // A transfer to your own account in another bank is, for this account, money out or in.
+        String kind = "TRANSFER".equals(e.kind()) ? (p != null ? p.kind() : null) : e.kind();
+        double c = e.confidence();
+        if (kind == null) {
+            kind = "EXPENSE";
+            c = Math.min(c, 0.8);
+        }
+        if (p != null && (p.amount() != e.amount() || !p.kind().equals(kind))) {
+            c = Math.min(c, 0.6);
+        }
+        if (!accountKnown) {
+            c = Math.min(c, 0.9);
+        }
+        String merchant = e.merchant() != null ? e.merchant() : e.counterparty() != null ? e.counterparty() : e.description();
+        AlertParser.Parsed byAi = new AlertParser.Parsed(kind, e.amount(), e.date(), merchant, AlertParser.bank(text, sender),
+                AlertParser.account(text), p == null ? null : p.balance());
+        return new Decision(byAi, "AI", Math.round(c * 1000) / 1000.0, reading.requestId(), e.category(), false);
+    }
+
+    /**
+     * Rules alone: amount and direction found is a start; a date in the text, a payee, and an account we can match
+     * (its last digits, or the only account at that bank) each add to it. All of them together clears 95%.
+     */
+    static double rulesConfidence(AlertParser.Parsed p, String text, boolean accountKnown, String by) {
+        if (p == null) {
+            return 0;
+        }
+        double c = 0.70;
+        if (AlertParser.hasDate(text)) {
+            c += 0.08;
+        }
+        if (p.merchant() != null) {
+            c += 0.08;
+        }
+        if (accountKnown) {
+            c += 0.12;
+        }
+        if ("LEARNED".equals(by)) {
+            c += 0.05;
+        }
+        return Math.min(0.99, Math.round(c * 1000) / 1000.0);
+    }
+
+    /** We can tell which account: one whose name has the last digits, or the only open account at that bank. */
+    private boolean accountKnown(UUID spaceId, String bank, String hint) {
+        List<Acct> accounts = jdbc.sql("select id, name, kind from money_accounts where space_id = :s and archived_at is null and kind <> 'OWED'")
+                .param("s", spaceId).query(Acct.class).list();
+        if (hint != null && accounts.stream().filter(a -> a.name().contains(hint)).count() == 1) {
+            return true;
+        }
+        if (bank == null) {
+            return false;
+        }
+        String first = bank.split(" ")[0].toLowerCase(Locale.ROOT);
+        return accounts.stream().filter(a -> a.name().toLowerCase(Locale.ROOT).contains(first)).count() == 1;
+    }
+
+    /**
+     * Added without asking when we're at least 95% sure, the person allows it, the account is known and nothing like it
+     * was entered already. The original text is kept so it can be undone and looked at.
+     */
+    private boolean autoAdd(UUID userId, UUID itemId, double confidence) {
+        if (confidence < AiReader.SURE) {
+            return false;
+        }
+        record Who(UUID id, String subject, String email, String displayName, boolean autoAddCaptured, UUID spaceId) {
+        }
+        Who who = jdbc.sql("""
+                        select u.id, u.subject, u.email, u.display_name, u.auto_add_captured, s.id as space_id
+                        from users u join spaces s on s.created_by = u.id and s.kind = 'PERSONAL' where u.id = :u
+                        """).param("u", userId).query(Who.class).single();
+        if (!who.autoAddCaptured()) {
+            return false;
+        }
+        CurrentUser user = new CurrentUser(who.id(), who.subject(), who.email(), who.displayName(), who.spaceId());
+        Item item = own(user, itemId);
+        if (!"PENDING".equals(item.status()) || item.accountId() == null || item.duplicateOf() != null || item.amount() == null) {
+            return false;
+        }
+        add(user, itemId, new Add(item.kind(), item.amount(), item.accountId(), item.categoryId(), item.occurredOn(), item.merchant(), null), true);
+        jdbc.sql("update captured_items set auto_added = true where id = :id").param("id", itemId).update();
+        return true;
+    }
+
+    /** Takes back an entry that was added (by you or automatically): the transaction goes, the entry waits to review again. */
+    @Transactional
+    public Item undo(CurrentUser user, UUID id) {
+        Item item = own(user, id);
+        if (!"ADDED".equals(item.status()) || item.transactionId() == null) {
+            throw new InvalidRequestException("not-added", "only an added entry can be taken back");
+        }
+        Transaction t = transactions.get(user, user.personalSpaceId(), item.transactionId());
+        transactions.delete(user, user.personalSpaceId(), t.id(), t.version());
+        jdbc.sql("""
+                        update captured_items set status = case when amount is null then 'UNREADABLE' else 'PENDING' end,
+                            transaction_id = null, auto_added = false, decided_at = null where id = :id
+                        """).param("id", id).update();
+        return own(user, id);
+    }
+
     // ---------------------------------------------------------------- internals
 
     private UUID store(UUID userId, UUID spaceId, String source, String sender, String subject, String body, String print, AlertParser.Parsed p,
@@ -434,13 +650,24 @@ public class CaptureService {
 
     private UUID store(UUID userId, UUID spaceId, String source, String sender, String subject, String body, String print, AlertParser.Parsed p,
                        UUID accountId, String batch, String readBy) {
+        return store(userId, spaceId, source, sender, subject, body, print, p, accountId, batch, readBy, null, null, null);
+    }
+
+    private UUID store(UUID userId, UUID spaceId, String source, String sender, String subject, String body, String print, Decision d) {
+        return store(userId, spaceId, source, sender, subject, body, print, d.parsed(), null, null, d.by(),
+                d.parsed() == null ? null : d.confidence(), d.aiRequestId(), d.categoryHint());
+    }
+
+    private UUID store(UUID userId, UUID spaceId, String source, String sender, String subject, String body, String print, AlertParser.Parsed p,
+                       UUID accountId, String batch, String readBy, Double confidence, UUID aiRequestId, String categoryHint) {
         UUID id = Uuid7.next();
         String b = body.length() > MAX_BODY ? body.substring(0, MAX_BODY) : body;
         int n = jdbc.sql("""
                         insert into captured_items (id, user_id, space_id, source, status, sender, subject, body, fingerprint, kind, amount,
-                                                    occurred_on, merchant, bank, account_hint, balance, account_id, batch, read_by)
+                                                    occurred_on, merchant, bank, account_hint, balance, account_id, batch, read_by, confidence,
+                                                    ai_request_id, category_hint)
                         values (:id, :u, :s, :source, :status, :sender, :subject, :body, :print, :kind, :amount, :on, :merchant, :bank, :hint, :balance,
-                                :account, :batch, :readBy)
+                                :account, :batch, :readBy, :confidence, :aiRequest, :categoryHint)
                         on conflict (user_id, fingerprint) do nothing
                         """)
                 .param("id", id).param("u", userId).param("s", spaceId).param("source", source).param("status", p == null ? "UNREADABLE" : "PENDING")
@@ -449,6 +676,7 @@ public class CaptureService {
                 .param("merchant", p == null ? null : cut(p.merchant(), 120)).param("bank", p == null ? null : p.bank())
                 .param("hint", p == null ? null : p.accountHint()).param("balance", p == null ? null : p.balance())
                 .param("account", accountId).param("batch", cut(batch, 120)).param("readBy", p == null ? null : readBy)
+                .param("confidence", confidence).param("aiRequest", aiRequestId).param("categoryHint", cut(categoryHint, 60))
                 .update();
         return n == 0 ? null : id;
     }
@@ -459,7 +687,7 @@ public class CaptureService {
 
     private record Row(UUID id, String source, String status, String sender, String subject, String body, String kind, Long amount,
                        LocalDate occurredOn, String merchant, String bank, String accountHint, Long balance, UUID transactionId, Instant receivedAt,
-                       UUID accountId, String readBy) {
+                       UUID accountId, String readBy, Double confidence, boolean autoAdded, String categoryHint) {
     }
 
     private record Acct(UUID id, String name, String kind) {
@@ -490,6 +718,12 @@ public class CaptureService {
                         categorySource = g.source();
                     }
                 }
+                // No rule of yours for it: the AI's choice from your own categories, if it made one.
+                if (category == null && r.categoryHint() != null) {
+                    category = jdbc.sql("select id from categories where space_id = :s and kind = :k and name = :n and not hidden limit 1")
+                            .param("s", user.personalSpaceId()).param("k", r.kind()).param("n", r.categoryHint()).query(UUID.class).optional().orElse(null);
+                    categorySource = category == null ? null : "AI";
+                }
                 // Typed in already? Same kind and amount within two days, not itself captured.
                 twin = jdbc.sql("""
                                 select id from transactions where space_id = :s and deleted_at is null and kind = :k and amount = :a
@@ -500,7 +734,8 @@ public class CaptureService {
                         .param("on", r.occurredOn() != null ? r.occurredOn() : LocalDate.now()).query(UUID.class).optional().orElse(null);
             }
             out.add(new Item(r.id(), r.source(), r.status(), r.sender(), r.subject(), r.body(), r.kind(), r.amount(), r.occurredOn(), r.merchant(),
-                    r.bank(), r.accountHint(), r.balance(), r.transactionId(), r.receivedAt(), account, category, categorySource, twin, r.readBy(), null));
+                    r.bank(), r.accountHint(), r.balance(), r.transactionId(), r.receivedAt(), account, category, categorySource, twin, r.readBy(), null,
+                    r.confidence(), r.autoAdded()));
         }
         return out;
     }

@@ -1,5 +1,6 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Goal, Plus, Upload, Users } from 'lucide-react'
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Goal, Mic, Plus, Upload, Users } from 'lucide-react'
+import { openQuickAdd } from '@/components/QuickAdd'
 import { Button } from '@/components/ui/button'
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from '@/components/ui/overlay'
 
@@ -22,7 +23,11 @@ export function AddMenu({ compact, trigger }: { compact?: boolean; trigger?: Rea
         )}
       </MenuTrigger>
       <MenuContent align="start" returnFocus={false}>
-        <MenuLabel>Record</MenuLabel>
+        <MenuItem icon={<Mic />} onSelect={() => openQuickAdd()}>
+          <span className="flex flex-col"><span className="font-medium">Say or type it</span><span className="text-xs text-muted">“450 petrol yesterday”</span></span>
+        </MenuItem>
+        <MenuSeparator />
+        <MenuLabel>By hand</MenuLabel>
         <MenuItem icon={<ArrowUpRight />} onSelect={() => add('EXPENSE')}>Expense</MenuItem>
         <MenuItem icon={<ArrowDownLeft />} onSelect={() => add('INCOME')}>Income</MenuItem>
         <MenuItem icon={<ArrowLeftRight />} onSelect={() => add('TRANSFER')}>Transfer between accounts</MenuItem>

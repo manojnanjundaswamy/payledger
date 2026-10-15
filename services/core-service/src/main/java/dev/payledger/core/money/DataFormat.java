@@ -66,6 +66,7 @@ public final class DataFormat {
             entry("space_invites", "-invite tokens are secrets"),
             entry("achievements", "-badges are earned again from the restored entries"),
             entry("inbound_emails", "emailsReceived"),
+            entry("ai_requests", "aiRequests"),
             entry("push_subscriptions", "-push addresses belong to a device; turn notifications on again there"),
             entry("guest_codes", "-one-time sign-in codes for guests, used within minutes"),
             entry("guest_sessions", "-guest sign-in sessions are secrets"),

@@ -35,7 +35,11 @@ public class PlanService {
         BILLS("bills and savings on your plan"),
         BIG_COSTS("big yearly or one-off costs"),
         IMPORTS("imports a month"),
-        GOALS("savings goals");
+        GOALS("savings goals"),
+        /** AI reading a typed or spoken entry, or a bank message the rules couldn't read with confidence. */
+        AI("AI reads a month"),
+        /** Every other AI feature (none yet: insights, questions about your money). */
+        AI_EXTRAS("other AI uses a month");
 
         final String what;
 
@@ -159,6 +163,11 @@ public class PlanService {
                       and kind = 'BILL' and (every_months >= 6 or coalesce(ends_on = first_due, false))
                     """;
             case GOALS -> "select count(*) from goals where space_id = :spaceId and archived_at is null";
+            case AI, AI_EXTRAS -> """
+                    select count(*) from ai_requests r join spaces s on s.created_by = r.user_id
+                    where s.id = :spaceId and r.counted and r.at >= date_trunc('month', now())
+                      and (r.feature in ('QUICK_ADD', 'CAPTURE')) = %s
+                    """.formatted(limit == Limit.AI ? "true" : "false");
             case IMPORTS -> """
                     select count(*) from imports where space_id = :spaceId and undone_at is null
                       and created_at >= date_trunc('month', now())

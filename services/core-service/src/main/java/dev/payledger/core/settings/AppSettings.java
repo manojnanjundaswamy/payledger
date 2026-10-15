@@ -111,6 +111,8 @@ public class AppSettings {
         m.put("big-costs", 1);
         m.put("imports", 3);
         m.put("goals", 1);
+        m.put("ai", 25);
+        m.put("ai-extras", 10);
         return java.util.Collections.unmodifiableMap(m);
     }
 }

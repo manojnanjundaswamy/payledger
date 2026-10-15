@@ -68,6 +68,11 @@ public class DataRightsService {
         out.put("groupSettlements", rows("select * from group_settlements where group_id in (" + MY_GROUPS + ") and deleted_at is null order by occurred_on", u));
         out.put("groupComments", rows("select id, expense_id, body, created_at from group_comments where group_id in (" + MY_GROUPS + ") and deleted_at is null and member_id in (select id from group_members where user_id = :u) order by created_at", u));
         out.put("emailsReceived", rows("select received_at, sender, subject, result from inbound_emails where user_id = :u order by received_at", u));
+        // What the AI was sent about you (masked), what it answered, and what it cost: yours to see, not restored on import.
+        out.put("aiRequests", rows("""
+                select at, feature, channel, provider, model, status, input_tokens, output_tokens, cost_micros, outcome, confidence, input_text, output_text
+                from ai_requests where user_id = :u order by at
+                """, u));
         out.put("notifications", rows("select kind, title, body, link, created_at, read_at from inbox where user_id = :u order by created_at", u));
         out.put("emailsSent", rows("select kind, to_email, subject, created_at, sent_at from email_outbox where user_id = :u order by created_at", u));
         out.put("activity", rows("select type, action, status, target, ip, user_agent, at from user_events where user_id = :u order by at", u));
@@ -115,6 +120,8 @@ public class DataRightsService {
         }
 
         // Auto-capture: your address and anything waiting to be reviewed.
+        // The AI log keeps its cost for the books, without the texts or who it was (the user id goes with the user row).
+        jdbc.sql("update ai_requests set input_text = null, output_text = null, captured_item_id = null where user_id = :u").param("u", u).update();
         jdbc.sql("delete from captured_items where user_id = :u").param("u", u).update();
         jdbc.sql("delete from capture_addresses where user_id = :u").param("u", u).update();
         jdbc.sql("delete from capture_patterns where user_id = :u").param("u", u).update();

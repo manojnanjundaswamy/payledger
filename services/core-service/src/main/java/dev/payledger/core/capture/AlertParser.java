@@ -206,7 +206,12 @@ public final class AlertParser {
         return m.find() ? paise(m.group(1)) : null;
     }
 
-    private static String account(String text) {
+    /** The text names a date (else the date read is the day it was received). */
+    public static boolean hasDate(String text) {
+        return DATE.matcher(clean(text)).find();
+    }
+
+    public static String account(String text) {
         Matcher m = ACCOUNT.matcher(text);
         while (m.find()) {
             String digits = m.group(1);
@@ -215,7 +220,7 @@ public final class AlertParser {
         return null;
     }
 
-    private static String bank(String text, String sender) {
+    public static String bank(String text, String sender) {
         // The sender says it best ("alerts@hdfcbank.net", "AD-HDFCBK"); a UPI handle in the text (swiggy@icici) never does.
         if (sender != null) {
             String from = sender.toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
