@@ -64,6 +64,7 @@ public final class DataFormat {
             entry("group_events", "-a group's history belongs to the group, not one member"),
             entry("group_links", "-join links are secrets of the group"),
             entry("space_invites", "-invite tokens are secrets"),
+            entry("achievements", "-badges are earned again from the restored entries"),
             entry("push_subscriptions", "-push addresses belong to a device; turn notifications on again there"),
             entry("guest_codes", "-one-time sign-in codes for guests, used within minutes"),
             entry("guest_sessions", "-guest sign-in sessions are secrets"),
