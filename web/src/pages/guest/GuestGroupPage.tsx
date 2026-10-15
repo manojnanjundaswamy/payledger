@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { MoneyInput } from '@/components/ui/money-input'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowRight, Check, HandCoins, IndianRupee, LogOut, Plus, Receipt, Sparkles, Users } from 'lucide-react'
@@ -116,7 +117,7 @@ function Balances({ group }: { group: Group }) {
               <li key={`${p.from}-${p.to}`} className="flex flex-wrap items-center gap-2 py-2 text-sm">
                 <span className="min-w-0 flex-1"><b>{nameOf(group, p.from)}</b> pays <b>{nameOf(group, p.to)}</b></span>
                 <span className="font-medium tabular">{money(p.amount)}</span>
-                {p.from === group.you && payee?.upiId && (
+                {p.from === group.you && group.currency === 'INR' && payee?.upiId && (
                   <Button variant="outline" size="sm" asChild>
                     <a href={upiPayLink(payee.upiId, payee.name, p.amount, group.name)}><IndianRupee />Pay with UPI</a>
                   </Button>
@@ -217,7 +218,7 @@ function AddExpense({ group, open, onOpenChange }: { group: Group; open: boolean
         </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1 text-sm font-medium">Amount
-            <Input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0" aria-label="Amount" />
+            <MoneyInput currency={group.currency} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" aria-label="Amount" />
           </label>
           <label className="flex flex-col gap-1 text-sm font-medium">Date
             <Input type="date" value={on} onChange={(e) => setOn(e.target.value)} aria-label="Date" />

@@ -9,7 +9,7 @@ import { z } from 'zod'
 export const WIDGET_TYPES = [
   'safeToSpend', 'budgets', 'spendingByCategory', 'cashFlow', 'recentTransactions',
   'upcomingBills', 'groups', 'goals', 'household', 'gettingStarted', 'quickActions', 'note', 'toReview', 'netWorth',
-  'moneyHealth', 'canIAfford',
+  'moneyHealth', 'canIAfford', 'progress', 'lastMonth', 'bringAFriend',
 ] as const
 export type WidgetType = (typeof WIDGET_TYPES)[number]
 
@@ -36,6 +36,8 @@ export const PALETTES = [
   { id: 'classic', name: 'Classic', description: 'Black and white', swatches: ['#ffffff', '#f6f6f5', '#0a0a0a'] },
   { id: 'bumblebee', name: 'Bumblebee yellow', description: 'Warm yellow and black, with a hazard stripe', swatches: ['#fffcf0', '#ffc800', '#14120b'] },
   { id: 'ferrari', name: 'Ferrari orange', description: 'Race orange on carbon, with a racing stripe', swatches: ['#fff8f4', '#ea5000', '#1a0e09'] },
+  { id: 'sky', name: 'Super sky blue', description: 'Clear sky blue on cloud white, deep navy at night', swatches: ['#f3faff', '#1aa7ec', '#06192b'] },
+  { id: 'purple', name: 'Elegant purple', description: 'Deep violet on lavender, with a velvet sheen', swatches: ['#faf7ff', '#7c3aed', '#1a1030'] },
 ] as const
 export type PaletteId = (typeof PALETTES)[number]['id']
 
@@ -45,7 +47,7 @@ export const ThemeSchema = z.object({
   mode: z.enum(['system', 'light', 'dark']).catch('system'),
   /** null = monochrome (black on white / white on black), or the palette's own accent */
   accent: hex.nullable().catch(null),
-  palette: z.enum(['classic', 'bumblebee', 'ferrari']).catch('classic'),
+  palette: z.enum(['classic', 'bumblebee', 'ferrari', 'sky', 'purple']).catch('classic'),
   radius: z.enum(['sharp', 'soft', 'round']).catch('soft'),
   density: z.enum(['comfortable', 'compact']).catch('comfortable'),
   textSize: z.enum(['sm', 'md', 'lg']).catch('md'),
@@ -90,7 +92,7 @@ export function newId(prefix: string): string {
 export const DASHBOARD_TEMPLATES = {
   overview: { name: 'Overview', widgets: [
     ['gettingStarted', 'm'], ['safeToSpend', 'm'], ['budgets', 'm'], ['spendingByCategory', 'm'],
-    ['cashFlow', 'l'], ['upcomingBills', 's'], ['recentTransactions', 'm'], ['groups', 'm'], ['netWorth', 'm'], ['moneyHealth', 'm'], ['canIAfford', 'm'], ['toReview', 's'],
+    ['cashFlow', 'l'], ['upcomingBills', 's'], ['recentTransactions', 'm'], ['groups', 'm'], ['netWorth', 'm'], ['progress', 's'], ['lastMonth', 's'], ['moneyHealth', 'm'], ['canIAfford', 'm'], ['toReview', 's'],
   ] },
   household: { name: 'Household', widgets: [
     ['household', 'l'], ['budgets', 's'], ['upcomingBills', 'm'], ['spendingByCategory', 'm'], ['goals', 'm'],
@@ -126,6 +128,12 @@ export const PreferencesSchema = z.object({
   welcomed: z.boolean().catch(false),
   /** "Don't show the tour again" was ticked; otherwise it's offered at each sign-in. */
   tourOff: z.boolean().catch(false),
+  /** Play the chime for new notifications while the app is open. */
+  chime: z.boolean().catch(true),
+  /** "Not now" on the turn-on-notifications card. */
+  pushPromptHidden: z.boolean().catch(false),
+  /** Streaks, badges, levels and the weekly challenge. */
+  gamification: z.boolean().catch(true),
 })
 export type Preferences = Omit<z.infer<typeof PreferencesSchema>, 'activeDashboard'> & { activeDashboard: string }
 

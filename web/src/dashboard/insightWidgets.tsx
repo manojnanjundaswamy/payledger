@@ -1,12 +1,16 @@
 import { useState, type FormEvent } from 'react'
-import { AlertTriangle, CheckCircle2, ChevronDown, CircleSlash, HeartPulse } from 'lucide-react'
+import { MoneyInput } from '@/components/ui/money-input'
+import { AlertTriangle, CheckCircle2, ChevronDown, CircleSlash, HeartPulse, MessageCircle, Share2 } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { toast } from 'sonner'
+import { whatsAppShare } from '@/lib/whatsapp'
 import { motion } from 'motion/react'
 import { Button } from '@/components/ui/button'
-import { Input, Segmented } from '@/components/ui/controls'
+import { Segmented } from '@/components/ui/controls'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
-import { parseMoney } from '@/lib/money'
-import { affordCheck, useHealth, type Afford } from '@/state/insights'
+import { formatMoneyWhole, parseMoney } from '@/lib/money'
+import { affordCheck, useHealth, useMonthReview, type Afford } from '@/state/insights'
 import { useSpaceId } from '@/state/money'
 
 const STATUS = {
@@ -102,7 +106,7 @@ export function CanIAfford() {
     <form onSubmit={check} className="flex flex-col gap-3" data-testid="can-i-afford">
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex min-w-32 flex-1 flex-col gap-1 text-xs font-medium text-muted">It costs (₹)
-          <Input value={amount} onChange={(e) => { setAmount(e.target.value); setAnswer(null) }} inputMode="decimal" placeholder="45,000" aria-label="It costs" />
+          <MoneyInput value={amount} onChange={(e) => { setAmount(e.target.value); setAnswer(null) }} placeholder="45,000" aria-label="It costs" />
         </label>
         <Segmented label="How often" value={often} onChange={(m) => { setOften(m); setAnswer(null) }}
           options={[{ value: 'once', label: 'Once' }, { value: 'monthly', label: 'Every month' }]} />
@@ -121,5 +125,45 @@ export function CanIAfford() {
         <p className="text-xs text-muted">A phone, a trip, a new EMI: we check it against this month’s plan, what you usually have left, and your savings cushion.</p>
       )}
     </form>
+  )
+}
+
+/** Last month in a glance: kept or overspent, spending against the month before, the first highlight. */
+export function LastMonth() {
+  const { data, isPending } = useMonthReview()
+  if (isPending) return <div className="h-24 animate-pulse rounded-control bg-surface-2" />
+  if (!data || data.entries === 0) return <p className="text-sm text-muted">Record a month of money, and its review shows up here on the 1st.</p>
+  const change = data.spentBefore > 0 ? Math.round(((data.spent - data.spentBefore) / data.spentBefore) * 100) : null
+  return (
+    <Link to="/review" search={{ month: data.month }} className="-m-1 flex flex-col gap-2 rounded-control p-1 hover:bg-surface-2/50" data-testid="last-month">
+      <span className="text-xs text-muted">{new Date(`${data.month}-01T00:00`).toLocaleDateString(undefined, { month: 'long' })}</span>
+      <span className={cn('text-2xl font-semibold tabular', data.saved >= 0 ? 'text-good-text' : 'text-critical')}>
+        {data.saved >= 0 ? 'Kept ' : 'Over by '}{formatMoneyWhole(Math.abs(data.saved), data.currency)}</span>
+      {change !== null && <span className="text-xs text-muted">Spending {change >= 0 ? 'up' : 'down'} {Math.abs(change)}% on the month before</span>}
+      {data.highlights[1] && <span className="text-sm">{data.highlights[1]}</span>}
+      <span className="text-xs font-medium text-fg underline underline-offset-4">Read the review</span>
+    </Link>
+  )
+}
+
+/** Growth that helps people: share PayLedger with whoever you split money with (WhatsApp, or the phone's share sheet). */
+export function BringAFriend() {
+  const url = `${location.origin}/`
+  const text = 'I keep my budget and split expenses with friends on PayLedger. Free to start:'
+  async function share() {
+    if (navigator.share) {
+      try { await navigator.share({ title: 'PayLedger', text, url }); return } catch { /* closed: fall through to copy */ }
+    }
+    await navigator.clipboard?.writeText(`${text} ${url}`)
+    toast.success('Link copied', { description: 'Paste it to a friend.' })
+  }
+  return (
+    <div className="flex flex-col gap-3" data-testid="bring-a-friend">
+      <p className="text-sm">Splitting is easier when everyone's here. Invite the people you share costs with: they join in a minute, and groups settle themselves.</p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="primary" size="sm" onClick={() => void share()}><Share2 />Share PayLedger</Button>
+        <Button variant="outline" size="sm" asChild><a href={whatsAppShare(`${text} ${url}`)} target="_blank" rel="noreferrer"><MessageCircle />WhatsApp</a></Button>
+      </div>
+    </div>
   )
 }

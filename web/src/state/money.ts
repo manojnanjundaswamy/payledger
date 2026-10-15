@@ -185,7 +185,7 @@ function useMoneyMutation<V, R>(write: (spaceId: string, vars: V) => Promise<R>,
 }
 
 export function useCreateAccount(space?: string) {
-  return useMoneyMutation((spaceId, body: { kind: AccountKind; name: string; openingBalance: number; openingDate?: string }) =>
+  return useMoneyMutation((spaceId, body: { kind: AccountKind; name: string; openingBalance: number; openingDate?: string; currency?: string }) =>
     api<Account>(`${base(spaceId)}/accounts`, { method: 'POST', json: body }), space)
 }
 

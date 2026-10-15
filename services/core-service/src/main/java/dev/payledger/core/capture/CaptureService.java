@@ -71,7 +71,9 @@ public class CaptureService {
         this.inbox = inbox;
         this.learning = learning;
         this.domain = domain;
-        this.inboundEnabled = !secret.isBlank();
+        // Forwarding works only with the Email Worker's secret and a real domain (not the .local placeholder): until
+        // then the page doesn't hand out an address that can't receive mail.
+        this.inboundEnabled = !secret.isBlank() && !domain.endsWith(".local");
     }
 
     /** @param accountId the account it most likely came from (its bank or last digits in the account's name) */

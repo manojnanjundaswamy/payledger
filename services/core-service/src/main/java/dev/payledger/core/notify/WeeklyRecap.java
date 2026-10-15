@@ -78,7 +78,8 @@ public class WeeklyRecap {
         int sent = 0;
         for (CurrentUser u : users) {
             try {
-                Boolean done = tx.execute(s -> recap(u, today(u)));
+                String currency = jdbc.sql("select currency from spaces where id = :s").param("s", u.personalSpaceId()).query(String.class).optional().orElse("INR");
+                Boolean done = Reminders.inCurrency(currency, () -> tx.execute(s -> recap(u, today(u))));
                 sent += Boolean.TRUE.equals(done) ? 1 : 0;
             } catch (RuntimeException e) {
                 log.warn("Weekly recap skipped for user {}: {}", u.id(), e.getMessage());

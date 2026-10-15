@@ -156,7 +156,7 @@ function Row({ category, onEdit, sub, parent, stats, period }: {
   category: Category; onEdit: (c: Category) => void; sub?: boolean; parent?: Category; stats?: Stats; period?: { from: string; to: string }
 }) {
   const locale = useProfile().data?.settings.locale ?? 'en-IN'
-  const short = (m: number) => formatMoneyShort(m, 'INR', locale)
+  const short = (m: number) => formatMoneyShort(m, undefined, locale)
   const max = Math.max(1, ...(stats?.trend ?? [0]))
   const change = stats && stats.last > 0 ? Math.round(((stats.now - stats.last) / stats.last) * 100) : null
   const spending = category.kind === 'EXPENSE'

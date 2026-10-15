@@ -62,7 +62,7 @@ export function CategoryIcon({ category, className }: { category?: Category; cla
 /** Formats paise in the user's locale (₹1,00,000.00 for en-IN). */
 export function useMoneyFormat() {
   const locale = useProfile().data?.settings.locale ?? 'en-IN'
-  return (minor: number, currency = 'INR', opts?: { sign?: boolean }) => formatMoney(minor, currency, locale, opts)
+  return (minor: number, currency?: string, opts?: { sign?: boolean }) => formatMoney(minor, currency, locale, opts)
 }
 
 export function today(): string {

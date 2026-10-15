@@ -102,13 +102,48 @@
   --accent: #ff6a1a; --accent-fg: #120804; --accent-soft: rgb(255 106 26 / 0.15);
   --ring: rgb(255 106 26 / 0.5);
 }
+/* Super sky blue: a clear daytime sky; at night, deep navy with the same bright blue. */
+:root[data-palette="sky"], :root[data-palette="sky"] [data-theme="light"] {
+  --bg: #f3faff; --surface: #ffffff; --surface-2: #e3f3ff; --surface-3: #cfe9ff;
+  --border: #d3e8f8; --border-strong: #a6cdee;
+  --fg: #06192b; --fg-muted: #3b5a75; --fg-subtle: #6f8ba3;
+  --accent: #1aa7ec; --accent-fg: #04121f; --accent-soft: #dcf1ff;
+  --ring: rgb(26 167 236 / 0.5);
+  --palette-stripe: linear-gradient(90deg, #7dd3fc, #1aa7ec 50%, #2563eb);
+}
+:root[data-palette="sky"][data-theme="dark"], :root[data-palette="sky"] [data-theme="dark"] {
+  --bg: #04101b; --surface: #081826; --surface-2: #0d2133; --surface-3: #122b42;
+  --border: #16304a; --border-strong: #1e4366;
+  --fg: #eaf6ff; --fg-muted: #a6c4dc; --fg-subtle: #6a88a2;
+  --accent: #38bdf8; --accent-fg: #04121f; --accent-soft: rgb(56 189 248 / 0.15);
+  --ring: rgb(56 189 248 / 0.5);
+}
+/* Elegant purple: violet on lavender; in dark, a velvet night. */
+:root[data-palette="purple"], :root[data-palette="purple"] [data-theme="light"] {
+  --bg: #faf7ff; --surface: #ffffff; --surface-2: #f2ebff; --surface-3: #e6dbff;
+  --border: #e8def8; --border-strong: #cdb8ef;
+  --fg: #1a1030; --fg-muted: #5b4b78; --fg-subtle: #8a7aa6;
+  --accent: #7c3aed; --accent-fg: #ffffff; --accent-soft: #efe6ff;
+  --ring: rgb(124 58 237 / 0.45);
+  --palette-stripe: linear-gradient(90deg, #e9d5ff, #a855f7 40%, #6d28d9 75%, #3b0764);
+}
+:root[data-palette="purple"][data-theme="dark"], :root[data-palette="purple"] [data-theme="dark"] {
+  --bg: #0d0816; --surface: #150e22; --surface-2: #1d142e; --surface-3: #271b3d;
+  --border: #2e2147; --border-strong: #44306a;
+  --fg: #f5efff; --fg-muted: #c4b3e3; --fg-subtle: #8c7cab;
+  --accent: #a78bfa; --accent-fg: #140a24; --accent-soft: rgb(167 139 250 / 0.16);
+  --ring: rgb(167 139 250 / 0.5);
+}
+/* Sky blue is bright: accent-coloured text on a light page uses a deeper blue to stay readable. */
+:root[data-palette="sky"]:not([data-theme="dark"]) .text-accent { color: #0369a1; }
 /* Yellow is a fill colour, not a text colour on a light page: accent-coloured text and icons use deep gold. */
 :root[data-palette="bumblebee"]:not([data-theme="dark"]) .text-accent { color: #8a6500; }
 
 @keyframes grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
 /* The palette's signature: a thin stripe along the top of the screen. */
-:root[data-palette="bumblebee"] body::before, :root[data-palette="ferrari"] body::before {
+:root[data-palette="bumblebee"] body::before, :root[data-palette="ferrari"] body::before,
+:root[data-palette="sky"] body::before, :root[data-palette="purple"] body::before {
   content: ""; position: fixed; inset: 0 0 auto 0; height: 3px; z-index: 70; pointer-events: none;
   background: var(--palette-stripe);
 }

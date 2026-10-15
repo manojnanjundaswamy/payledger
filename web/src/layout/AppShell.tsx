@@ -14,6 +14,8 @@ import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { AddMenu } from './AddMenu'
 import { EdgeDock } from '@/utilities/EdgeDock'
 import { Onboarding } from './Onboarding'
+import { NotificationSignals } from './NotificationSignals'
+import { ProgressCelebrator } from './ProgressCelebrator'
 import { UtilityWindowsProvider } from '@/utilities/windows'
 import { AnnouncementBanner } from './AnnouncementBanner'
 import { NotificationBell } from './NotificationBell'
@@ -78,6 +80,8 @@ export function AppShell() {
           <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
           <EdgeDock />
           <Onboarding pathname={pathname} />
+          <NotificationSignals />
+          <ProgressCelebrator />
         </div>
       </UtilityWindowsProvider>
       </TooltipPrimitive.Provider>

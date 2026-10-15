@@ -1,7 +1,7 @@
 {
   "name": "PayLedger",
   "short_name": "PayLedger",
-  "description": "Budgets, households and splitting, built for India.",
+  "description": "Budgets, households and splitting, in your currency, wherever you live.",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",

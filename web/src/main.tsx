@@ -1,4 +1,5 @@
 import { StrictMode } from 'react'
+import { registerServiceWorker } from '@/lib/push'
 import { createRoot } from 'react-dom/client'
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
@@ -51,6 +52,8 @@ const queryClient: QueryClient = new QueryClient({
   defaultOptions: { queries: { retry: (count, error) => !(error instanceof UnauthorizedError) && count < 2, refetchOnWindowFocus: false } },
 })
 const router = createAppRouter(queryClient)
+
+registerServiceWorker()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

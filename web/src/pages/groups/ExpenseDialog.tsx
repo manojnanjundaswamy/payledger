@@ -1,4 +1,5 @@
 import { uuid7 } from '@/lib/uuid'
+import { MoneyInput } from '@/components/ui/money-input'
 import { AccountPicker } from '@/pages/money/pickers'
 import { SearchSelect } from '@/components/ui/search-select'
 import { categoryTree, useAccounts, useCategories, useGroupBudget, usePersonalSpaceId } from '@/state/money'
@@ -21,7 +22,7 @@ const SPLITS: { value: SplitType; label: string }[] = [
 ]
 
 /** Add or edit a shared expense: who paid, and how it splits between whom. */
-export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expense, initialDate }: {
+export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expense, initialDate, currency: groupCurrency }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   groupId: string
@@ -30,6 +31,8 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
   expense?: GroupExpense
   /** A new expense's date (from a day on the calendar). */
   initialDate?: string
+  /** The group's currency: amounts here are in it. */
+  currency?: string
 }) {
   const add = useAddExpense(groupId)
   const update = useUpdateExpense(groupId)
@@ -83,7 +86,7 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
     }
   }, [open, expense, members, you])
 
-  const total = parseMoney(amount)
+  const total = parseMoney(amount, groupCurrency)
   // The category: one of your own spending categories, or a label this group already uses, or a new one. It's
   // stored by name, so each member's share lands in their own category of that name (or Other).
   const { data: myCategories = [] } = useCategories(personalSpace)
@@ -105,27 +108,27 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
   const parts = chosen.map((m) => {
     const raw = values[m.id] ?? ''
     // An empty shares box is one share, as its placeholder says.
-    const value = split === 'EXACT' ? parseMoney(raw) ?? 0 : split === 'PERCENT' ? Math.round(Number(raw || 0) * 100) : Math.round(Number(raw || 1))
+    const value = split === 'EXACT' ? parseMoney(raw, groupCurrency) ?? 0 : split === 'PERCENT' ? Math.round(Number(raw || 0) * 100) : Math.round(Number(raw || 1))
     return { memberId: m.id, value }
   })
   const preview = useMemo(() => (total ? previewSplit(total, split, parts) : null), [total, split, JSON.stringify(parts)])
   // What each person put in, as typed: the amount is split by "Split", and each person's result is their share less this.
-  const paidOf = (id: string) => severalPayers ? parseMoney(paid[id] ?? '') ?? 0 : id === payer ? total ?? 0 : 0
+  const paidOf = (id: string) => severalPayers ? parseMoney(paid[id] ?? '', groupCurrency) ?? 0 : id === payer ? total ?? 0 : 0
   const paidTotal = severalPayers ? members.reduce((s, m) => s + paidOf(m.id), 0) : total ?? 0
   const unpaid = (total ?? 0) - paidTotal
   /** Turning on several payers starts from who was chosen paying it all. */
   function chooseSeveral(on: boolean) {
-    if (on && total) setPaid({ [payer]: minorToInput(total, 'INR') })
+    if (on && total) setPaid({ [payer]: minorToInput(total, groupCurrency) })
     setSeveralPayers(on)
   }
   /** Each person's share is what they paid: nobody owes anybody for this one. */
   function splitAsPaid() {
     setSplit('EXACT')
     setIncluded(Object.fromEntries(members.map((m) => [m.id, paidOf(m.id) > 0])))
-    setValues(Object.fromEntries(members.filter((m) => paidOf(m.id) > 0).map((m) => [m.id, minorToInput(paidOf(m.id), 'INR')])))
+    setValues(Object.fromEntries(members.filter((m) => paidOf(m.id) > 0).map((m) => [m.id, minorToInput(paidOf(m.id), groupCurrency)])))
   }
 
-  const youPaid = severalPayers ? (parseMoney(paid[you] ?? '') ?? 0) > 0 : payer === you
+  const youPaid = severalPayers ? (parseMoney(paid[you] ?? '', groupCurrency) ?? 0) > 0 : payer === you
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -134,7 +137,7 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
     if (total === null || total <= 0) return setError('Enter the amount, like 2,400.')
     if (chosen.length === 0) return setError('Choose who it is for.')
     const paidBy = severalPayers
-      ? members.map((m) => ({ memberId: m.id, value: parseMoney(paid[m.id] ?? '') ?? 0 })).filter((p) => p.value > 0)
+      ? members.map((m) => ({ memberId: m.id, value: parseMoney(paid[m.id] ?? '', groupCurrency) ?? 0 })).filter((p) => p.value > 0)
       : [{ memberId: payer, value: total }]
     if (paidBy.reduce((s, p) => s + p.value, 0) !== total) return setError(`What each person paid must add up to ${formatMoney(total)}.`)
     if (!preview) return setError(split === 'PERCENT' ? 'The percentages must add up to 100.' : 'Check the split.')
@@ -172,7 +175,7 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
             <Input id="gexp-description" autoFocus maxLength={120} placeholder="Dinner at Thalassa" value={description} onChange={(e) => setDescription(e.target.value)} />
           </Field>
           <Field label="Amount" htmlFor="gexp-amount">
-            <Input id="gexp-amount" inputMode="decimal" autoComplete="off" placeholder="2,400" value={amount} onChange={(e) => setAmount(e.target.value)} className="tabular" />
+            <MoneyInput currency={groupCurrency} id="gexp-amount" autoComplete="off" placeholder="2,400" value={amount} onChange={(e) => setAmount(e.target.value)} className="tabular" />
           </Field>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -218,12 +221,12 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
                 {unpaid === 0 ? `✓ Paid ${formatMoney(paidTotal)}: adds up` : total ? `Paid ${formatMoney(paidTotal)} of ${formatMoney(total)}: ${unpaid > 0 ? `${formatMoney(unpaid)} still to add` : `${formatMoney(-unpaid)} too much`}` : `Paid ${formatMoney(paidTotal)}`}
               </span>
               {unpaid !== 0 && paidTotal > 0 && (
-                <button type="button" className="underline underline-offset-2" onClick={() => setAmount(minorToInput(paidTotal, 'INR'))}>
+                <button type="button" className="underline underline-offset-2" onClick={() => setAmount(minorToInput(paidTotal, groupCurrency))}>
                   Make the amount {formatMoney(paidTotal)}
                 </button>
               )}
               {unpaid > 0 && (
-                <button type="button" className="underline underline-offset-2" onClick={() => setPaid({ ...paid, [you]: minorToInput(paidOf(you) + unpaid, 'INR') })}>
+                <button type="button" className="underline underline-offset-2" onClick={() => setPaid({ ...paid, [you]: minorToInput(paidOf(you) + unpaid, groupCurrency) })}>
                   I paid the rest
                 </button>
               )}

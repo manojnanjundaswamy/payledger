@@ -148,7 +148,7 @@ export function InflationCalculator() {
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 sm:grid-cols-3">
         <NumberField id="inf-today" label="Costs today" value={today} onChange={setToday} suffix="₹" />
-        <NumberField id="inf-rate" label="Inflation" value={rate} onChange={setRate} suffix="% a year" hint="India: about 5–6%; education 8–10%." />
+        <NumberField id="inf-rate" label="Inflation" value={rate} onChange={setRate} suffix="% a year" hint="Usually 2–6% a year; school and university fees often rise faster." />
         <NumberField id="inf-years" label="In" value={years} onChange={setYears} suffix="years" />
       </div>
       {t > 0 && (

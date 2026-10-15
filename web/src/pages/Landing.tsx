@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'motion/react'
-import { ArrowRight, CalendarClock, Home, IndianRupee, Moon, PieChart, Split, Sun, Wallet } from 'lucide-react'
+import { ArrowRight, CalendarClock, Globe2, Home, Moon, PieChart, Split, Sun, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WidgetEnvContext, type WidgetEnv } from '@/dashboard/context'
 import { WIDGETS } from '@/dashboard/widgets'
@@ -13,12 +13,12 @@ import { PRICE } from '@/lib/plans'
 import { PlanTable } from '@/pages/settings/PlanSettings'
 
 const FEATURES = [
-  { icon: Wallet, title: 'Safe to spend, every day', text: 'What is really left after EMIs, card dues, SIPs and savings: not just your bank balance.' },
+  { icon: Wallet, title: 'Safe to spend, every day', text: 'What is really left after loans, card dues, investments and savings: not just your bank balance.' },
   { icon: Split, title: 'Split with anyone', text: 'Trips and flatmates by link. Friends join without an account; your share lands in your budget.' },
   { icon: Home, title: 'Household budgets', text: 'Spouse, kids, parents: one plan for the family, with private money kept private.' },
-  { icon: CalendarClock, title: 'No surprise bills', text: 'Insurance, school fees, Diwali: spread the big yearly costs into small monthly set-asides.' },
+  { icon: CalendarClock, title: 'No surprise bills', text: 'Insurance, school fees, festivals and holidays: spread the big yearly costs into small monthly set-asides.' },
   { icon: PieChart, title: 'Your dashboard, your way', text: 'Drag, resize and arrange widgets. Black and white, or any accent colour you like.' },
-  { icon: IndianRupee, title: 'Made for India', text: '₹ and lakh/crore, UPI-friendly categories, April–March financial year reports.' },
+  { icon: Globe2, title: 'Wherever you live', text: 'Every currency, your number format and your financial year. Move country? Convert everything in one step.' },
 ]
 
 export function Landing() {
@@ -54,7 +54,7 @@ export function Landing() {
               Your money, and everyone you share it with.
             </h1>
             <p className="mt-5 max-w-xl text-lg text-muted text-balance">
-              Budget your month, run the household, split trips with friends: one place, one clear picture, built for how money really moves in India.
+              Budget your month, run the household, split trips with friends: one place, one clear picture, in your currency, wherever you live.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Button variant="primary" size="lg" asChild>
@@ -89,7 +89,7 @@ export function Landing() {
           <div className="w-full max-w-3xl"><PlanTable /></div>
         </section>
       </main>
-      <footer className="border-t border-border py-8 text-center text-xs text-subtle">PayLedger · a learning project, made in India</footer>
+      <footer className="border-t border-border py-8 text-center text-xs text-subtle">PayLedger · a learning project</footer>
     </div>
   )
 }
