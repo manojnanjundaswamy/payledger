@@ -20,7 +20,7 @@ const PHRASES: [method: string, route: RegExp, phrase: string][] = [
   ['POST', /\/commitments$/, 'Added a bill or saving to the plan'],
   ['PUT', /\/commitments\/\{[^}]+\}$/, 'Changed a bill or saving'],
   ['DELETE', /\/commitments\/\{[^}]+\}$/, 'Removed a bill or saving'],
-  ['POST', /\/commitments\/\{[^}]+\}\/pay/, 'Marked a bill paid'],
+  ['POST', /\/commitments\/\{[^}]+\}\/payments$/, 'Marked a bill paid'],
   ['POST', /\/commitments\/\{[^}]+\}\/link/, 'Linked a payment to a bill'],
   ['DELETE', /\/commitments\/\{[^}]+\}\/payments/, 'Unlinked a bill payment'],
   ['POST', /\/goals$/, 'Started a savings goal'],

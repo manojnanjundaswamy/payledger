@@ -158,6 +158,22 @@ public class AccountService {
         return account;
     }
 
+    /** A restore (DataImportService): the account as it was, opening balance posted, without Free's limits. */
+    MoneyAccount restore(Space space, CurrentUser user, AccountKind kind, String name, String currency, long opening, LocalDate openingDate,
+                         boolean archived) {
+        UUID id = Uuid7.next();
+        jdbc.sql("""
+                        insert into money_accounts (id, space_id, kind, name, currency, opening_balance, opening_date, created_by, archived_at)
+                        values (:id, :spaceId, :kind, :name, :currency, :opening, :openingDate, :userId, case when :archived then now() end)
+                        """)
+                .param("id", id).param("spaceId", space.id()).param("kind", kind.name()).param("name", name).param("currency", currency)
+                .param("opening", opening).param("openingDate", openingDate).param("userId", user.id()).param("archived", archived)
+                .update();
+        MoneyAccount account = find(space.id(), id, false);
+        postOpening(space, account, 1);
+        return account;
+    }
+
     private void postOpening(Space space, MoneyAccount account, int version) {
         if (account.openingBalance() == 0) {
             return;

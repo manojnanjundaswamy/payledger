@@ -56,6 +56,7 @@ public class DataRightsService {
         out.put("capturedItems", rows("select id, source, status, sender, subject, body, kind, amount, occurred_on, merchant, bank, received_at from captured_items where user_id = :u order by received_at", u));
         out.put("goalContributions", rows("select c.* from goal_contributions c join goals g on g.id = c.goal_id where g.space_id in (" + MY_SPACES + ")", u));
         out.put("categoryRules", rows("select * from category_rules where space_id in (" + MY_SPACES + ") order by match", u));
+        out.put("taxMappings", rows("select * from tax_mappings where space_id in (" + MY_SPACES + ")", u));
         out.put("imports", rows("select * from imports where space_id in (" + MY_SPACES + ") order by created_at", u));
         out.put("groups", rows("select * from groups where id in (" + MY_GROUPS + ")", u));
         out.put("groupMembers", rows("select id, group_id, display_name, role, user_id = :u as you, left_at from group_members where group_id in (" + MY_GROUPS + ")", u));

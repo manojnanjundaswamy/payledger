@@ -23,6 +23,6 @@ Each is ticked when built, tested on staging and committed to `develop`.
     status, timing and any error when expanded.
 11. [x] **Theme palette**: Mode and Palette merged into one "Theme palette" picker (Classic, Bumblebee yellow, Ferrari
     orange × Light, Dark, Match device), designed like the palette cards, also in the top bar's theme menu.
-12. [ ] **Import your data back**: Settings > Account can restore a PayLedger export into this account (after deleting
+12. [x] **Import your data back**: Settings > Account can restore a PayLedger export into this account (after deleting
     and signing up again, or moving). Export and import share one versioned format, and a round-trip test (export,
     import into a fresh account, export again, compare) fails the build if either side falls behind.
