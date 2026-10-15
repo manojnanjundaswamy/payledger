@@ -35,3 +35,11 @@ owed must show as owed, not as spending.
   members without a user.
 - ➖ Balances come from the ledger, a moment after a write, as account balances already do.
 - ➖ A member who has a balance can't simply be removed: they leave only once settled (their history stays).
+
+## Update (2026-10-15): guests
+Guests are built as planned: from the join link, someone without an account picks a waiting name (or gives theirs),
+proves their email with a code and gets a guest session for the groups where that email is a member. Their expenses
+and payments record the member who added them (`created_by_member`), as there is no user. They see the group, add
+expenses (equal split) and settle up, and change only what they added. Signing up with that email turns the
+memberships into the account's (the existing claim), and the guest session no longer reaches them.
+
