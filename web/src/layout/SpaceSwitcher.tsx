@@ -33,7 +33,7 @@ export function SpaceSwitcher() {
   return (
     <Menu>
       <MenuTrigger asChild>
-        <button type="button" aria-label={`Space: ${here?.name ?? 'Personal'}. Switch`} data-testid="space-switcher"
+        <button type="button" aria-label={`Space: ${here?.name ?? 'Personal'}. Switch`} data-testid="space-switcher" data-tour="space"
           className={cn('flex h-8 max-w-48 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors',
             inHousehold ? 'border-transparent bg-accent text-accent-fg hover:opacity-90' : 'border-border bg-surface-2 text-muted hover:text-fg')}>
           {inHousehold ? <Home className="size-3.5 shrink-0" /> : <User className="size-3.5 shrink-0" />}

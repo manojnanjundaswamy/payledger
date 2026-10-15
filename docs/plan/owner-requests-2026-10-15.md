@@ -13,10 +13,11 @@ Each is ticked when built, tested on staging and committed to `develop`.
    name; shown in lists, filterable, used by captured alerts ("Neha sent you 1,500").
 6. [x] **Capture learns from corrections**: what you fix in To review (the name, in or out, an alert it couldn't read)
    becomes a pattern used next time, so accuracy keeps improving (and any future AI reading feeds the same patterns).
-7. [ ] **A tour for new people**: an animated, spotlighted walk through the layout and features; Skip any time;
+7. [x] **A tour for new people**: an animated, spotlighted walk through the layout and features; Skip any time;
    "Don't show again" — otherwise it offers itself again at each sign-in.
-8. [ ] **Welcome journey**: first, make it yours (theme palette, light/dark, accent, payday, currency) with a live
-   preview, then the existing accounts-and-bills setup.
+8. [x] **Welcome journey**: at the first sign-in, "Make it yours" (theme palette, light/dark, text size, spacing), the
+   whole app changing live behind it, then the tour. Payday, accounts and bills stay in "Set up in two minutes"
+   (Getting started on the dashboard). Done: layout/Onboarding.tsx, e2e onboarding (desktop and phone).
 9. [x] **"Shared expense" on any expense**: tick it, pick a group, who paid and the split; it becomes a group expense
    (your share lands in your budget as usual).
 10. [x] **Admin activity in plain words**: each request as "Added a transaction", "Signed in"…, with the endpoint,

@@ -13,6 +13,7 @@ import { usePreferences } from '@/state/PreferencesProvider'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { AddMenu } from './AddMenu'
 import { EdgeDock } from '@/utilities/EdgeDock'
+import { Onboarding } from './Onboarding'
 import { UtilityWindowsProvider } from '@/utilities/windows'
 import { AnnouncementBanner } from './AnnouncementBanner'
 import { NotificationBell } from './NotificationBell'
@@ -76,6 +77,7 @@ export function AppShell() {
           <MobileTabBar pathname={pathname} />
           <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
           <EdgeDock />
+          <Onboarding pathname={pathname} />
         </div>
       </UtilityWindowsProvider>
       </TooltipPrimitive.Provider>
@@ -111,11 +113,11 @@ function Sidebar({ collapsed, onToggle, pathname }: { collapsed: boolean; onTogg
           </Tooltip>
         )}
       </div>
-      <div className={cn('px-3 pb-3', rail && 'flex justify-center')}>
+      <div className={cn('px-3 pb-3', rail && 'flex justify-center')} data-tour="add">
         <AddMenu compact={rail} />
       </div>
       {/* Short windows (zoomed in, small laptops) get tighter rows, and the scrollbar only shows while pointing at the menu. */}
-      <nav className="scroll-quiet flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-2 [@media(max-height:800px)]:gap-2 [@media(max-height:800px)]:py-1" aria-label="Main">
+      <nav className="scroll-quiet flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-2 [@media(max-height:800px)]:gap-2 [@media(max-height:800px)]:py-1" aria-label="Main" data-tour="nav">
         {sections.map(([section, heading]) => (
           <div key={section} className={cn('flex flex-col gap-0.5', section === 'app' && 'mt-auto')}>
             {heading && (rail
@@ -180,6 +182,7 @@ function Topbar({ title, onSearch }: { title: string; onSearch: () => void }) {
       <SpaceSwitcher />
       <div className="ml-auto flex items-center gap-1.5">
         <button
+          data-tour="search"
           onClick={onSearch}
           className="hidden h-9 w-64 items-center gap-2 rounded-control border border-border bg-surface-2 px-3 text-sm text-subtle transition-colors hover:border-border-strong hover:text-muted sm:flex"
         >
@@ -187,12 +190,12 @@ function Topbar({ title, onSearch }: { title: string; onSearch: () => void }) {
           Search or jump to…
           <span className="ml-auto flex gap-0.5"><Kbd>{isMac ? '⌘' : 'Ctrl'}</Kbd><Kbd>K</Kbd></span>
         </button>
-        <Button variant="ghost" size="icon" className="sm:hidden" onClick={onSearch} aria-label="Search"><Search /></Button>
+        <Button variant="ghost" size="icon" className="sm:hidden" onClick={onSearch} aria-label="Search" data-tour="search"><Search /></Button>
         <SaveIndicator />
-        <NotificationBell />
+        <span className="inline-flex" data-tour="bell"><NotificationBell /></span>
         <WidthToggle />
-        <ThemeQuickToggle />
-        <UserMenu />
+        <span className="inline-flex" data-tour="look"><ThemeQuickToggle /></span>
+        <span className="inline-flex" data-tour="you"><UserMenu /></span>
       </div>
     </header>
   )
@@ -231,10 +234,10 @@ function MobileTabBar({ pathname }: { pathname: string }) {
   }
   return (
     <>
-      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t border-border bg-bg/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden" aria-label="Main">
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t border-border bg-bg/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden" aria-label="Main" data-tour="nav">
         {tab(primary[0]!)}
         {tab(primary[1]!)}
-        <div className="flex flex-1 items-center justify-center">
+        <div className="flex flex-1 items-center justify-center" data-tour="add">
           <AddMenu trigger={
             <button className="-mt-6 flex size-14 items-center justify-center rounded-full bg-accent text-accent-fg shadow-lift transition-transform active:scale-95" aria-label="Add">
               <Plus className="size-6" />

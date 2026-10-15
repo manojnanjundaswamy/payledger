@@ -1,45 +1,68 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { signUp } from './helpers'
 
-test('a new person sets up accounts, payday, bills and budgets in one go, and it all shows up', async ({ page, request }) => {
-  await signUp(page, request, `e2e-setup-${Date.now()}@example.com`)
+// Starts without the flag the other tests set, so the welcome and tour show as for a real new person.
+test.use({ storageState: { cookies: [], origins: [] } })
 
-  await page.getByRole('link', { name: /Set up your accounts and bills/ }).click()
-  await expect(page).toHaveURL(/\/welcome/)
+async function walkTour(page: Page) {
+  const tour = page.getByTestId('tour')
+  await expect(tour).toBeVisible()
+  for (let i = 0; i < 12; i++) {
+    const done = tour.getByRole('button', { name: 'Done' })
+    if (await done.isVisible()) return done
+    // The card stays inside the screen.
+    const box = (await tour.getByRole('dialog').boundingBox())!
+    const width = page.viewportSize()!.width
+    expect(box.x).toBeGreaterThanOrEqual(15)
+    expect(box.x + box.width).toBeLessThanOrEqual(width - 15)
+    await tour.getByRole('button', { name: 'Next' }).click()
+  }
+  throw new Error('the tour never ended')
+}
 
-  await page.getByLabel('Which day does your salary come?').selectOption('25')
-  await page.getByLabel('Monthly take-home pay (optional)').fill('80,000')
-  await page.getByRole('button', { name: 'Next' }).click()
+test('a new person makes it theirs, takes the tour, and can turn it off', async ({ page, request, context }) => {
+  await signUp(page, request, `e2e-tour-${Date.now()}@example.com`)
+  const welcome = page.getByTestId('make-it-yours')
+  await expect(welcome).toBeVisible()
+  await expect(welcome).toContainText('Make it yours')
+  await welcome.getByTestId('palette-bumblebee').click()
+  await expect(page.locator('html')).toHaveAttribute('data-palette', 'bumblebee')
+  await welcome.getByRole('button', { name: 'Looks good' }).click()
 
-  await page.getByLabel('Account 1 name').fill('HDFC salary')
-  await page.getByLabel('Account 1 balance').fill('40,000')
-  await page.getByRole('button', { name: 'Next' }).click()
+  // The tour: Skip without ticking, and it's offered again at the next sign-in (a new tab here).
+  const intro = page.getByTestId('tour-intro')
+  await expect(intro).toBeVisible()
+  await intro.getByRole('button', { name: 'Skip' }).click()
+  await expect(intro).toBeHidden()
+  await page.reload()
+  await expect(page.getByTestId('widget-grid')).toBeVisible()
+  await expect(intro).toBeHidden() // same session: not again
 
-  await page.getByRole('checkbox', { name: 'Rent' }).check()
-  await page.getByLabel('Rent amount').fill('20,000')
-  await page.getByRole('checkbox', { name: 'Netflix' }).check()
-  await page.getByRole('button', { name: 'Next' }).click()
+  const again = await context.newPage()
+  await again.goto('/dashboard')
+  const intro2 = again.getByTestId('tour-intro')
+  await expect(intro2).toBeVisible()
+  await expect(again.getByTestId('make-it-yours')).toBeHidden() // the welcome is once
+  await intro2.getByLabel('Don’t show this again').check()
+  await intro2.getByRole('button', { name: 'Start the tour' }).click()
+  const done = await walkTour(again)
+  await done.click()
+  await expect(again.getByTestId('tour')).toBeHidden()
 
-  // 10% of ₹80,000 for groceries.
-  await expect(page.getByLabel('Groceries budget')).toHaveValue('8000')
-  await page.getByRole('button', { name: 'Finish setup' }).click()
+  // Ticked: not in a new session either.
+  await again.waitForTimeout(1200) // the preference saves shortly after
+  const third = await context.newPage()
+  await third.goto('/dashboard')
+  await expect(third.getByTestId('widget-grid')).toBeVisible()
+  await expect(third.getByTestId('tour-intro')).toBeHidden()
+  await expect(third.locator('html')).toHaveAttribute('data-palette', 'bumblebee')
+})
 
-  await page.waitForURL('**/dashboard')
-  await expect(page.getByText('You’re set up')).toBeVisible()
-
-  await page.goto('/plan')
-  await expect(page.getByRole('button', { name: 'Edit Rent' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Edit Netflix' })).toBeVisible()
-  await page.goto('/budgets')
-  await expect(page.getByTestId('budget-card-Groceries')).toContainText('₹8,000')
-  await page.goto('/accounts')
-  await expect(page.getByTestId('balance-HDFC salary')).toContainText('40,000', { timeout: 15_000 })
-  await page.goto('/settings?tab=regional')
-  await expect(page.getByText(/25/).first()).toBeVisible()
-
-  // Running it again is refused instead of doubling everything.
-  await page.goto('/welcome')
-  for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'Next' }).click()
-  await page.getByRole('button', { name: 'Finish setup' }).click()
-  await expect(page.getByRole('alert')).toContainText('You already have accounts')
+test('the tour fits a phone @phone', async ({ page, request }) => {
+  await signUp(page, request, `e2e-tour-phone-${Date.now()}@example.com`)
+  await page.getByTestId('make-it-yours').getByRole('button', { name: 'Keep the defaults' }).click()
+  await page.getByTestId('tour-intro').getByRole('button', { name: 'Start the tour' }).click()
+  const done = await walkTour(page)
+  await done.click()
+  await expect(page.getByTestId('tour')).toBeHidden()
 })

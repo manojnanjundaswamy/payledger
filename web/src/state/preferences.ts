@@ -121,6 +121,10 @@ export const PreferencesSchema = z.object({
   /** Show realistic sample numbers until the user has real data (Phase 4). */
   sampleData: z.boolean().catch(true),
   sidebarCollapsed: z.boolean().catch(false),
+  /** "Make it yours" (look and feel) has been shown once. */
+  welcomed: z.boolean().catch(false),
+  /** "Don't show the tour again" was ticked; otherwise it's offered at each sign-in. */
+  tourOff: z.boolean().catch(false),
 })
 export type Preferences = Omit<z.infer<typeof PreferencesSchema>, 'activeDashboard'> & { activeDashboard: string }
 
