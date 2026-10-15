@@ -62,6 +62,23 @@ class CaptureController {
         return capture.add(user, id, body);
     }
 
+    record Ids(java.util.List<UUID> ids) {
+    }
+
+    @PostMapping("/api/core/capture/items/add")
+    @Operation(summary = "Add every listed entry that's ready (account known, not entered already); the rest stay to review")
+    CaptureService.AddedAll addAll(CurrentUser user, @RequestBody Ids body) {
+        return capture.addAll(user, body.ids());
+    }
+
+    @PostMapping(value = "/api/core/capture/statement", consumes = "multipart/form-data")
+    @Operation(summary = "Read a bank statement (CSV, Excel or PDF) into To review, from the chosen account; the PDF password is never kept")
+    CaptureService.Imported statement(CurrentUser user, @org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+                                      @org.springframework.web.bind.annotation.RequestParam("accountId") UUID accountId,
+                                      @org.springframework.web.bind.annotation.RequestParam(value = "password", required = false) String password) throws java.io.IOException {
+        return capture.statement(user, file.getBytes(), file.getOriginalFilename(), accountId, password);
+    }
+
     @PostMapping("/api/core/capture/items/{id}/dismiss")
     @Operation(summary = "Not a transaction, or already entered: let it go")
     CaptureService.Item dismiss(CurrentUser user, @PathVariable UUID id) {

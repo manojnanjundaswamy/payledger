@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 /** An entry read from a bank alert, waiting to be added (or already decided, for a couple of days). */
 export interface CapturedItem {
   id: string
-  source: 'EMAIL' | 'PASTE' | 'SHARE'
+  source: 'EMAIL' | 'PASTE' | 'SHARE' | 'STATEMENT'
   status: 'PENDING' | 'ADDED' | 'DISMISSED' | 'UNREADABLE'
   sender: string | null
   subject: string | null
@@ -78,6 +78,22 @@ export interface AddCaptured {
 
 export function useAddCaptured() {
   return useCaptureWrite(({ id, ...body }: AddCaptured) => api<CapturedItem>(`/api/core/capture/items/${id}/add`, { method: 'POST', json: body }))
+}
+
+export interface Imported { rows: number; added: number; duplicates: number; bank: string | null; from: string; to: string; opening: number | null; closing: number | null; adds: boolean | null }
+
+export function useStatement() {
+  return useCaptureWrite(({ file, accountId, password }: { file: File; accountId: string; password?: string }) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('accountId', accountId)
+    if (password) form.append('password', password)
+    return api<Imported>('/api/core/capture/statement', { method: 'POST', body: form })
+  })
+}
+
+export function useAddAll() {
+  return useCaptureWrite((ids: string[]) => api<{ added: number; skipped: number }>('/api/core/capture/items/add', { method: 'POST', json: { ids } }))
 }
 
 export function useDismissCaptured() {

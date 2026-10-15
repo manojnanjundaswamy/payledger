@@ -268,15 +268,99 @@ public class CaptureService {
         return p != null ? "added" : "unreadable-kept";
     }
 
+    /**
+     * @param adds    the statement's own balances add up (opening + in − out = closing), or null when it can't be checked
+     */
+    public record Imported(int rows, int added, int duplicates, String bank, LocalDate from, LocalDate to, Long opening, Long closing, Boolean adds) {
+    }
+
+    /** Every row of a bank statement into To review, from the account chosen for the file. Re-uploading adds nothing. */
+    @Transactional
+    public Imported statement(CurrentUser user, byte[] file, String filename, UUID accountId, String password) {
+        if (file == null || file.length == 0) {
+            throw new InvalidRequestException("statement-empty", "choose a statement file");
+        }
+        if (file.length > 5 * 1024 * 1024) {
+            throw new InvalidRequestException("statement-too-large", "a statement can be up to 5 MB; download a shorter period");
+        }
+        boolean mine = accountId != null && jdbc.sql("""
+                        select exists (select 1 from money_accounts where id = :a and space_id = :s and archived_at is null and kind <> 'OWED')
+                        """).param("a", accountId).param("s", user.personalSpaceId()).query(Boolean.class).single();
+        if (!mine) {
+            throw new InvalidRequestException("invalid-account", "choose which of your accounts the statement is for");
+        }
+        StatementParser.Statement st = StatementParser.parse(file, filename, password);
+        String batch = (st.bank() != null ? st.bank() + " statement" : "Statement") + " · " + st.lines().getFirst().date() + " to " + st.lines().getLast().date();
+        int added = 0;
+        int seen = 0;
+        int n = 0;
+        for (StatementParser.Line l : st.lines()) {
+            boolean in = l.in() > 0;
+            long amount = in ? l.in() : l.out();
+            // Position counts too: two identical coffees on one day are two rows.
+            String print = fingerprint(accountId + "|" + l.date() + "|" + (in ? "IN" : "OUT") + "|" + amount + "|" + l.narration() + "|" + l.balance() + "|"
+                    + (l.balance() == null ? n : ""));
+            n++;
+            // No clear name in the narration: the narration itself (shortened) says more than nothing.
+            String who = StatementParser.merchant(l.narration());
+            if (who == null) {
+                String plain = l.narration().replaceAll("[0-9]{4,}", "").replaceAll("[/_*|-]+", " ").replaceAll("\\s+", " ").strip();
+                who = plain.isEmpty() ? null : plain.length() > 60 ? plain.substring(0, 60) : plain;
+            }
+            AlertParser.Parsed p = new AlertParser.Parsed(in ? "INCOME" : "EXPENSE", amount, l.date(), who,
+                    st.bank(), null, l.balance());
+            UUID id = store(user.id(), user.personalSpaceId(), "STATEMENT", st.bank(), batch, l.narration(), print, p, accountId, batch);
+            if (id == null) {
+                seen++;
+            } else {
+                added++;
+            }
+        }
+        return new Imported(st.lines().size(), added, seen, st.bank(), st.lines().getFirst().date(), st.lines().getLast().date(),
+                st.opening(), st.closing(), st.adds());
+    }
+
+    public record AddedAll(int added, int skipped) {
+    }
+
+    /**
+     * Adds every listed entry that's ready: an account known, and not looking like one already entered. The guessed
+     * category is used (else Other). The rest stay for a closer look.
+     */
+    @Transactional
+    public AddedAll addAll(CurrentUser user, List<UUID> ids) {
+        if (ids == null || ids.isEmpty() || ids.size() > 1000) {
+            throw new InvalidRequestException("invalid-items", "choose between 1 and 1,000 entries");
+        }
+        int added = 0;
+        int skipped = 0;
+        for (Item i : items(user, "select * from captured_items where id in (:ids) and user_id = :u and status = 'PENDING' order by occurred_on, received_at", ids)) {
+            if (i.accountId() == null || i.duplicateOf() != null || i.amount() == null) {
+                skipped++;
+                continue;
+            }
+            add(user, i.id(), new Add(i.kind(), i.amount(), i.accountId(), i.categoryId(), i.occurredOn(),
+                    i.merchant() != null ? i.merchant() : i.body() != null && i.body().length() <= 120 ? i.body() : null));
+            added++;
+        }
+        return new AddedAll(added, ids.size() - added);
+    }
+
     // ---------------------------------------------------------------- internals
 
     private UUID store(UUID userId, UUID spaceId, String source, String sender, String subject, String body, String print, AlertParser.Parsed p) {
+        return store(userId, spaceId, source, sender, subject, body, print, p, null, null);
+    }
+
+    private UUID store(UUID userId, UUID spaceId, String source, String sender, String subject, String body, String print, AlertParser.Parsed p,
+                       UUID accountId, String batch) {
         UUID id = Uuid7.next();
         String b = body.length() > MAX_BODY ? body.substring(0, MAX_BODY) : body;
         int n = jdbc.sql("""
                         insert into captured_items (id, user_id, space_id, source, status, sender, subject, body, fingerprint, kind, amount,
-                                                    occurred_on, merchant, bank, account_hint, balance)
-                        values (:id, :u, :s, :source, :status, :sender, :subject, :body, :print, :kind, :amount, :on, :merchant, :bank, :hint, :balance)
+                                                    occurred_on, merchant, bank, account_hint, balance, account_id, batch)
+                        values (:id, :u, :s, :source, :status, :sender, :subject, :body, :print, :kind, :amount, :on, :merchant, :bank, :hint, :balance,
+                                :account, :batch)
                         on conflict (user_id, fingerprint) do nothing
                         """)
                 .param("id", id).param("u", userId).param("s", spaceId).param("source", source).param("status", p == null ? "UNREADABLE" : "PENDING")
@@ -284,6 +368,7 @@ public class CaptureService {
                 .param("kind", p == null ? null : p.kind()).param("amount", p == null ? null : p.amount()).param("on", p == null ? null : p.on())
                 .param("merchant", p == null ? null : cut(p.merchant(), 120)).param("bank", p == null ? null : p.bank())
                 .param("hint", p == null ? null : p.accountHint()).param("balance", p == null ? null : p.balance())
+                .param("account", accountId).param("batch", cut(batch, 120))
                 .update();
         return n == 0 ? null : id;
     }
@@ -293,7 +378,8 @@ public class CaptureService {
     }
 
     private record Row(UUID id, String source, String status, String sender, String subject, String body, String kind, Long amount,
-                       LocalDate occurredOn, String merchant, String bank, String accountHint, Long balance, UUID transactionId, Instant receivedAt) {
+                       LocalDate occurredOn, String merchant, String bank, String accountHint, Long balance, UUID transactionId, Instant receivedAt,
+                       UUID accountId) {
     }
 
     private record Acct(UUID id, String name, String kind) {
@@ -315,7 +401,8 @@ public class CaptureService {
             String categorySource = null;
             UUID twin = null;
             if ("PENDING".equals(r.status())) {
-                account = guessAccount(accounts, r.bank(), r.accountHint());
+                // A statement's rows come from the account chosen for the file; an alert's is guessed.
+                account = r.accountId() != null ? r.accountId() : guessAccount(accounts, r.bank(), r.accountHint());
                 if (r.merchant() != null) {
                     CategoryRuleService.Guess g = rules.guess(user, user.personalSpaceId(), r.kind(), r.merchant());
                     if (g != null) {
