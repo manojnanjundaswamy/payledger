@@ -86,5 +86,5 @@ test('settings send a test email, and admins see emails and sign-ins', async ({ 
   await page.getByRole('button', { name: 'Send weekly recap now' }).click()
   await expect(page.getByText('Weekly recap sent')).toBeVisible()
   await page.goto('/admin?tab=activity')
-  await expect(page.getByTestId('activity-list')).toContainText('signed in')
+  await expect(page.getByTestId('activity-list')).toContainText('Signed in')
 })

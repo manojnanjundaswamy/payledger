@@ -17,7 +17,8 @@ test('pasted bank SMS wait in To review, guessed, and become a transaction when 
   await page.getByRole('button', { name: 'Read them' }).click()
   await expect(page.getByText('1 entry to review')).toBeVisible()
 
-  const card = page.getByTestId('review-E2ecafe').filter({ hasText: `₹${rupees}.00` })
+  // By amount: what it's called can change once you've taught it a name.
+  const card = page.locator('[data-testid^="review-"]').filter({ hasText: `₹${rupees}.00` })
   await expect(card).toContainText(`−₹${rupees}.00`)
   await expect(card).toContainText('HDFC Bank')
   await card.getByLabel('Description').fill(`E2E capture ${run}`)

@@ -9,6 +9,7 @@ import { z } from 'zod'
 export const WIDGET_TYPES = [
   'safeToSpend', 'budgets', 'spendingByCategory', 'cashFlow', 'recentTransactions',
   'upcomingBills', 'groups', 'goals', 'household', 'gettingStarted', 'quickActions', 'note', 'toReview', 'netWorth',
+  'moneyHealth', 'canIAfford',
 ] as const
 export type WidgetType = (typeof WIDGET_TYPES)[number]
 
@@ -89,7 +90,7 @@ export function newId(prefix: string): string {
 export const DASHBOARD_TEMPLATES = {
   overview: { name: 'Overview', widgets: [
     ['gettingStarted', 'm'], ['safeToSpend', 'm'], ['budgets', 'm'], ['spendingByCategory', 'm'],
-    ['cashFlow', 'l'], ['upcomingBills', 's'], ['recentTransactions', 'm'], ['groups', 'm'], ['netWorth', 'm'], ['toReview', 's'],
+    ['cashFlow', 'l'], ['upcomingBills', 's'], ['recentTransactions', 'm'], ['groups', 'm'], ['netWorth', 'm'], ['moneyHealth', 'm'], ['canIAfford', 'm'], ['toReview', 's'],
   ] },
   household: { name: 'Household', widgets: [
     ['household', 'l'], ['budgets', 's'], ['upcomingBills', 'm'], ['spendingByCategory', 'm'], ['goals', 'm'],
@@ -121,6 +122,10 @@ export const PreferencesSchema = z.object({
   /** Show realistic sample numbers until the user has real data (Phase 4). */
   sampleData: z.boolean().catch(true),
   sidebarCollapsed: z.boolean().catch(false),
+  /** "Make it yours" (look and feel) has been shown once. */
+  welcomed: z.boolean().catch(false),
+  /** "Don't show the tour again" was ticked; otherwise it's offered at each sign-in. */
+  tourOff: z.boolean().catch(false),
 })
 export type Preferences = Omit<z.infer<typeof PreferencesSchema>, 'activeDashboard'> & { activeDashboard: string }
 

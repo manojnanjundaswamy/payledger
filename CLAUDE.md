@@ -9,6 +9,7 @@ splitting groups by link without an account. Owner: Manoj. Read these before cha
 - Getting data in without a licence (statements, SMS, forwarding address) and features to borrow: `docs/plan/onboarding-and-features.md`
 - 15 ideas with plans, competitor tiers and the proposed Free / Premium / Family plans (for owner review): `docs/plan/ideas-2026-10.md`
 - Name ideas (undecided, "PayLedger" is the code name): `docs/plan/naming.md`
+- **What is not done yet** (owner actions, roadmap gaps, operations): `docs/plan/not-done.md`; keep it current
 - Security, tenant isolation and integrity (read before adding an endpoint): `docs/security.md`
 - Notifications (bell, email outbox, providers and costs, WhatsApp, activity audit): `docs/notifications.md`
 - Design decisions: `docs/adr/0001`–`0008` (ledger, locking, idempotency, outbox, ledger v2 books, identity/BFF, groups and splitting, admin console)

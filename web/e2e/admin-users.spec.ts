@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { signIn } from './helpers'
+import { MAILPIT, signIn } from './helpers'
 
 test.beforeEach(async ({ page }) => {
   await signIn(page)
@@ -22,7 +22,7 @@ test('staff add a user, who gets an email; give them Premium, disable them, and 
   await expect(sheet).toBeVisible()
   await expect(sheet.getByText('Free', { exact: true })).toBeVisible()
   await expect.poll(async () => {
-    const r = await request.get(`http://localhost:8025/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`)
+    const r = await request.get(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`)
     return (await r.json()).messages_count
   }, { timeout: 15_000 }).toBeGreaterThan(0)
 

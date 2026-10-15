@@ -12,6 +12,15 @@ function start(): Preferences {
 const ids = (p: Preferences, dash = 'd1') => p.dashboards.find((d) => d.id === dash)!.widgets.map((w) => w.id)
 
 describe('prefsReducer', () => {
+  it('remembers the welcome and "do not show the tour again", each on its own', () => {
+    const fresh = start()
+    expect([fresh.welcomed, fresh.tourOff]).toEqual([false, false])
+    const welcomed = prefsReducer(fresh, { type: 'onboarding', patch: { welcomed: true } })
+    expect([welcomed.welcomed, welcomed.tourOff]).toEqual([true, false])
+    const off = prefsReducer(welcomed, { type: 'onboarding', patch: { tourOff: true } })
+    expect([off.welcomed, off.tourOff]).toEqual([true, true])
+    expect(parsePreferences({ welcomed: 'yes', tourOff: 3 })).toMatchObject({ welcomed: false, tourOff: false })
+  })
   it('moves a widget to where it was dropped', () => {
     expect(ids(prefsReducer(start(), { type: 'moveWidget', dashboard: 'd1', from: 'a', to: 'c' }))).toEqual(['b', 'c', 'a'])
     expect(ids(prefsReducer(start(), { type: 'moveWidget', dashboard: 'd1', from: 'c', to: 'a' }))).toEqual(['c', 'a', 'b'])

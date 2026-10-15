@@ -8,6 +8,7 @@ import dev.payledger.core.ledger.LedgerClient;
 import dev.payledger.core.ledger.LedgerCommands;
 import dev.payledger.core.ledger.LedgerCommands.Book;
 import dev.payledger.core.ledger.LedgerCommands.Leg;
+import dev.payledger.core.group.GroupService.Doer;
 import dev.payledger.core.user.CurrentUser;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -98,7 +99,12 @@ public class GroupExpenseService {
 
     @Transactional(readOnly = true)
     public Insights insights(CurrentUser user, UUID groupId) {
-        UUID me = groups.member(user, groupId).id();
+        return insights(groups.doer(user, groupId), groupId);
+    }
+
+    @Transactional(readOnly = true)
+    public Insights insights(Doer user, UUID groupId) {
+        UUID me = user.memberId();
         String currency = jdbc.sql("select currency from groups where id = :id").param("id", groupId).query(String.class).single();
         var members = jdbc.sql("""
                         select m.id as member_id, m.display_name as name, m.left_at is not null as "left",
@@ -137,7 +143,11 @@ public class GroupExpenseService {
 
     @Transactional(readOnly = true)
     public Activity activity(CurrentUser user, UUID groupId) {
-        groups.member(user, groupId);
+        return activity(groups.doer(user, groupId), groupId);
+    }
+
+    @Transactional(readOnly = true)
+    public Activity activity(Doer user, UUID groupId) {
         List<Settlement> settlements = jdbc.sql("""
                         select id, from_member as from_member_id, to_member as to_member_id, amount, currency, occurred_on, note from group_settlements
                         where group_id = :groupId and deleted_at is null order by occurred_on desc, created_at desc, id desc limit 200
@@ -177,7 +187,11 @@ public class GroupExpenseService {
     /** A retry with the same client id returns the first. */
     @Transactional
     public Expense create(CurrentUser user, UUID groupId, GroupExpenseRequests.Create request) {
-        groups.member(user, groupId);
+        return create(groups.doer(user, groupId), groupId, request);
+    }
+
+    @Transactional
+    public Expense create(Doer user, UUID groupId, GroupExpenseRequests.Create request) {
         String currency = writable(groupId);
         UUID id = request.id() != null ? request.id() : Uuid7.next();
         Optional<UUID> existing = jdbc.sql("select group_id from group_expenses where id = :id").param("id", id).query(UUID.class).optional();
@@ -189,12 +203,12 @@ public class GroupExpenseService {
         }
         Map<UUID, Long[]> parts = resolve(groupId, request.fields());
         int inserted = jdbc.sql("""
-                        insert into group_expenses (id, group_id, description, amount, currency, occurred_on, category, split, loan, due_on, created_by)
-                        values (:id, :groupId, :description, :amount, :currency, :occurredOn, :category, :split, :loan, :dueOn, :userId)
+                        insert into group_expenses (id, group_id, description, amount, currency, occurred_on, category, split, loan, due_on, created_by, created_by_member)
+                        values (:id, :groupId, :description, :amount, :currency, :occurredOn, :category, :split, :loan, :dueOn, :userId, :memberId)
                         on conflict (id) do nothing
                         """)
                 .param("id", id).param("groupId", groupId).params(fields(request.fields())).param("currency", currency)
-                .param("userId", user.id())
+                .param("userId", user.id()).param("memberId", user.memberId())
                 .update();
         if (inserted == 0) {
             // The same client id raced itself; the first request's expense is committed by now.
@@ -204,15 +218,20 @@ public class GroupExpenseService {
         int ledgerVersion = post(groupId, id, 1, request.fields(), parts) ? 1 : 0;
         jdbc.sql("update group_expenses set ledger_version = :v where id = :id").param("v", ledgerVersion).param("id", id).update();
         tell(user, groupId, parts, "added", request.fields().description(), request.fields().amount());
-        history.record(groupId, user, GroupHistory.Action.EXPENSE_ADDED, snapshot(id));
-        booking.remember(id, user, request.fields().paidFromAccountId());
+        history.record(groupId, user.id(), user.displayName(), GroupHistory.Action.EXPENSE_ADDED, snapshot(id));
+        remember(id, user, request.fields().paidFromAccountId());
         booking.syncExpense(id, null);
         return find(groupId, id);
     }
 
     @Transactional
     public Expense replace(CurrentUser user, UUID groupId, UUID id, int version, GroupExpenseRequests.Fields f) {
-        groups.member(user, groupId);
+        return replace(groups.doer(user, groupId), groupId, id, version, f);
+    }
+
+    @Transactional
+    public Expense replace(Doer user, UUID groupId, UUID id, int version, GroupExpenseRequests.Fields f) {
+        mayChange(user, groupId, "group_expenses", id);
         writable(groupId);
         record Row(int version, int ledgerVersion, String description) {
         }
@@ -255,15 +274,20 @@ public class GroupExpenseService {
             }
         }
         now.put("changes", changes);
-        history.record(groupId, user, GroupHistory.Action.EXPENSE_EDITED, now);
-        booking.remember(id, user, f.paidFromAccountId());
+        history.record(groupId, user.id(), user.displayName(), GroupHistory.Action.EXPENSE_EDITED, now);
+        remember(id, user, f.paidFromAccountId());
         booking.syncExpense(id, null);
         return find(groupId, id);
     }
 
     @Transactional
     public void delete(CurrentUser user, UUID groupId, UUID id, int version) {
-        groups.member(user, groupId);
+        delete(groups.doer(user, groupId), groupId, id, version);
+    }
+
+    @Transactional
+    public void delete(Doer user, UUID groupId, UUID id, int version) {
+        mayChange(user, groupId, "group_expenses", id);
         record Row(int version, int ledgerVersion, String description) {
         }
         Row before = jdbc.sql("""
@@ -279,7 +303,7 @@ public class GroupExpenseService {
         jdbc.sql("select member_id, paid, share from group_expense_parts where expense_id = :id").param("id", id)
                 .query((rs, i) -> was.put(rs.getObject("member_id", UUID.class), new Long[]{rs.getLong("paid"), rs.getLong("share")})).list();
         long amount = jdbc.sql("select amount from group_expenses where id = :id").param("id", id).query(Long.class).single();
-        history.record(groupId, user, GroupHistory.Action.EXPENSE_DELETED, snapshot(id));
+        history.record(groupId, user.id(), user.displayName(), GroupHistory.Action.EXPENSE_DELETED, snapshot(id));
         jdbc.sql("update group_expenses set deleted_at = now(), version = version + 1, updated_at = now() where id = :id")
                 .param("id", id).update();
         tell(user, groupId, was, "deleted", before.description(), amount);
@@ -293,7 +317,11 @@ public class GroupExpenseService {
     /** {@code from} paid {@code to}: their balances move towards zero. */
     @Transactional
     public Settlement settle(CurrentUser user, UUID groupId, GroupExpenseRequests.Settle request) {
-        groups.member(user, groupId);
+        return settle(groups.doer(user, groupId), groupId, request);
+    }
+
+    @Transactional
+    public Settlement settle(Doer user, UUID groupId, GroupExpenseRequests.Settle request) {
         String currency = writable(groupId);
         if (request.fromMemberId().equals(request.toMemberId())) {
             throw new InvalidRequestException("invalid-settlement", "a payment needs two different people");
@@ -305,29 +333,34 @@ public class GroupExpenseService {
         UUID id = Uuid7.next();
         String note = request.note() == null || request.note().isBlank() ? null : request.note().strip();
         jdbc.sql("""
-                        insert into group_settlements (id, group_id, from_member, to_member, amount, currency, occurred_on, note, created_by)
-                        values (:id, :groupId, :from, :to, :amount, :currency, :occurredOn, :note, :userId)
+                        insert into group_settlements (id, group_id, from_member, to_member, amount, currency, occurred_on, note, created_by, created_by_member)
+                        values (:id, :groupId, :from, :to, :amount, :currency, :occurredOn, :note, :userId, :memberId)
                         """)
                 .param("id", id).param("groupId", groupId).param("from", request.fromMemberId()).param("to", request.toMemberId())
                 .param("amount", request.amount()).param("currency", currency).param("occurredOn", request.occurredOn())
-                .param("note", note).param("userId", user.id())
+                .param("note", note).param("userId", user.id()).param("memberId", user.memberId())
                 .update();
         ledger.post(Book.group(groupId), "settle:" + id + ":v1", "SETTLEMENT", request.occurredOn(),
                 note != null ? note : "Settled up", "settle:" + id, List.of(
                         new Leg(MEMBER + request.fromMemberId(), "ASSET", currency, -request.amount()),
                         new Leg(MEMBER + request.toMemberId(), "ASSET", currency, request.amount())));
         tellPayment(user, groupId, request.fromMemberId(), request.toMemberId(), request.amount(), false);
-        history.record(groupId, user, GroupHistory.Action.SETTLEMENT_RECORDED, GroupHistory.details(
+        history.record(groupId, user.id(), user.displayName(), GroupHistory.Action.SETTLEMENT_RECORDED, GroupHistory.details(
                 "from", memberName(request.fromMemberId()), "to", memberName(request.toMemberId()), "amount", request.amount(),
                 "currency", currency, "occurredOn", request.occurredOn().toString(), "note", note));
-        booking.remember(id, user, request.accountId());
+        remember(id, user, request.accountId());
         booking.syncSettlement(id, null);
         return new Settlement(id, request.fromMemberId(), request.toMemberId(), request.amount(), currency, request.occurredOn(), note);
     }
 
     @Transactional
     public void deleteSettlement(CurrentUser user, UUID groupId, UUID id) {
-        groups.member(user, groupId);
+        deleteSettlement(groups.doer(user, groupId), groupId, id);
+    }
+
+    @Transactional
+    public void deleteSettlement(Doer user, UUID groupId, UUID id) {
+        mayChange(user, groupId, "group_settlements", id);
         int deleted = jdbc.sql("update group_settlements set deleted_at = now() where id = :id and group_id = :groupId and deleted_at is null")
                 .param("id", id).param("groupId", groupId).update();
         if (deleted == 0) {
@@ -339,7 +372,7 @@ public class GroupExpenseService {
         Paid p = jdbc.sql("select from_member, to_member, amount from group_settlements where id = :id").param("id", id).query(Paid.class).single();
         tellPayment(user, groupId, p.fromMember(), p.toMember(), p.amount(), true);
         booking.syncSettlement(id, null);
-        history.record(groupId, user, GroupHistory.Action.SETTLEMENT_UNDONE,
+        history.record(groupId, user.id(), user.displayName(), GroupHistory.Action.SETTLEMENT_UNDONE,
                 GroupHistory.details("from", memberName(p.fromMember()), "to", memberName(p.toMember()), "amount", p.amount()));
     }
 
@@ -368,14 +401,18 @@ public class GroupExpenseService {
 
     @Transactional(readOnly = true)
     public List<GroupHistory.Event> history(CurrentUser user, UUID groupId) {
-        groups.member(user, groupId);
+        return history(groups.doer(user, groupId), groupId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<GroupHistory.Event> history(Doer user, UUID groupId) {
         return history.list(groupId, user.id(), 500);
     }
 
     // ---------------------------------------------------------------- telling people
 
     /** Everyone with an account who is part of the expense (paid or shares), except whoever did it. */
-    private void tell(CurrentUser user, UUID groupId, Map<UUID, Long[]> parts, String verb, String description, long amount) {
+    private void tell(Doer user, UUID groupId, Map<UUID, Long[]> parts, String verb, String description, long amount) {
         String group = groupName(groupId);
         String who = user.displayName();
         for (var e : parts.entrySet()) {
@@ -393,7 +430,7 @@ public class GroupExpenseService {
         }
     }
 
-    private void tellPayment(CurrentUser user, UUID groupId, UUID from, UUID to, long amount, boolean undone) {
+    private void tellPayment(Doer user, UUID groupId, UUID from, UUID to, long amount, boolean undone) {
         String group = groupName(groupId);
         String title = undone
                 ? user.displayName() + " undid a payment of " + money(amount) + " in " + group
@@ -405,6 +442,31 @@ public class GroupExpenseService {
                         undone ? "Your balance is back to what it was before it." : "Recorded by " + user.displayName() + ".",
                         "/groups/" + groupId, user.id());
             }
+        }
+    }
+
+    /**
+     * With "only the person who added it can change it" on, a member changes only their own entries; the owner, any.
+     * (Guests are always limited to their own, in GuestController.)
+     */
+    private void mayChange(Doer user, UUID groupId, String table, UUID id) {
+        if (user.account() == null) {
+            return;
+        }
+        boolean allowed = jdbc.sql("select not g.own_edits_only or m.role = 'OWNER' or exists (select 1 from " + table
+                        + " t where t.id = :id and t.created_by = :u) from groups g join group_members m on m.group_id = g.id and m.id = :m where g.id = :g")
+                .param("id", id).param("u", user.id()).param("m", user.memberId()).param("g", groupId).query(Boolean.class).single();
+        if (!allowed) {
+            throw new dev.payledger.core.common.ApiException(org.springframework.http.HttpStatus.FORBIDDEN, "not-yours",
+                    "in this group only the person who added it, or the owner, can change it") {
+            };
+        }
+    }
+
+    /** Which of your accounts paid: only people with an account have a personal book. */
+    private void remember(UUID entryId, Doer user, UUID accountId) {
+        if (user.account() != null) {
+            booking.remember(entryId, user.account(), accountId);
         }
     }
 
@@ -423,7 +485,11 @@ public class GroupExpenseService {
     /** Each current member's balance from the group's ledger book, and the fewest payments that settle them. */
     @Transactional(readOnly = true)
     public Balances balances(CurrentUser user, UUID groupId) {
-        groups.member(user, groupId);
+        return balances(groups.doer(user, groupId), groupId);
+    }
+
+    @Transactional(readOnly = true)
+    public Balances balances(Doer user, UUID groupId) {
         String currency = jdbc.sql("select currency from groups where id = :id").param("id", groupId).query(String.class).single();
         Optional<List<LedgerClient.Balance>> rows = ledgerReads.balances("group:" + groupId);
         if (rows.isEmpty()) {

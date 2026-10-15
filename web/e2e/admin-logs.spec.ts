@@ -40,6 +40,7 @@ test('activity and audit rows open up, and each log exports', async ({ page }) =
   await page.goto('/admin?tab=activity')
   await page.getByTestId('activity-list').getByRole('button').first().click()
   await expect(page.getByTestId('activity-details')).toContainText('When')
+  await expect(page.getByTestId('activity-details')).toContainText('What happened')
   for (const [tab, kind] of [['activity', 'activity'], ['audit', 'audit'], ['emails', 'emails'], ['users', 'users']] as const) {
     await page.goto(`/admin?tab=${tab}`)
     const download = page.waitForEvent('download')

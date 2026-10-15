@@ -6,7 +6,7 @@ import { api } from '@/lib/api'
 import { useGroups, type GroupBalances } from '@/state/groups'
 import {
   ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BarChart3, CalendarClock, Check, Goal, Home, ListChecks, ListOrdered,
-  Inbox, Landmark, PieChart, Rocket, StickyNote, Upload, Users, Wallet, Zap,
+  HeartPulse, Inbox, Landmark, PieChart, Rocket, Scale, StickyNote, Upload, Users, Wallet, Zap,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
@@ -21,7 +21,9 @@ import {
 } from '@/state/money'
 import { SafeToSpendCard } from '@/pages/money/SafeToSpendCard'
 import { CountUp } from '@/components/CountUp'
+import { CanIAfford, MoneyHealth } from './insightWidgets'
 import { useCapture } from '@/state/capture'
+import { useHousehold, useHouseholds } from '@/state/households'
 
 export interface WidgetProps { widget: Widget; dashboardId: string; editing: boolean }
 
@@ -490,28 +492,41 @@ function Goals({ widget }: WidgetProps) {
   )
 }
 
+/** Your first household: this month's shared spending and who recorded it. */
 function Household() {
-  const { sample: on, money } = useWidgetEnv()
-  if (!on) return <Empty phase="Phase 5">One budget for the whole family, with private money kept private.</Empty>
-  const h = sample.household
-  const status = budgetStatus(h.spent, h.budget)
+  const { money } = useWidgetEnv()
+  const { data: list, isPending } = useHouseholds()
+  const first = list?.[0]
+  const { data: h } = useHousehold(first?.id)
+  if (isPending) return <div className="h-28 animate-pulse rounded-control bg-surface-2" />
+  if (!first) {
+    return (
+      <div className="flex min-h-28 flex-col items-start justify-center gap-1.5 text-sm text-muted">
+        One budget for the whole family, with everyone's own money kept private.
+        <Link to="/household" className="text-fg underline underline-offset-4">Start a household</Link>
+      </div>
+    )
+  }
+  if (!h) return <div className="h-28 animate-pulse rounded-control bg-surface-2" />
   return (
-    <div className="flex flex-col gap-4 @lg:flex-row @lg:items-center @lg:gap-8">
-      <div className="@lg:w-64">
+    <Link to="/household/$householdId" params={{ householdId: h.id }} className="-m-1 flex flex-col gap-4 rounded-control p-1 hover:bg-surface-2/50 @lg:flex-row @lg:items-center @lg:gap-8">
+      <div className="@lg:w-56">
         <div className="text-sm text-muted">{h.name}</div>
-        <div className="mt-1 flex items-baseline gap-2"><span className="text-2xl font-semibold tracking-tight">{money(h.spent, { whole: true })}</span><span className="text-sm text-muted">of {money(h.budget, { whole: true })}</span></div>
-        <div className="mt-2"><Progress value={status.ratio} color={status.color} label="Household budget used" /></div>
+        <div className="mt-1 text-2xl font-semibold tracking-tight"><CountUp to={h.spent} format={(v) => money(v, { whole: true })} /></div>
+        <div className="text-xs text-subtle">spent together this month</div>
       </div>
       <ul className="flex flex-1 flex-col gap-2">
-        {h.members.map((m) => (
-          <li key={m.name} className="flex items-center gap-3">
-            <span className="flex size-8 items-center justify-center rounded-full bg-surface-3 text-xs font-semibold">{m.name[0]}</span>
-            <span className="min-w-0 flex-1 text-sm"><span className="font-medium">{m.name}</span>{m.dependent && <span className="ml-2 text-xs text-subtle">dependent</span>}</span>
-            <span className="tabular text-sm text-muted">{m.dependent ? '–' : `paid ${money(m.paid, { whole: true })}`}</span>
+        {h.contributions.map((c, i) => (
+          <li key={c.userId} className="grid grid-cols-[6rem_1fr_auto] items-center gap-2 text-xs">
+            <span className="truncate">{c.name}</span>
+            <span className="h-1.5 overflow-hidden rounded-full bg-surface-2">
+              <span className="block h-full origin-left animate-[grow-x_700ms_cubic-bezier(.2,.8,.2,1)] rounded-full" style={{ width: `${c.share * 100}%`, background: `var(--series-${(i % 8) + 1})` }} />
+            </span>
+            <span className="tabular text-muted">{money(c.spent, { whole: true })}</span>
           </li>
         ))}
       </ul>
-    </div>
+    </Link>
   )
 }
 
@@ -608,8 +623,10 @@ export const WIDGETS = {
   upcomingBills: { name: 'Upcoming bills', description: 'EMIs, card dues, SIPs, subscriptions.', icon: CalendarClock, defaultSize: 's', sample: true, component: UpcomingBills },
   groups: { name: 'Groups & balances', description: 'Who owes whom in your groups.', icon: Users, defaultSize: 'm', sample: true, component: Groups },
   goals: { name: 'Savings goals', description: 'Progress towards what you are saving for.', icon: Goal, defaultSize: 'm', sample: true, component: Goals },
-  household: { name: 'Household', description: 'The family budget and who paid what.', icon: Home, defaultSize: 'l', sample: true, component: Household },
+  household: { name: 'Household', description: 'The family budget and who paid what.', icon: Home, defaultSize: 'l', sample: false, component: Household },
   toReview: { name: 'To review', description: 'Bank alerts waiting to be added (Auto-capture).', icon: Inbox, defaultSize: 's', sample: false, component: ToReview },
+  moneyHealth: { name: 'Money health', description: 'A score from saving, cushion, card dues, budgets and balance, with what to do.', icon: HeartPulse, defaultSize: 'm', sample: false, component: MoneyHealth },
+  canIAfford: { name: 'Can I afford it?', description: 'Check a purchase or a new EMI against your plan and savings.', icon: Scale, defaultSize: 'm', sample: false, component: CanIAfford },
   netWorth: { name: 'Net worth', description: 'What you have minus what you owe, by kind of account.', icon: Landmark, defaultSize: 'm', sample: false, component: NetWorth },
   quickActions: { name: 'Quick actions', description: 'One tap to record or split.', icon: Zap, defaultSize: 'm', sample: false, component: QuickActions },
   note: { name: 'Note', description: 'A sticky note for reminders and plans.', icon: StickyNote, defaultSize: 's', sample: false, component: Note },

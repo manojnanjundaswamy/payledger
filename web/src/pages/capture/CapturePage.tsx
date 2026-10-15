@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { AccountPicker, CategoryPicker } from '@/pages/money/pickers'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Check, ChevronDown, Copy, ExternalLink, Inbox, Loader2, RefreshCw, ShieldCheck, Sparkles, X } from 'lucide-react'
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Check, ChevronDown, Copy, ExternalLink, FileUp, Inbox, Loader2, RefreshCw, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Skeleton } from '@/components/ui/card'
 import { Input, Segmented } from '@/components/ui/controls'
-import { SearchSelect } from '@/components/ui/search-select'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
-import { minorToInput, parseMoney } from '@/lib/money'
+import { formatMoneyWhole, minorToInput, parseMoney } from '@/lib/money'
 import { accountOptions, categoryOptions, dayLabel, today, useMoneyFormat } from '@/pages/money/parts'
-import { BANK_FILTER, useAddCaptured, useCapture, useDismissCaptured, usePaste, useResetAddress, type CaptureView, type CapturedItem } from '@/state/capture'
-import { useAccounts, useCategories } from '@/state/money'
+import { BANK_FILTER, useAddAll, useAddCaptured, useCapture, useStatement, useDismissCaptured, usePaste, useResetAddress, type CaptureView, type CapturedItem } from '@/state/capture'
+import { useAccounts, useCategories, usePersonalSpaceId } from '@/state/money'
 import { ForwardFlow, GmailSettings, MethodIcon, PhoneSms } from './illustrations'
 
-type Method = 'email' | 'paste' | 'share'
+type Method = 'email' | 'paste' | 'share' | 'statement'
 
 /**
  * Auto-capture: bank alerts come in without typing (forwarded emails, pasted or shared SMS) and wait here to be
@@ -64,15 +64,22 @@ export function CapturePage() {
       {isPending && <Skeleton className="h-48" />}
 
       {pending.length > 0 && <ReviewList items={pending} />}
-      {unreadable.length > 0 && <Unreadable items={unreadable} />}
+      {unreadable.length > 0 && (
+        <section className="flex flex-col gap-3" aria-label="Couldn't read">
+          <h2 className="text-base font-semibold">Couldn't read {unreadable.length === 1 ? 'this one' : 'these'}</h2>
+          <p className="-mt-2 text-sm text-muted">Fill one in once: alerts like it are read by themselves after that.</p>
+          {unreadable.map((i) => <ReviewCard key={i.id} item={i} />)}
+        </section>
+      )}
 
       <section className="flex flex-col gap-3" aria-label="Ways to bring entries in">
         <h2 className="text-base font-semibold">{pending.length ? 'Bring more in' : 'Set it up once'}</h2>
-        <div className="grid gap-2 sm:grid-cols-3" role="tablist">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" role="tablist">
           {([
             { key: 'email', title: 'Forward bank emails', text: 'Automatic, once set up. Best on a computer.', tag: 'Recommended' },
             { key: 'paste', title: 'Paste SMS', text: 'Copy one or many bank SMS and paste them here.' },
             { key: 'share', title: 'Share from Messages', text: 'Android: Share → PayLedger, after installing the app.' },
+            { key: 'statement', title: 'Bank statement', text: 'Months of history at once: CSV, Excel or PDF from net banking.' },
           ] as const).map((m) => (
             <button key={m.key} type="button" role="tab" aria-selected={method === m.key} onClick={() => setMethod(m.key)}
               className={cn('flex items-start gap-3 rounded-card border p-3 text-left transition-colors',
@@ -88,6 +95,7 @@ export function CapturePage() {
         {data && method === 'email' && <EmailGuide data={data} />}
         {method === 'paste' && <PasteBox />}
         {method === 'share' && <ShareGuide />}
+        {method === 'statement' && <StatementBox />}
       </section>
 
       {decided.length > 0 && (
@@ -98,6 +106,7 @@ export function CapturePage() {
               <div key={i.id} className="flex items-center gap-3 px-pad py-2 text-sm">
                 {i.status === 'ADDED' ? <Check className="size-4 text-good-text" /> : <X className="size-4 text-subtle" />}
                 <span className="min-w-0 flex-1 truncate">{i.merchant ?? i.bank ?? 'Bank alert'}</span>
+                {i.amount !== null && <span className={cn('tabular text-xs', i.kind === 'INCOME' ? 'text-[var(--flow-in)]' : 'text-muted')}>{i.kind === 'INCOME' ? '+' : '−'}{formatMoneyWhole(i.amount, 'INR', 'en-IN')}</span>}
                 {i.status === 'ADDED' && i.transactionId
                   ? <Link to="/transactions" search={{ open: i.transactionId }} className="text-xs underline underline-offset-4">Open</Link>
                   : <span className="text-xs text-subtle">dismissed</span>}
@@ -119,22 +128,14 @@ export function CapturePage() {
 // ---------------------------------------------------------------- review
 
 function ReviewList({ items }: { items: CapturedItem[] }) {
-  const add = useAddCaptured()
-  const [busy, setBusy] = useState(false)
+  const addAll = useAddAll()
+  const [shown, setShown] = useState(25)
   const ready = items.filter((i) => i.accountId && !i.duplicateOf)
+  const busy = addAll.isPending
 
-  async function addAll() {
-    setBusy(true)
-    let n = 0
-    for (const i of ready) {
-      try {
-        await add.mutateAsync({ id: i.id, kind: i.kind!, amount: i.amount!, accountId: i.accountId!, categoryId: i.categoryId,
-          occurredOn: i.occurredOn ?? today(), description: i.merchant ?? i.bank ?? 'From a bank alert' })
-        n++
-      } catch { /* left in the list for a closer look */ }
-    }
-    setBusy(false)
-    toast.success(`${n} added`, { description: n < ready.length ? 'The rest need a look.' : undefined })
+  async function addReady() {
+    const r = await addAll.mutateAsync(ready.map((i) => i.id))
+    toast.success(`${r.added} added`, { description: r.skipped ? `${r.skipped} need a closer look.` : 'All in your accounts now.' })
   }
 
   return (
@@ -142,21 +143,25 @@ function ReviewList({ items }: { items: CapturedItem[] }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-base font-semibold"><Inbox className="size-5 text-accent" />To review</h2>
         {ready.length > 1 && (
-          <Button size="sm" variant="primary" onClick={() => void addAll()} disabled={busy}>
+          <Button size="sm" variant="primary" onClick={() => void addReady()} disabled={busy}>
             {busy ? <Loader2 className="animate-spin" /> : <Check />}Add all {ready.length} that look right
           </Button>
         )}
       </div>
       <div className="flex flex-col gap-3">
-        {items.map((i) => <ReviewCard key={i.id} item={i} />)}
+        {items.slice(0, shown).map((i) => <ReviewCard key={i.id} item={i} />)}
       </div>
+      {items.length > shown && (
+        <Button variant="ghost" className="self-center" onClick={() => setShown(shown + 25)}>Show {Math.min(25, items.length - shown)} more of {items.length - shown}</Button>
+      )}
     </section>
   )
 }
 
 function ReviewCard({ item }: { item: CapturedItem }) {
-  const { data: accounts } = useAccounts()
-  const { data: categories } = useCategories()
+  const personalSpace = usePersonalSpaceId()
+  const { data: accounts } = useAccounts(false, personalSpace)
+  const { data: categories } = useCategories(personalSpace)
   const add = useAddCaptured()
   const dismiss = useDismissCaptured()
   const money = useMoneyFormat()
@@ -166,7 +171,10 @@ function ReviewCard({ item }: { item: CapturedItem }) {
   const [date, setDate] = useState(item.occurredOn ?? today())
   const [account, setAccount] = useState(item.accountId ?? '')
   const [category, setCategory] = useState(item.categoryId ?? '')
-  const [open, setOpen] = useState(false)
+  // "NEHA SHARMA sent you 1,500": the sender is who it was with.
+  const [person, setPerson] = useState(item.kind === 'INCOME' ? item.merchant ?? '' : '')
+  // An unread message shows its text at once: it's what you fill the form from.
+  const [open, setOpen] = useState(item.status === 'UNREADABLE')
   const [error, setError] = useState<string>()
   const payable = (accounts ?? []).filter((a) => a.kind !== 'OWED' && !a.archived)
   const choices = useMemo(() => (categories ?? []).filter((c) => c.kind === kind && !c.hidden), [categories, kind])
@@ -178,9 +186,12 @@ function ReviewCard({ item }: { item: CapturedItem }) {
     if (value === null || value <= 0) return setError('Check the amount.')
     if (!account) return setError('Which account was it?')
     try {
-      await add.mutateAsync({ id: item.id, kind, amount: value, accountId: account, categoryId: category || null, occurredOn: date,
-        description: description.trim() || (out ? 'Spent' : 'Received') })
-      toast.success(`${description || 'Entry'} added`)
+      const saved = await add.mutateAsync({ id: item.id, kind, amount: value, accountId: account, categoryId: category || null, occurredOn: date,
+        description: description.trim() || (out ? 'Spent' : 'Received'), counterparty: person.trim() || null })
+      toast.success(`${description || 'Entry'} added`, {
+        description: saved.learned === 'pattern' ? 'Learned: alerts like this one are read by themselves from now on.'
+          : saved.learned === 'name' ? `Learned: it'll be called ${description.trim()} next time.` : undefined,
+      })
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not add it. Try again.')
     }
@@ -193,16 +204,26 @@ function ReviewCard({ item }: { item: CapturedItem }) {
           {out ? <ArrowUpRight className="size-5" /> : <ArrowDownLeft className="size-5" />}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{item.merchant ?? 'Someone'}</span>
+          <span className="block truncate font-medium">{item.merchant ?? (item.status === 'UNREADABLE' ? 'A message to fill in' : 'Someone')}</span>
           <span className="block truncate text-xs text-subtle">
-            {[item.bank, item.accountHint && `••${item.accountHint}`, item.occurredOn && dayLabel(item.occurredOn), item.source === 'EMAIL' ? 'email' : 'SMS'].filter(Boolean).join(' · ')}
+            {[item.bank, item.accountHint && `••${item.accountHint}`, item.occurredOn && dayLabel(item.occurredOn),
+              item.source === 'EMAIL' ? 'email' : item.source === 'STATEMENT' ? 'statement' : 'SMS'].filter(Boolean).join(' · ')}
           </span>
         </span>
         <span className={cn('shrink-0 text-lg font-semibold tabular', out ? 'text-[var(--flow-out)]' : 'text-[var(--flow-in)]')}>
-          {out ? '−' : '+'}{money(item.amount ?? 0)}
+          {item.amount === null ? '' : `${out ? '−' : '+'}${money(item.amount)}`}
         </span>
       </div>
 
+      {item.status === 'UNREADABLE' && (
+        <p className="flex items-start gap-2 rounded-control bg-surface-2 px-3 py-2 text-xs text-muted">
+          <Sparkles className="mt-0.5 size-3.5 shrink-0 text-accent" />
+          <span><b className="text-fg">Teach it this one.</b> Fill in the amount and who it was with; next time an alert like it comes, it's read for you.</span>
+        </p>
+      )}
+      {item.readBy === 'LEARNED' && (
+        <p className="flex items-center gap-1.5 text-xs text-subtle"><Sparkles className="size-3.5 text-accent" />Read with what you taught it.</p>
+      )}
       {item.duplicateOf && (
         <p className="flex flex-wrap items-center gap-2 rounded-control bg-warning/10 px-3 py-2 text-xs">
           <AlertTriangle className="size-3.5 shrink-0 text-warning" />
@@ -215,11 +236,13 @@ function ReviewCard({ item }: { item: CapturedItem }) {
         <Segmented label="Spent or received" value={kind} onChange={(k) => { setKind(k); setCategory('') }} className="w-full"
           options={[{ value: 'EXPENSE', label: 'Spent' }, { value: 'INCOME', label: 'Received' }]} />
         <Input aria-label="Description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={120} placeholder="Who or what" />
-        <SearchSelect aria-label="Account" value={account} onChange={setAccount} options={accountOptions(payable)} placeholder="Which account?" />
-        <SearchSelect aria-label="Category" value={category} onChange={setCategory} options={categoryOptions(choices, categories ?? [])}
+        <AccountPicker space={personalSpace} aria-label="Account" value={account} onChange={setAccount} options={accountOptions(payable)} placeholder="Which account?" />
+        <CategoryPicker space={personalSpace} kind={kind} aria-label="Category" value={category} onChange={setCategory} options={categoryOptions(choices, categories ?? [])}
           placeholder="Category (else Other)" />
         <Input aria-label="Amount" inputMode="decimal" className="tabular" value={amount} onChange={(e) => setAmount(e.target.value)} />
         <Input aria-label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <Input aria-label={out ? 'Paid to' : 'From whom'} value={person} onChange={(e) => setPerson(e.target.value)} maxLength={80}
+          placeholder={out ? 'Paid to (optional)' : 'From whom (optional)'} className="sm:col-span-2" />
       </div>
       {item.categorySource && category === item.categoryId && (
         <p className="flex items-center gap-1.5 text-xs text-subtle"><Sparkles className="size-3.5" />Category guessed from {item.categorySource === 'RULE' ? 'your rule' : 'what you chose before'}.</p>
@@ -239,26 +262,6 @@ function ReviewCard({ item }: { item: CapturedItem }) {
       </div>
       {open && item.body && <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-control bg-surface-2 p-3 text-xs text-muted">{item.subject ? `${item.subject}\n\n` : ''}{item.body}</pre>}
     </Card>
-  )
-}
-
-function Unreadable({ items }: { items: CapturedItem[] }) {
-  const dismiss = useDismissCaptured()
-  return (
-    <section className="flex flex-col gap-2" aria-label="Couldn't read">
-      <h2 className="text-sm font-medium text-muted">Couldn't read these</h2>
-      <Card className="divide-y divide-border">
-        {items.map((i) => (
-          <div key={i.id} className="flex flex-col gap-2 px-pad py-3">
-            <p className="line-clamp-3 text-xs text-muted">{i.subject ?? i.body}</p>
-            <span className="flex gap-2 self-end">
-              <Button size="sm" variant="ghost" onClick={() => dismiss.mutate(i.id)}>Dismiss</Button>
-              <Link to="/transactions" search={{ add: 'EXPENSE' }}><Button size="sm" variant="outline">Add by hand</Button></Link>
-            </span>
-          </div>
-        ))}
-      </Card>
-    </section>
   )
 }
 
@@ -403,6 +406,96 @@ function ShareGuide() {
         <p className="flex items-center gap-2 text-xs text-subtle"><RefreshCw className="size-3.5" />iPhone can't share SMS to web apps: use Paste SMS, or forward bank emails.</p>
       </ol>
       <PhoneSms share className="mx-auto" />
+    </Card>
+  )
+}
+
+/** A statement file from net banking: every row goes into To review, from the account chosen here. */
+function StatementBox() {
+  const statement = useStatement()
+  const personalSpace = usePersonalSpaceId()
+  const { data: accounts } = useAccounts(false, personalSpace)
+  const money = useMoneyFormat()
+  const [file, setFile] = useState<File | null>(null)
+  const [account, setAccount] = useState('')
+  const [password, setPassword] = useState('')
+  const [drag, setDrag] = useState(false)
+  const [error, setError] = useState<string>()
+  const [needsPassword, setNeedsPassword] = useState(false)
+  const result = statement.data
+  const payable = (accounts ?? []).filter((a) => a.kind !== 'OWED' && !a.archived)
+  const pdf = !!file && file.name.toLowerCase().endsWith('.pdf')
+
+  function pick(f: File | undefined) {
+    if (!f) return
+    setFile(f)
+    setError(undefined)
+    setNeedsPassword(false)
+    statement.reset()
+  }
+
+  async function read() {
+    if (!file || !account) return
+    setError(undefined)
+    try {
+      const r = await statement.mutateAsync({ file, accountId: account, password: password || undefined })
+      toast.success(r.added ? `${r.added} entries to review` : 'Nothing new', { description: r.duplicates ? `${r.duplicates} were here already.` : undefined })
+      setPassword('')
+    } catch (e) {
+      if (e instanceof ApiError && (e.code === 'statement-password' || e.code === 'statement-wrong-password')) setNeedsPassword(true)
+      setError(e instanceof ApiError ? e.message : "Couldn't read it. Try the CSV or Excel download.")
+    }
+  }
+
+  return (
+    <Card className="flex flex-col gap-5 p-pad">
+      <div className="grid gap-5 md:grid-cols-[1fr_15rem]">
+        <div className="flex flex-col gap-3">
+          <label onDragOver={(e) => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)}
+            onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files[0]) }}
+            className={cn('flex cursor-pointer flex-col items-center gap-2 rounded-card border-2 border-dashed p-6 text-center transition-colors',
+              drag ? 'border-accent bg-accent-soft/50' : 'border-border-strong hover:border-accent')}>
+            <FileUp className="size-8 text-accent" />
+            {file ? <span className="text-sm font-medium">{file.name} <span className="text-subtle">({Math.max(1, Math.round(file.size / 1024))} KB)</span></span>
+              : <span className="text-sm"><b>Drop the statement here</b> or choose it</span>}
+            <span className="text-xs text-subtle">CSV, Excel (.xls, .xlsx) or PDF · up to 5 MB</span>
+            <input type="file" accept=".csv,.txt,.xls,.xlsx,.pdf" className="sr-only" aria-label="Statement file" onChange={(e) => pick(e.target.files?.[0])} />
+          </label>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <AccountPicker space={personalSpace} aria-label="Statement account" value={account} onChange={setAccount} options={accountOptions(payable)} placeholder="Which account is it for?" />
+            {(pdf || needsPassword) && (
+              <Input type="password" aria-label="PDF password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off"
+                placeholder="PDF password, if it has one" />
+            )}
+          </div>
+          {pdf && <p className="text-xs text-subtle">Banks often protect PDFs with your date of birth or part of your customer id. The password is used once to open the file and never kept.</p>}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="primary" onClick={() => void read()} disabled={!file || !account || statement.isPending}>
+              {statement.isPending ? <Loader2 className="animate-spin" /> : <Sparkles />}Read the statement
+            </Button>
+            {payable.length === 0 && <Link to="/accounts" className="text-xs underline underline-offset-4">Add the account first</Link>}
+          </div>
+          {error && <p className="rounded-control bg-critical/10 px-3 py-2 text-sm text-critical" role="alert">{error}</p>}
+          {result && (
+            <div className="flex flex-col gap-1 rounded-control bg-surface-2 p-3 text-sm" data-testid="statement-result">
+              <span className="font-medium">{result.bank ?? 'Statement'} · {dayLabel(result.from)} to {dayLabel(result.to)}</span>
+              <span className="text-muted">{result.rows} rows: <b className="text-fg">{result.added} new</b> to review{result.duplicates ? `, ${result.duplicates} already here` : ''}.</span>
+              {result.adds === true && <span className="flex items-center gap-1.5 text-good-text"><Check className="size-4" />Balances add up: {money(result.opening ?? 0)} to {money(result.closing ?? 0)}.</span>}
+              {result.adds === false && <span className="flex items-center gap-1.5 text-warning"><AlertTriangle className="size-4" />The balances don't add up: some rows may be missing. Check the file covers the whole period.</span>}
+            </div>
+          )}
+        </div>
+        <div className="flex flex-col gap-2 rounded-control bg-surface-2 p-3 text-sm">
+          <span className="font-medium">Where to get it</span>
+          <ol className="list-decimal space-y-1 pl-4 text-xs text-muted">
+            <li>Sign in to your bank's net banking on a computer.</li>
+            <li>Open the account, then <b className="text-fg">Account statement</b> (or "Download statement").</li>
+            <li>Choose the period, up to a year.</li>
+            <li>Download as <b className="text-fg">Excel or CSV</b> if offered (most reliable), else PDF.</li>
+          </ol>
+          <span className="text-xs text-subtle">Works with HDFC, ICICI, SBI, Axis, Kotak and most others. Every row waits for your check; the same file twice adds nothing.</span>
+        </div>
+      </div>
     </Card>
   )
 }

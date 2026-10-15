@@ -13,7 +13,8 @@
 # Data lives in each project's own Docker volumes; "down" keeps it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-REPO=$(pwd)
+# Windows (Git Bash): a path Docker understands (D:/…), not /d/….
+REPO=$(pwd -W 2>/dev/null || pwd)
 export MSYS_NO_PATHCONV=1
 
 ENV=${1:?staging or production}
@@ -68,7 +69,7 @@ case "$CMD" in
   logs) compose logs -f --tail 100 "$@" ;;
   e2e)
     [ "$ENV" = staging ] || { echo "browser tests run against staging only" >&2; exit 2; }
-    (cd web && WEB_URL="$WEB_URL" npx playwright test "$@") ;;
+    (cd web && WEB_URL="$WEB_URL" MAILPIT_URL="http://localhost:${MAILPIT_PORT:-8025}" npx playwright test "$@") ;;
   clean)
     [ "$ENV" = staging ] || { echo "clean runs against staging only (production keeps real people's data)" >&2; exit 2; }
     (cd web && WEB_URL="$WEB_URL" CLEANUP=1 npx playwright test cleanup.spec.ts --project=desktop --reporter=line)

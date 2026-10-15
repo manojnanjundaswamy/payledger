@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/card'
 import { DashboardPage } from '@/dashboard/DashboardPage'
 import { AppShell } from '@/layout/AppShell'
-import { ComingSoon, COMING } from '@/pages/ComingSoon'
 import { ADMIN_TABS_KEYS } from '@/pages/admin/tabs'
 import { TOOL_IDS } from '@/utilities/registry'
 import { SETTINGS_TAB_KEYS } from '@/pages/settings/tabs'
@@ -25,6 +24,23 @@ const landing = createRoute({
   component: lazyRouteComponent(() => import('@/pages/Landing'), 'Landing'),
 })
 
+/** Guests (no account): a join link, then their groups. Outside the app shell; their own session cookie. */
+const guestJoin = createRoute({
+  getParentRoute: () => root,
+  path: '/guest/join/$token',
+  beforeLoad: async ({ context, params }) => {
+    const session = await context.queryClient.ensureQueryData(sessionQuery)
+    if (session.authenticated) throw redirect({ to: '/join/$token', params: { token: params.token } })
+  },
+  component: lazyRouteComponent(() => import('@/pages/guest/GuestJoinPage'), 'GuestJoinPage'),
+})
+
+const guestGroup = createRoute({
+  getParentRoute: () => root,
+  path: '/guest/groups/$groupId',
+  component: lazyRouteComponent(() => import('@/pages/guest/GuestGroupPage'), 'GuestGroupPage'),
+})
+
 /** Everything behind sign-in. Loads the profile once; preferences come with it. */
 const app = createRoute({
   getParentRoute: () => root,
@@ -32,8 +48,8 @@ const app = createRoute({
   beforeLoad: async ({ context, location }) => {
     const session = await context.queryClient.ensureQueryData(sessionQuery)
     if (!session.authenticated) {
-      // An invite link opened while signed out: come back to it after signing in.
-      if (location.pathname.startsWith('/join/')) remember(location.pathname)
+      // An invite link opened while signed out: sign in (and come back to it), or join as a guest.
+      if (location.pathname.startsWith('/join/')) throw redirect({ to: '/guest/join/$token', params: { token: location.pathname.slice('/join/'.length) } })
       throw redirect({ to: '/' })
     }
     const after = recall()
@@ -48,10 +64,7 @@ const app = createRoute({
 
 const AFTER_SIGN_IN = 'after-sign-in'
 
-function remember(path: string) {
-  try { sessionStorage.setItem(AFTER_SIGN_IN, path) } catch { /* storage blocked: the link just needs opening again */ }
-}
-
+// Written by the guest join page (GuestJoinPage) when someone chooses to sign in from a join link.
 /** The page to return to after signing in, once. */
 function recall(): string | null {
   try {
@@ -137,6 +150,12 @@ const goals = createRoute({
   component: lazyRouteComponent(() => import('@/pages/money/GoalsPage'), 'GoalsPage'),
 })
 
+const dailyServices = createRoute({
+  getParentRoute: () => app,
+  path: '/daily-services',
+  component: lazyRouteComponent(() => import('@/pages/money/DailyServicesPage'), 'DailyServicesPage'),
+})
+
 const plan = createRoute({
   getParentRoute: () => app,
   path: '/plan',
@@ -183,7 +202,7 @@ const capture = createRoute({
   // Android's share sheet opens /capture?title=…&text=… (the manifest's share_target).
   validateSearch: z.object({
     text: z.string().max(20_000).optional().catch(undefined), title: z.string().max(500).optional().catch(undefined),
-    method: z.enum(['email', 'paste', 'share']).optional().catch(undefined),
+    method: z.enum(['email', 'paste', 'share', 'statement']).optional().catch(undefined),
   }),
   component: lazyRouteComponent(() => import('@/pages/capture/CapturePage'), 'CapturePage'),
 })
@@ -192,6 +211,25 @@ const tax = createRoute({
   getParentRoute: () => app,
   path: '/tax',
   component: lazyRouteComponent(() => import('@/pages/money/TaxPage'), 'TaxPage'),
+})
+
+const households = createRoute({
+  getParentRoute: () => app,
+  path: '/household',
+  component: lazyRouteComponent(() => import('@/pages/household/HouseholdPage'), 'HouseholdsPage'),
+})
+
+const householdJoin = createRoute({
+  getParentRoute: () => app,
+  path: '/household/join',
+  validateSearch: z.object({ token: z.string().max(200).optional().catch(undefined) }),
+  component: lazyRouteComponent(() => import('@/pages/household/HouseholdPage'), 'JoinHouseholdPage'),
+})
+
+const household = createRoute({
+  getParentRoute: () => app,
+  path: '/household/$householdId',
+  component: lazyRouteComponent(() => import('@/pages/household/HouseholdPage'), 'HouseholdDetail'),
 })
 
 const people = createRoute({
@@ -237,6 +275,7 @@ const transactions = createRoute({
     max: z.coerce.number().nonnegative().optional().catch(undefined),
     tag: z.string().max(40).optional().catch(undefined),
     goal: z.string().uuid().optional().catch(undefined),
+    person: z.string().max(80).optional().catch(undefined),
     view: z.enum(['list', 'calendar']).optional().catch(undefined),
     month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional().catch(undefined),
   }),
@@ -267,10 +306,7 @@ const utilities = createRoute({
   component: lazyRouteComponent(() => import('@/pages/UtilitiesPage'), 'UtilitiesPage'),
 })
 
-const comingSoon = (Object.keys(COMING) as (keyof typeof COMING)[]).map((page) =>
-  createRoute({ getParentRoute: () => app, path: `/${page}`, component: () => <ComingSoon page={page} /> }))
-
-const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, categories, budgets, plan, goals, importPage, reports, groups, group, people, tax, capture, join, transactions, admin, welcome, utilities, ...comingSoon])])
+const routeTree = root.addChildren([landing, guestJoin, guestGroup, app.addChildren([dashboard, dailyServices, settings, accounts, categories, budgets, plan, goals, importPage, reports, groups, group, people, tax, capture, households, householdJoin, household, join, transactions, admin, welcome, utilities])])
 
 export function createAppRouter(queryClient: QueryClient) {
   return createRouter({

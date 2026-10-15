@@ -66,6 +66,32 @@ class Routes {
         }
     }
 
+    /**
+     * Guests (no account) in a group: no session and no token to relay. Only their own guest cookie goes on; the
+     * gateway's session and CSRF cookies stay here (CSRF is still checked here, as for every route).
+     */
+    @Bean
+    RouterFunction<ServerResponse> guests(GatewayProperties props) {
+        return route("guests")
+                .route(path("/api/guest/**"), http())
+                .before(uri(props.coreServiceUrl()))
+                .before(Routes::onlyGuestCookie)
+                .before(removeRequestHeader("X-XSRF-TOKEN"))
+                .onError(ResourceAccessException.class, Routes::coreServiceUnavailable)
+                .build();
+    }
+
+    static ServerRequest onlyGuestCookie(ServerRequest request) {
+        String guest = request.cookies().getOrDefault("pl_guest", java.util.List.of()).stream().findFirst()
+                .map(c -> "pl_guest=" + c.getValue()).orElse(null);
+        return ServerRequest.from(request).headers(h -> {
+            h.remove(org.springframework.http.HttpHeaders.COOKIE);
+            if (guest != null) {
+                h.set(org.springframework.http.HttpHeaders.COOKIE, guest);
+            }
+        }).build();
+    }
+
     /** The Email Worker's door to core-service: no session and no token to relay; the shared secret is checked there. */
     @Bean
     RouterFunction<ServerResponse> inboundEmail(GatewayProperties props) {

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { AccountPicker } from '@/pages/money/pickers'
 import { Link } from '@tanstack/react-router'
 import { Archive, ArchiveRestore, ArrowLeftRight, CalendarClock, CalendarDays, Goal as GoalIcon, Landmark, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -6,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Badge, Card, Skeleton } from '@/components/ui/card'
 import { Input, Segmented, Switch } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/overlay'
-import { SearchSelect } from '@/components/ui/search-select'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatMoneyWhole, minorToInput, parseMoney } from '@/lib/money'
@@ -245,7 +245,7 @@ function GoalDialog({ open, onOpenChange, goal }: { open: boolean; onOpenChange:
           <Segmented label="Count what's saved from" value={track} onChange={setTrack} className="self-start"
             options={[{ value: 'manual', label: 'Money I add here' }, { value: 'account', label: 'An account' }]} />
           {track === 'account' && (
-            <SearchSelect aria-label="Account" value={accountId} onChange={setAccountId} options={accountOptions(accounts)} placeholder="The account you save it in" />
+            <AccountPicker aria-label="Account" value={accountId} onChange={setAccountId} options={accountOptions(accounts)} placeholder="The account you save it in" />
           )}
           <p className="text-xs text-subtle">{track === 'account' ? 'Its balance is what you have saved: an RD or a savings account kept for this.' : 'Add money to the goal whenever you put some aside.'}</p>
         </div>

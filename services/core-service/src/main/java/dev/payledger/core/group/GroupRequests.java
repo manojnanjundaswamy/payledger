@@ -17,7 +17,11 @@ final class GroupRequests {
 
     /** Every field is optional; archiving is for the owner. */
     record Update(@Size(min = 1, max = 60) @Pattern(regexp = ".*\\S.*", message = "must not be blank") String name,
-                  @Size(max = 16) String emoji, Boolean archived) {
+                  @Size(max = 16) String emoji, Boolean archived, Boolean linkOpen, Boolean guestsAllowed, Boolean ownEditsOnly) {
+
+        Update(String name, String emoji, Boolean archived) {
+            this(name, emoji, archived, null, null, null);
+        }
     }
 
     record AddMember(@NotBlank @Size(max = 60) String name, @Email @Size(max = 254) String email) {

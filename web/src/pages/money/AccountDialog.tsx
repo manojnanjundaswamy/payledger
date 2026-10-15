@@ -9,12 +9,18 @@ import { useCreateAccount, useUpdateAccount, type Account, type AccountKind } fr
 import { ACCOUNT_KINDS, Field, today, NEW_ACCOUNT_KINDS } from './parts'
 
 /** Add an account, or rename it, change its opening balance, archive it. */
-export function AccountDialog({ open, onOpenChange, account }: {
+export function AccountDialog({ open, onOpenChange, account, initialName, space, onCreated }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   account?: Account
+  /** "Add new" from a dropdown: what was typed there. */
+  initialName?: string
+  /** Where a new account goes, if not the space on screen (personal-only pickers). */
+  space?: string
+  /** A new account was made: the dropdown that asked for it selects it. */
+  onCreated?: (account: Account) => void
 }) {
-  const create = useCreateAccount()
+  const create = useCreateAccount(space)
   const update = useUpdateAccount()
   const [kind, setKind] = useState<AccountKind>('BANK')
   const [name, setName] = useState('')
@@ -25,7 +31,7 @@ export function AccountDialog({ open, onOpenChange, account }: {
   useEffect(() => {
     if (!open) return
     setKind(account?.kind ?? 'BANK')
-    setName(account?.name ?? '')
+    setName(account?.name ?? initialName ?? '')
     setOpening(account ? minorToInput(account.openingBalance, account.currency) : '')
     setOpeningDate(account?.openingDate ?? today())
     setError(undefined)
@@ -44,8 +50,9 @@ export function AccountDialog({ open, onOpenChange, account }: {
         await update.mutateAsync({ id: account.id, name: name.trim(), openingBalance, openingDate })
         toast.success('Saved')
       } else {
-        await create.mutateAsync({ kind, name: name.trim(), openingBalance, openingDate })
+        const made = await create.mutateAsync({ kind, name: name.trim(), openingBalance, openingDate })
         toast.success(`${name.trim()} added`)
+        onCreated?.(made)
       }
       onOpenChange(false)
     } catch (err) {

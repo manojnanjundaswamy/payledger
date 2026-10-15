@@ -43,7 +43,7 @@ public class TransactionService {
     static final int MAX_PAGE = 200;
     private static final String COLUMNS = """
             id, kind, amount, currency, account_id, to_account_id, category_id, occurred_on, description, note, tags,
-            version, ledger_version, space_id, deleted_at is not null as deleted, created_at, updated_at, goal_id
+            version, ledger_version, space_id, deleted_at is not null as deleted, created_at, updated_at, goal_id, counterparty
             """;
 
     private final JdbcClient jdbc;
@@ -137,9 +137,9 @@ public class TransactionService {
         UUID id = request.id() != null ? request.id() : Uuid7.next();
         int inserted = jdbc.sql("""
                         insert into transactions (id, space_id, kind, amount, currency, account_id, to_account_id, category_id,
-                                                  occurred_on, description, note, tags, created_by, goal_id)
+                                                  occurred_on, description, note, tags, created_by, goal_id, counterparty)
                         values (:id, :spaceId, :kind, :amount, :currency, :accountId, :toAccountId, :categoryId,
-                                :occurredOn, :description, :note, :tags, :userId, :goalId)
+                                :occurredOn, :description, :note, :tags, :userId, :goalId, :counterparty)
                         on conflict (id) do nothing
                         """)
                 .param("id", id).param("spaceId", spaceId)
@@ -168,9 +168,9 @@ public class TransactionService {
         Resolved r = new Resolved(f, from, to, category);
         jdbc.sql("""
                         insert into transactions (id, space_id, kind, amount, currency, account_id, to_account_id, category_id,
-                                                  occurred_on, description, note, tags, created_by, import_id, external_id, goal_id)
+                                                  occurred_on, description, note, tags, created_by, import_id, external_id, goal_id, counterparty)
                         values (:id, :spaceId, :kind, :amount, :currency, :accountId, :toAccountId, :categoryId,
-                                :occurredOn, :description, :note, :tags, :userId, :importId, :externalId, :goalId)
+                                :occurredOn, :description, :note, :tags, :userId, :importId, :externalId, :goalId, :counterparty)
                         """)
                 .param("id", id).param("spaceId", space.id())
                 .params(r.params())
@@ -193,7 +193,7 @@ public class TransactionService {
                         update transactions set
                             kind = :kind, amount = :amount, currency = :currency, account_id = :accountId,
                             to_account_id = :toAccountId, category_id = :categoryId, occurred_on = :occurredOn,
-                            description = :description, note = :note, tags = :tags, goal_id = :goalId,
+                            description = :description, note = :note, tags = :tags, goal_id = :goalId, counterparty = :counterparty,
                             version = :version, ledger_version = :ledgerVersion, updated_at = now()
                         where id = :id
                         """)
@@ -335,6 +335,7 @@ public class TransactionService {
             p.put("description", fields.description().strip());
             p.put("note", fields.note() == null || fields.note().isBlank() ? null : fields.note().strip());
             p.put("goalId", fields.goalId());
+            p.put("counterparty", fields.counterparty() == null || fields.counterparty().isBlank() ? null : fields.counterparty().strip());
             p.put("tags", fields.tags() == null ? new String[0]
                     : fields.tags().stream().map(String::strip).distinct().toArray(String[]::new));
             return p;
@@ -350,7 +351,7 @@ public class TransactionService {
             rs.getObject("category_id", UUID.class), rs.getObject("occurred_on", LocalDate.class),
             rs.getString("description"), rs.getString("note"), tags(rs), rs.getInt("version"),
             rs.getObject("created_at", OffsetDateTime.class).toInstant(),
-            rs.getObject("updated_at", OffsetDateTime.class).toInstant(), rs.getObject("goal_id", UUID.class)),
+            rs.getObject("updated_at", OffsetDateTime.class).toInstant(), rs.getObject("goal_id", UUID.class), rs.getString("counterparty")),
             rs.getInt("ledger_version"), rs.getObject("space_id", UUID.class), rs.getBoolean("deleted"));
 
     private static List<String> tags(ResultSet rs) throws SQLException {

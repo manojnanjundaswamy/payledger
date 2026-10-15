@@ -32,6 +32,7 @@ test('entering a bill’s expense yourself marks it paid, and a suggestion links
   const row = page.getByTestId(`due-${bill}`)
   await expect(row.getByText('Paid', { exact: true }).first()).toBeVisible()
   await row.getByRole('button', { name: `Unlink the payment of ${bill}` }).click()
+  await page.getByRole('button', { name: /Wrong transaction/ }).click()
   await expect(row.getByRole('button', { name: 'Mark paid' })).toBeVisible()
 
   // Unlinked, it's suggested; one tap links it again.
@@ -41,7 +42,14 @@ test('entering a bill’s expense yourself marks it paid, and a suggestion links
   await expect(row.getByText('Paid', { exact: true }).first()).toBeVisible()
   await row.getByRole('link', { name: `Open the payment of ${bill}` }).click()
   await expect(page.getByRole('dialog', { name: 'Edit expense' }).getByLabel('Description')).toHaveValue(`LIC premium ${run}`)
-
+  await page.goto('/plan')
+  // Paid by mistake: unlink and delete the expense; nothing is left to suggest.
+  await row.getByRole('button', { name: `Unlink the payment of ${bill}` }).click()
+  await page.getByRole('button', { name: /Not paid: unlink and delete/ }).click()
+  await expect(row.getByRole('button', { name: 'Mark paid' })).toBeVisible()
+  await expect(suggestion).toBeHidden()
+  const remaining = await callApi<{ items: { description: string }[] }>(page, 'GET', `${base}/transactions?accountId=${account.id}`)
+  expect(remaining.items.map((t) => t.description)).not.toContain(`LIC premium ${run}`)
   // Clean up.
   await callApi(page, 'DELETE', `${base}/commitments/${commitment.id}`)
   const left = await callApi<{ items: { id: string; version: number }[] }>(page, 'GET', `${base}/transactions?accountId=${account.id}`)

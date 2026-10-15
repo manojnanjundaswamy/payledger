@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { AccountPicker } from '@/pages/money/pickers'
 import { Link } from '@tanstack/react-router'
 import { CalendarClock, ChevronDown, HandCoins, IndianRupee, MessageCircle, Search, UserRoundPlus } from 'lucide-react'
 import { toast } from 'sonner'
@@ -14,7 +15,7 @@ import { upiPayLink } from '@/lib/upi'
 import { uuid7 } from '@/lib/uuid'
 import { whatsAppShare } from '@/lib/whatsapp'
 import { Field, accountOptions, dayLabel, today } from '@/pages/money/parts'
-import { useAccounts, useGroupBudget } from '@/state/money'
+import { useAccounts, useGroupBudget, usePersonalSpaceId } from '@/state/money'
 import { useLend, usePeople, type Person } from '@/state/people'
 import { useProfile } from '@/state/profile'
 
@@ -149,6 +150,7 @@ function PersonRow({ person: p, open, onToggle, money, myUpi, myName, onLend }: 
                 <Button size="sm"><MessageCircle />Remind on WhatsApp</Button>
               </a>
             )}
+            <Link to="/transactions" search={{ person: p.name }}><Button size="sm" variant="ghost">Their entries</Button></Link>
             <Button size="sm" variant="ghost" onClick={() => onLend('LENT')}>Lend</Button>
             <Button size="sm" variant="ghost" onClick={() => onLend('BORROWED')}>Borrow</Button>
           </div>
@@ -172,7 +174,8 @@ function LoanDialog({ open, onOpenChange, person, direction: initial, people }: 
   const [note, setNote] = useState('')
   const [account, setAccount] = useState('')
   const [error, setError] = useState<string>()
-  const { data: accounts } = useAccounts()
+  const personalSpace = usePersonalSpaceId()
+  const { data: accounts } = useAccounts(false, personalSpace)
   const { data: book } = useGroupBudget()
   const payable = (accounts ?? []).filter((a) => a.kind !== 'OWED' && !a.archived)
   const known = people.some((p) => p.key === who)
@@ -222,7 +225,7 @@ function LoanDialog({ open, onOpenChange, person, direction: initial, people }: 
         </Field>
         {book?.enabled && payable.length > 0 && (
           <Field label={direction === 'LENT' ? 'Paid from' : 'Received in'} htmlFor="loan-account">
-            <SearchSelect id="loan-account" value={account} onChange={setAccount} options={[{ value: '', label: 'My usual account' }, ...accountOptions(payable)]} />
+            <AccountPicker space={personalSpace} id="loan-account" value={account} onChange={setAccount} options={[{ value: '', label: 'My usual account' }, ...accountOptions(payable)]} />
           </Field>
         )}
         <Field label="Note (optional)" htmlFor="loan-note"><Input id="loan-note" maxLength={120} placeholder="For the deposit" value={note} onChange={(e) => setNote(e.target.value)} /></Field>

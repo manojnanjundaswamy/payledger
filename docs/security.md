@@ -56,6 +56,12 @@ this before adding an endpoint.
   - sessions end after 30 days idle
   - access tokens live 5 minutes
 - **Errors are RFC 9457 problems with a stable code.** No stack traces reach the browser.
+- **Guests (no account) in a group** (`GuestService`, `/api/guest/**`):
+  - they prove their email with a 6-digit code: 10 minutes, 5 tries, 5 codes an hour per email; only hashes are kept
+  - the session is a random token in an httpOnly, SameSite=Lax cookie (Secure when hosted) on `/api/guest` only, 30 days, stored as a hash
+  - it reaches only groups where that email is a member without an account; other ids answer 404, like a stranger's
+  - guests change only what they added (`not-yours`); people with an account sign in instead (`has-account`)
+  - the gateway passes only that cookie on, never its own session, and still checks CSRF
 
 ## Before going live (gaps)
 

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowRight, ChevronLeft, ChevronRight, HandCoins, IndianRupee, MessageCircle, Pencil, Plus, Receipt, Search } from 'lucide-react'
+import { AccountPicker } from '@/pages/money/pickers'
+import { ArrowRight, MessageSquare, ChevronLeft, ChevronRight, HandCoins, IndianRupee, MessageCircle, Pencil, Plus, Receipt, Search } from 'lucide-react'
 import { MonthCalendar, monthBounds } from '@/components/MonthCalendar'
 import { GroupInsights } from './GroupInsights'
 import { GroupHistoryList } from './GroupHistory'
@@ -15,9 +16,8 @@ import { Dialog } from '@/components/ui/overlay'
 import { cn } from '@/lib/cn'
 import { formatMoney, formatMoneyShort, minorToInput, parseMoney } from '@/lib/money'
 import { Field, Select, accountOptions, dayLabel, today } from '@/pages/money/parts'
-import { useAccounts, useGroupBudget } from '@/state/money'
-import { SearchSelect } from '@/components/ui/search-select'
-import { useActivity, useBalances, useDeleteSettlement, useSettle, type Group, type GroupActivity, type GroupExpense } from '@/state/groups'
+import { useAccounts, useGroupBudget, usePersonalSpaceId } from '@/state/money'
+import { useComments, useActivity, useBalances, useDeleteSettlement, useSettle, type Group, type GroupActivity, type GroupExpense } from '@/state/groups'
 import { ExpenseDialog } from './ExpenseDialog'
 
 export type GroupTab = 'overview' | 'activity' | 'calendar' | 'people'
@@ -34,6 +34,9 @@ export function GroupMoney({ group, tab, month, onTab }: {
 }) {
   const { data: activity, isPending } = useActivity(group.id)
   const { data: balances } = useBalances(group.id)
+  const { data: comments } = useComments(group.id)
+  const commentCount: Record<string, number> = {}
+  for (const c of comments ?? []) commentCount[c.expenseId] = (commentCount[c.expenseId] ?? 0) + 1
   const locale = useProfile().data?.settings.locale ?? 'en-IN'
   const [editing, setEditing] = useState<GroupExpense | 'new' | null>(null)
   const [newDate, setNewDate] = useState<string>()
@@ -164,7 +167,9 @@ export function GroupMoney({ group, tab, month, onTab }: {
                   className="flex w-full items-center gap-3 px-pad py-3 text-left hover:bg-surface-2">
                   <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted"><Receipt className="size-4" /></span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{r.expense.description}</span>
+                    <span className="flex items-center gap-1.5 truncate font-medium">{r.expense.description}
+                      {(commentCount[r.expense.id] ?? 0) > 0 && <span className="inline-flex shrink-0 items-center gap-0.5 text-xs font-normal text-muted" aria-label={`${commentCount[r.expense.id]} ${commentCount[r.expense.id] === 1 ? 'comment' : 'comments'}`}><MessageSquare className="size-3" />{commentCount[r.expense.id]}</span>}
+                    </span>
                     <span className="block truncate text-xs text-subtle">
                       {dayLabel(r.date)}{r.expense.loan ? ' · Loan' : r.expense.category && ` · ${r.expense.category}`}{r.expense.loan && r.expense.dueOn && ` · pay back by ${dayLabel(r.expense.dueOn)}`} · {r.expense.parts.filter((p) => p.paid > 0).map((p) => name(p.memberId)).join(' & ')} {r.expense.loan ? 'lent it' : 'paid'}
                     </span>
@@ -252,7 +257,8 @@ function SettleDialog({ payment, onClose, groupId, name, you }: {
   const settle = useSettle(groupId)
   const [account, setAccount] = useState('')
   const { data: bookSettings } = useGroupBudget()
-  const { data: myAccounts } = useAccounts()
+  const personalSpace = usePersonalSpaceId()
+  const { data: myAccounts } = useAccounts(false, personalSpace)
   const payable = (myAccounts ?? []).filter((a) => a.kind !== 'OWED' && !a.archived)
   const mine = payment !== null && (payment.from === you || payment.to === you)
   const [amount, setAmount] = useState('')
@@ -282,7 +288,7 @@ function SettleDialog({ payment, onClose, groupId, name, you }: {
         </Field>
         {mine && bookSettings?.enabled && payable.length > 0 && (
           <Field label={payment?.from === you ? 'Paid from' : 'Received in'} htmlFor="settle-account">
-            <SearchSelect id="settle-account" value={account} onChange={setAccount}
+            <AccountPicker space={personalSpace} id="settle-account" value={account} onChange={setAccount}
               options={[{ value: '', label: 'My usual account' }, ...accountOptions(payable)]} />
           </Field>
         )}
