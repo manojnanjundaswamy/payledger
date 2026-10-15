@@ -53,6 +53,9 @@ delete from transactions where deleted_at is not null
   and (account_id in (select id from test_accounts) or to_account_id in (select id from test_accounts) or category_id in (select id from test_categories));
 delete from budget_limits where category_id in (select id from test_categories);
 delete from tax_mappings where category_id in (select id from test_categories);
+-- Captured entries (alerts, statements) from or into test accounts go with them.
+delete from captured_items where account_id in (select id from test_accounts)
+  or transaction_id in (select id from transactions where account_id in (select id from test_accounts) or to_account_id in (select id from test_accounts));
 delete from group_entry_accounts where account_id in (select id from test_accounts);
 update users set group_account_id = null where group_account_id in (select id from test_accounts);
 delete from money_accounts where id in (select id from test_accounts)

@@ -217,10 +217,13 @@ function MobileTabBar({ pathname }: { pathname: string }) {
   const [more, setMore] = useState(false)
   const nav = useNav()
   const primary = nav.filter((n) => n.primary)
+  const current = nav.find((n) => !n.primary && pathname.startsWith(n.to))
   const tab = (item: NavItem) => {
     const active = pathname.startsWith(item.to)
     return (
-      <Link key={item.to} to={item.to} className={cn('flex flex-1 flex-col items-center gap-1 py-2 text-[0.6875rem] font-medium', active ? 'text-fg' : 'text-subtle')}>
+      <Link key={item.to} to={item.to} aria-current={active ? 'page' : undefined}
+        className={cn('relative flex flex-1 flex-col items-center gap-1 py-2 text-[0.6875rem] font-medium', active ? 'text-fg' : 'text-subtle')}>
+        {active && <span aria-hidden className="absolute top-0 h-0.5 w-8 rounded-full bg-accent" />}
         <item.icon className={cn('size-5', active && 'text-accent')} />
         {item.label}
       </Link>
@@ -239,16 +242,20 @@ function MobileTabBar({ pathname }: { pathname: string }) {
           } />
         </div>
         {tab(primary[2]!)}
-        <button onClick={() => setMore(true)} className="flex flex-1 flex-col items-center gap-1 py-2 text-[0.6875rem] font-medium text-subtle">
-          <MoreHorizontal className="size-5" />
-          More
+        {/* On a page from More, the tab shows which one, so you always know where you are. */}
+        <button onClick={() => setMore(true)} aria-label={current ? `More: ${current.label}` : 'More'} aria-current={current ? 'page' : undefined}
+          className={cn('relative flex flex-1 flex-col items-center gap-1 py-2 text-[0.6875rem] font-medium', current ? 'text-fg' : 'text-subtle')}>
+          {current && <span aria-hidden className="absolute top-0 h-0.5 w-8 rounded-full bg-accent" />}
+          {current ? <current.icon className="size-5 text-accent" /> : <MoreHorizontal className="size-5" />}
+          <span className="max-w-16 truncate">{current ? current.label : 'More'}</span>
         </button>
       </nav>
       <Dialog open={more} onOpenChange={setMore} title="More">
         <div className="grid grid-cols-3 gap-2 p-pad">
           {nav.filter((n) => !n.primary).map((item) => (
-            <Link key={item.to} to={item.to} onClick={() => setMore(false)}
-              className="flex flex-col items-center gap-2 rounded-card border border-border p-4 text-sm font-medium hover:bg-surface-2">
+            <Link key={item.to} to={item.to} onClick={() => setMore(false)} aria-current={current?.to === item.to ? 'page' : undefined}
+              className={cn('flex flex-col items-center gap-2 rounded-card border p-4 text-sm font-medium hover:bg-surface-2',
+                current?.to === item.to ? 'border-accent bg-accent-soft text-fg' : 'border-border')}>
               <span className="relative"><item.icon className="size-5 text-muted" />{item.badge && <span className="absolute -top-2 -right-3"><NavCount /></span>}</span>
               {item.label}
             </Link>

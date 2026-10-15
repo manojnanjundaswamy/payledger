@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Check, Monitor, Moon, Pipette, Sun } from 'lucide-react'
+import { Check, Pipette } from 'lucide-react'
 import { Badge } from '@/components/ui/card'
 import { Input, Segmented } from '@/components/ui/controls'
 import { Progress } from '@/dashboard/charts'
 import { accentFor } from '@/lib/color'
 import { cn } from '@/lib/cn'
-import { ACCENT_PRESETS, PALETTES, type PaletteId, type Theme } from '@/state/preferences'
+import { ACCENT_PRESETS, type Theme } from '@/state/preferences'
+import { ThemePalettePicker } from '@/components/ThemePalettePicker'
 import { usePreferences } from '@/state/PreferencesProvider'
 import { themeVars } from '@/theme/engine'
 import { Field, Section } from './parts'
@@ -19,16 +20,15 @@ export function AppearanceSettings() {
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
       <div className="flex flex-col gap-8">
         <Section title="Theme" description="Black and white by default. Make it yours: every change applies instantly and is saved to your account.">
-          <Field label="Mode">
-            <Segmented label="Mode" value={theme.mode} onChange={(mode) => set({ mode })} options={[
-              { value: 'light', label: <><Sun />Light</> },
-              { value: 'dark', label: <><Moon />Dark</> },
-              { value: 'system', label: <><Monitor />Device</> },
-            ]} />
-          </Field>
-          <Field label="Palette" hint="A whole colour set: page, cards and accent, in light and dark. Your accent colour, if you pick one, still wins.">
-            <PalettePicker value={theme.palette} onChange={(palette) => set({ palette, accent: null })} />
-          </Field>
+          {/* Mode and palette as one choice, previewed. */}
+          <div className="flex flex-col gap-3 p-pad">
+            <div>
+              <span className="text-sm font-medium">Theme palette</span>
+              <p className="mt-0.5 text-xs text-muted">A whole colour set, light, dark or following your device. Your accent colour below, if you pick one, still wins.</p>
+            </div>
+            <ThemePalettePicker palette={theme.palette} mode={theme.mode}
+              onChange={(patch) => set(patch.palette ? { ...patch, accent: null } : patch)} />
+          </div>
           <Field label="Accent colour" hint="Used for buttons, highlights and focus. Pale or very dark colours are deepened or lightened just enough to stay readable.">
             <AccentPicker value={theme.accent} onChange={(accent) => set({ accent })} />
           </Field>
@@ -74,28 +74,6 @@ export function AppearanceSettings() {
           <ThemePreview theme={theme} mode="dark" />
         </div>
       </div>
-    </div>
-  )
-}
-
-function PalettePicker({ value, onChange }: { value: PaletteId; onChange: (v: PaletteId) => void }) {
-  return (
-    <div className="grid w-full gap-2 sm:w-[22rem] sm:grid-cols-3" role="radiogroup" aria-label="Palette">
-      {PALETTES.map((p) => (
-        <button key={p.id} type="button" role="radio" aria-checked={value === p.id} onClick={() => onChange(p.id)} title={p.description}
-          className={cn('group flex flex-col gap-2 rounded-control border p-2 text-left transition-all hover:-translate-y-0.5',
-            value === p.id ? 'border-accent ring-2 ring-ring' : 'border-border hover:border-border-strong')}>
-          {/* A tiny screen in the palette's colours: page, a card, and its accent button. */}
-          <span className="relative block h-12 overflow-hidden rounded-[calc(var(--radius-sm)-2px)] border border-black/5" style={{ background: p.swatches[0] }}>
-            {p.id !== 'classic' && <span className="absolute inset-x-0 top-0 h-1" style={{ background: p.id === 'bumblebee'
-              ? 'repeating-linear-gradient(-45deg,#ffc800 0 5px,#14120b 5px 10px)' : 'linear-gradient(90deg,#ff8a1f,#ea5000 45%,#d40000)' }} />}
-            <span className="absolute top-3 left-2 h-6 w-10 rounded-[4px] bg-white shadow-sm" />
-            <span className="absolute right-2 bottom-2 h-3.5 w-8 rounded-full" style={{ background: p.swatches[1] }} />
-            <span className="absolute top-4 left-3.5 h-1 w-6 rounded-full" style={{ background: p.swatches[2], opacity: 0.7 }} />
-          </span>
-          <span className="flex items-center justify-between gap-1 text-xs font-medium">{p.name}{value === p.id && <Check className="size-3.5 text-accent" />}</span>
-        </button>
-      ))}
     </div>
   )
 }

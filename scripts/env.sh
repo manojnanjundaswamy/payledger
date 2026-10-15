@@ -13,7 +13,8 @@
 # Data lives in each project's own Docker volumes; "down" keeps it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-REPO=$(pwd)
+# Windows (Git Bash): a path Docker understands (D:/…), not /d/….
+REPO=$(pwd -W 2>/dev/null || pwd)
 export MSYS_NO_PATHCONV=1
 
 ENV=${1:?staging or production}
