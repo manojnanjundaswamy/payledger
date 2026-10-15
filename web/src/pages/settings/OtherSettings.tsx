@@ -3,7 +3,7 @@ import { CurrencyChangeDialog } from '@/components/CurrencyChangeDialog'
 import { SearchSelect } from '@/components/ui/search-select'
 import { allCurrencies, currencySymbol } from '@/lib/money'
 import { LOCALES, MONTHS, REGIONS, regionOf } from '@/lib/regions'
-import { Check, Download, ExternalLink, FileJson, LogOut, RotateCcw, Trash2, Upload } from 'lucide-react'
+import { Check, Download, ExternalLink, FileJson, KeyRound, LogOut, Mail, MonitorSmartphone, RotateCcw, Trash2, Upload } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -178,9 +178,19 @@ export function AccountSettings() {
   return (
     <Section title="Account" description="Sign-in and security are handled by our identity provider.">
       <Field label="Signed in as"><span className="text-sm text-muted">{profile?.email}</span></Field>
-      <Field label="Password & security" hint="Change your password or email, see your active sessions.">
-        {session?.accountUrl && <Button variant="outline" asChild><a href={session.accountUrl} target="_blank" rel="noopener noreferrer">Open account security<ExternalLink /></a></Button>}
-      </Field>
+      {session?.accountUrl && (
+        <>
+          <Field label="Password" hint="Opens your sign-in settings: change your password, or add a second step.">
+            <Button variant="outline" asChild><a href={`${session.accountUrl}/account-security/signing-in`} target="_blank" rel="noopener noreferrer"><KeyRound />Change password<ExternalLink /></a></Button>
+          </Field>
+          <Field label="Email" hint="Change it under Personal info. We send a link to the new address; it changes once you open it.">
+            <Button variant="outline" asChild><a href={`${session.accountUrl}/`} target="_blank" rel="noopener noreferrer"><Mail />Change email<ExternalLink /></a></Button>
+          </Field>
+          <Field label="Signed-in devices" hint="Where you're signed in. Sign out of any you don't recognise.">
+            <Button variant="outline" asChild><a href={`${session.accountUrl}/account-security/device-activity`} target="_blank" rel="noopener noreferrer"><MonitorSmartphone />See devices<ExternalLink /></a></Button>
+          </Field>
+        </>
+      )}
       <Field label="Your data" hint="Everything we keep about you, as one file: accounts, transactions, budgets, bills, goals, groups and notifications.">
         <Button variant="outline" asChild><a href="/api/core/me/export" download><Download />Download all my data</a></Button>
       </Field>

@@ -43,6 +43,17 @@ else
   echo "Keycloak email: $host (real delivery)"
 fi
 
+# Your account page (password, email, sessions): the email is the username here, so changing it must be allowed;
+# Keycloak then confirms the new address by email before it takes effect.
+kc update realms/payledger -s editUsernameAllowed=true
+# Everyone has the realm's default roles, which let them manage their own account. Users that came in with the realm
+# file (the demo account) had none, so the account page answered "unexpected error". Idempotent; one exec for all.
+docker compose exec -T keycloak sh -c '
+  k=/opt/keycloak/bin/kcadm.sh
+  for id in $($k get users -r payledger --fields id --format csv --noquotes -l 100000); do
+    $k add-roles -r payledger --uid "$id" --rolename default-roles-payledger >/dev/null 2>&1 || true
+  done'
+echo "Account page: email can be changed; everyone may manage their own account"
 # Hosted (PUBLIC_URL in .env, e.g. https://payledger.example.com): sign-in may return to that address too. The local
 # addresses stay, so the laptop keeps working.
 gw=$(kc get clients -r payledger -q clientId=payledger-gateway --fields id --format csv --noquotes)

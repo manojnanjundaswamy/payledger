@@ -38,7 +38,7 @@ export function UserMenu() {
         <MenuSeparator />
         <MenuItem icon={<Settings />} onSelect={() => navigate({ to: '/settings' })}>Settings</MenuItem>
         {session?.accountUrl && (
-          <MenuItem icon={<ShieldCheck />} onSelect={() => window.open(session.accountUrl!, '_blank', 'noopener')}>Password & security</MenuItem>
+          <MenuItem icon={<ShieldCheck />} onSelect={() => window.open(`${session.accountUrl}/account-security/signing-in`, '_blank', 'noopener')}>Password & security</MenuItem>
         )}
         <MenuSeparator />
         <MenuItem icon={<LogOut />} onSelect={() => void signOut()}>Sign out</MenuItem>

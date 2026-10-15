@@ -10,7 +10,7 @@
   "verifyEmail": true,
   "resetPasswordAllowed": true,
   "rememberMe": true,
-  "editUsernameAllowed": false,
+  "editUsernameAllowed": true,
   "bruteForceProtected": true,
   "failureFactor": 10,
   "passwordPolicy": "length(8) and notEmail(undefined) and notUsername(undefined)",
@@ -114,6 +114,7 @@
       "lastName": "User",
       "enabled": true,
       "emailVerified": true,
+      "realmRoles": ["default-roles-payledger"],
       "credentials": [
         {
           "type": "password",
