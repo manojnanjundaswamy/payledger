@@ -1,4 +1,7 @@
 import { uuid7 } from '@/lib/uuid'
+import { useQueryClient } from '@tanstack/react-query'
+import { useProfile } from '@/state/profile'
+import { NOT_SHARED, SharedFields, type Shared } from './SharedFields'
 import { usePeople } from '@/state/people'
 import { AccountPicker, CategoryPicker } from '@/pages/money/pickers'
 import { useGoals } from '@/state/goals'
@@ -10,8 +13,8 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input, Segmented } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/overlay'
-import { ApiError } from '@/lib/api'
-import { minorToInput, parseMoney } from '@/lib/money'
+import { ApiError, api } from '@/lib/api'
+import { minorToInput, parseMoney, formatMoney } from '@/lib/money'
 import {
   useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useUpdateTransaction, type Transaction, type TransactionFields, type TxnKind, useSpaceId, useSaveCategoryRule, fetchCategoryGuess, ruleWords, type CategoryGuess, type TransactionFilter } from '@/state/money'
 import { Field, TXN_KINDS, today, accountOptions, categoryOptions } from './parts'
@@ -62,12 +65,16 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
   const update = useUpdateTransaction()
   const remove = useDeleteTransaction()
 
-  const defaultAccount = initialAccountId ?? accounts[0]?.id ?? ''
+  // Not "Friends & groups": the app keeps that one; a new entry starts on a real account.
+  const defaultAccount = initialAccountId ?? accounts.find((a) => a.kind !== 'OWED')?.id ?? ''
   const [draft, setDraft] = useState<Draft>(() => draftOf(transaction, initialKind, defaultAccount, initialDate))
   // One id per new transaction: resubmitting after an error or a double tap can't add it twice.
   const [clientId, setClientId] = useState(() => uuid7())
   const [error, setError] = useState<string>()
   const [carried, setCarried] = useState<string[]>([])
+  const [shared, setShared] = useState<Shared>(NOT_SHARED)
+  const client = useQueryClient()
+  const personal = useProfile().data?.spaces.find((x) => x.kind === 'PERSONAL')?.id
 
   useEffect(() => {
     if (open) {
@@ -91,6 +98,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
         if (fromFilter.tag) carried.push(`#${fromFilter.tag}`)
       }
       setCarried(carried)
+      setShared(NOT_SHARED)
       setDraft(draft)
       setClientId(uuid7())
       setError(undefined)
@@ -173,7 +181,23 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
       ...(!transaction && carried.length && fromFilter?.tag ? { tags: [fromFilter.tag] } : {}),
     }
     try {
-      if (transaction) {
+      if (!transaction && shared.on) {
+        // A shared expense is the group's: your share is booked in your budget, the rest is owed to you.
+        if (!shared.groupId) return setError('Choose the group to split it with.')
+        if (shared.members.length === 0) return setError('Choose who it is split between.')
+        if (!shared.payer) return setError('Choose who paid.')
+        const me = shared.payer
+        await api(`/api/core/groups/${shared.groupId}/expenses`, { method: 'POST', json: {
+          id: clientId, description: fields.description, amount, occurredOn: draft.occurredOn,
+          category: categories.find((c) => c.id === draft.categoryId)?.name ?? null,
+          paidBy: [{ memberId: me, value: amount }], split: 'EQUAL', shares: shared.members.map((memberId) => ({ memberId })),
+          paidFromAccountId: accounts.find((a) => a.id === draft.accountId && a.kind !== 'OWED') ? draft.accountId : null,
+        } })
+        void client.invalidateQueries({ queryKey: ['groups'] })
+        void client.invalidateQueries({ queryKey: ['money'] })
+        void client.invalidateQueries({ queryKey: ['people'] })
+        toast.success(`Split in the group`, { description: `${fields.description}: ${shared.members.length} ways. Your share is in your budget.` })
+      } else if (transaction) {
         const saved = await update.mutateAsync({ id: transaction.id, version: transaction.version, fields })
         toast.success('Saved', saved.paid ? { description: paidNote(saved.paid) } : undefined)
       } else {
@@ -265,6 +289,9 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
               <AccountPicker id="txn-account" value={draft.accountId} onChange={(v) => set('accountId', v)} options={accountOptions(accounts)} />
             </Field>
           </div>
+        )}
+        {!transaction && draft.kind === 'EXPENSE' && spaceId === personal && (
+          <SharedFields value={shared} onChange={setShared} amount={amount} money={(m) => formatMoney(m)} />
         )}
         <Field label="Note" htmlFor="txn-note">
           <Input id="txn-note" maxLength={1000} value={draft.note} onChange={(e) => set('note', e.target.value)} />

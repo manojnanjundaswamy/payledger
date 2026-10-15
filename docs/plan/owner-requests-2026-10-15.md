@@ -17,7 +17,7 @@ Each is ticked when built, tested on staging and committed to `develop`.
    "Don't show again" — otherwise it offers itself again at each sign-in.
 8. [ ] **Welcome journey**: first, make it yours (theme palette, light/dark, accent, payday, currency) with a live
    preview, then the existing accounts-and-bills setup.
-9. [ ] **"Shared expense" on any expense**: tick it, pick a group, who paid and the split; it becomes a group expense
+9. [x] **"Shared expense" on any expense**: tick it, pick a group, who paid and the split; it becomes a group expense
    (your share lands in your budget as usual).
 10. [ ] **Admin activity in plain words**: each request as "Added a transaction", "Signed in"…, with the endpoint,
     status, timing and any error when expanded.
