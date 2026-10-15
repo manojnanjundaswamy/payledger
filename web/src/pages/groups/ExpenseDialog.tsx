@@ -5,6 +5,7 @@ import { categoryTree, useAccounts, useCategories, useGroupBudget, usePersonalSp
 import { CategoryIcon, accountOptions } from '@/pages/money/parts'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Trash2 } from 'lucide-react'
+import { ExpenseComments } from './Comments'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input, Segmented, Switch } from '@/components/ui/controls'
@@ -272,6 +273,8 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
           <Button type="submit" variant="primary" disabled={add.isPending || update.isPending}>{expense ? 'Save' : 'Add expense'}</Button>
         </div>
       </form>
+      {/* Outside the form: a comment box isn't part of saving the expense. */}
+      {expense && <div className="px-pad pb-pad"><ExpenseComments groupId={groupId} expenseId={expense.id} /></div>}
     </Dialog>
   )
 }

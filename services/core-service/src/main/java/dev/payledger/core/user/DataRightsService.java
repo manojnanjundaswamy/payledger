@@ -66,6 +66,7 @@ public class DataRightsService {
         out.put("groupExpenses", rows("select * from group_expenses where group_id in (" + MY_GROUPS + ") and deleted_at is null order by occurred_on", u));
         out.put("groupExpenseParts", rows("select p.* from group_expense_parts p join group_expenses e on e.id = p.expense_id where e.group_id in (" + MY_GROUPS + ") and e.deleted_at is null", u));
         out.put("groupSettlements", rows("select * from group_settlements where group_id in (" + MY_GROUPS + ") and deleted_at is null order by occurred_on", u));
+        out.put("groupComments", rows("select id, expense_id, body, created_at from group_comments where group_id in (" + MY_GROUPS + ") and deleted_at is null and member_id in (select id from group_members where user_id = :u) order by created_at", u));
         out.put("notifications", rows("select kind, title, body, link, created_at, read_at from inbox where user_id = :u order by created_at", u));
         out.put("emailsSent", rows("select kind, to_email, subject, created_at, sent_at from email_outbox where user_id = :u order by created_at", u));
         out.put("activity", rows("select type, action, status, target, ip, user_agent, at from user_events where user_id = :u order by at", u));

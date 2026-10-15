@@ -15,7 +15,8 @@ import { upiPayLink } from '@/lib/upi'
 import { uuid7 } from '@/lib/uuid'
 import { dayLabel, today } from '@/pages/money/parts'
 import { sessionQuery } from '@/state/session'
-import type { Group, GroupMember } from '@/state/groups'
+import { useComments, type Group, type GroupMember } from '@/state/groups'
+import { ExpenseComments } from '@/pages/groups/Comments'
 import { useGuestActivity, useGuestAddExpense, useGuestBalances, useGuestGroup, useGuestMe, useGuestSettle, useGuestSignOut } from '@/state/guest'
 
 /** A guest's view of a group: who owes whom, settling up, the expenses, and adding one. No account needed. */
@@ -132,6 +133,8 @@ function Balances({ group }: { group: Group }) {
 
 function Expenses({ group }: { group: Group }) {
   const { data } = useGuestActivity(group.id)
+  const { data: comments } = useComments(group.id, '/api/guest/groups')
+  const [open, setOpen] = useState<string | null>(null)
   const money = (n: number) => formatMoney(n, group.currency)
   if (!data) return <Skeleton className="h-40" />
   const items = [
@@ -144,14 +147,20 @@ function Expenses({ group }: { group: Group }) {
       {items.length === 0 ? <p className="text-sm text-muted">Nothing yet. Add the first expense.</p> : (
         <ul className="flex flex-col divide-y divide-border" data-testid="guest-expenses">
           {items.map((x) => x.kind === 'expense' ? (
-            <li key={x.e.id} className="flex items-center gap-3 py-2.5">
+            <li key={x.e.id} className="py-2.5">
+              <button type="button" className="flex w-full items-center gap-3 text-left" aria-expanded={open === x.e.id} onClick={() => setOpen(open === x.e.id ? null : x.e.id)}>
               <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-2"><Receipt className="size-4" /></span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{x.e.description}</span>
                 <span className="block truncate text-xs text-muted">{dayLabel(x.e.occurredOn)} · paid by {x.e.parts.filter((p) => p.paid > 0).map((p) => nameOf(group, p.memberId)).join(', ')}
                   {(() => { const mine = x.e.parts.find((p) => p.memberId === group.you); return mine && mine.share > 0 ? ` · your share ${money(mine.share)}` : '' })()}</span>
               </span>
-              <span className="text-sm font-medium tabular">{money(x.e.amount)}</span>
+              <span className="text-right">
+                <span className="block text-sm font-medium tabular">{money(x.e.amount)}</span>
+                {(() => { const n = (comments ?? []).filter((c) => c.expenseId === x.e.id).length; return n > 0 && <span className="text-xs text-muted">{n} {n === 1 ? 'comment' : 'comments'}</span> })()}
+              </span>
+              </button>
+              {open === x.e.id && <div className="mt-2 pl-12"><ExpenseComments groupId={group.id} expenseId={x.e.id} base="/api/guest/groups" /></div>}
             </li>
           ) : (
             <li key={x.s.id} className="flex items-center gap-3 py-2.5">

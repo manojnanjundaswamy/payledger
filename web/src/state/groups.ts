@@ -199,3 +199,28 @@ export function previewSplit(amount: number, split: SplitType, parts: { memberId
   }
   return Object.fromEntries(parts.map((p, i) => [p.memberId, shares[i]!]))
 }
+
+/** A comment on a group expense. you: you wrote it (only the writer can delete it). */
+export interface GroupComment { id: string; expenseId: string; memberId: string; name: string; body: string; at: string; you: boolean }
+
+/** base: the signed-in groups API, or the guest one (/api/guest/groups). */
+export function useComments(id: string, base = '/api/core/groups') {
+  return useQuery({ queryKey: [base.includes('guest') ? 'guest' : 'groups', id, 'comments'], queryFn: () => api<GroupComment[]>(`${base}/${id}/comments`) })
+}
+
+export function useAddComment(id: string, base = '/api/core/groups') {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ expenseId, body }: { expenseId: string; body: string }) =>
+      api<GroupComment>(`${base}/${id}/expenses/${expenseId}/comments`, { method: 'POST', json: { body } }),
+    onSettled: () => void client.invalidateQueries({ queryKey: [base.includes('guest') ? 'guest' : 'groups', id, 'comments'] }),
+  })
+}
+
+export function useDeleteComment(id: string) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (commentId: string) => api<void>(`/api/core/groups/${id}/comments/${commentId}`, { method: 'DELETE' }),
+    onSettled: () => void client.invalidateQueries({ queryKey: ['groups', id, 'comments'] }),
+  })
+}

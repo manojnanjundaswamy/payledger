@@ -38,14 +38,16 @@ class GuestController {
     private final GuestService guests;
     private final GroupService groups;
     private final GroupExpenseService expenses;
+    private final GroupComments comments;
     private final JdbcClient jdbc;
     private final boolean secure;
 
-    GuestController(GuestService guests, GroupService groups, GroupExpenseService expenses, JdbcClient jdbc,
+    GuestController(GuestService guests, GroupService groups, GroupExpenseService expenses, GroupComments comments, JdbcClient jdbc,
                     @Value("${payledger.cookie-secure:false}") boolean secure) {
         this.guests = guests;
         this.groups = groups;
         this.expenses = expenses;
+        this.comments = comments;
         this.jdbc = jdbc;
         this.secure = secure;
     }
@@ -156,6 +158,21 @@ class GuestController {
         Doer d = doer(token, groupId);
         own(d, "group_settlements", settlementId);
         expenses.deleteSettlement(d, groupId, settlementId);
+    }
+
+    record NewComment(String body) {
+    }
+
+    @GetMapping("/groups/{groupId}/comments")
+    List<GroupComments.Comment> comments(@CookieValue(name = COOKIE, required = false) String token, @PathVariable UUID groupId) {
+        return comments.list(doer(token, groupId), groupId);
+    }
+
+    @PostMapping("/groups/{groupId}/expenses/{expenseId}/comments")
+    @ResponseStatus(HttpStatus.CREATED)
+    GroupComments.Comment comment(@CookieValue(name = COOKIE, required = false) String token, @PathVariable UUID groupId,
+                                  @PathVariable UUID expenseId, @RequestBody NewComment body) {
+        return comments.add(doer(token, groupId), groupId, expenseId, body.body());
     }
 
     private Doer doer(String token, UUID groupId) {

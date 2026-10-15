@@ -53,6 +53,7 @@ public final class DataFormat {
             entry("group_expenses", "groupExpenses"),
             entry("group_expense_parts", "groupExpenseParts"),
             entry("group_settlements", "groupSettlements"),
+            entry("group_comments", "groupComments"),
             entry("inbox", "notifications"),
             entry("email_outbox", "emailsSent"),
             entry("user_events", "activity"),

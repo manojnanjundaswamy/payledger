@@ -40,9 +40,25 @@ test('a guest without an account joins by link, adds an expense and the group se
   await expect(guest.getByTestId('guest-expenses')).toContainText('Fuel')
   await expect(guest.getByTestId('guest-balances')).toContainText('You\'re owed', { timeout: 15_000 })
 
-  // The owner sees it, added by Ravi.
+  // The owner sees it, and asks about it in a comment.
   await page.goto(`/groups/${group.id}`)
-  await expect(page.getByText('Fuel').first()).toBeVisible()
+  await page.getByRole('radio', { name: 'Activity' }).click()
+  await page.getByRole('button', { name: 'Edit Fuel' }).click()
+  const thread = page.getByTestId('expense-comments')
+  await thread.getByLabel('Write a comment').fill('Was this the drive to Gokarna?')
+  await thread.getByRole('button', { name: 'Send comment' }).click()
+  await expect(thread).toContainText('Was this the drive to Gokarna?')
+  await page.keyboard.press('Escape')
+  await expect(page.getByLabel('1 comment', { exact: true })).toBeVisible()
+
+  // The guest sees it and answers.
+  await guest.reload()
+  await guest.getByTestId('guest-expenses').getByRole('button', { name: /Fuel/ }).click()
+  const guestThread = guest.getByTestId('expense-comments')
+  await expect(guestThread).toContainText('Was this the drive to Gokarna?')
+  await guestThread.getByLabel('Write a comment').fill('Yes, both ways')
+  await guestThread.getByRole('button', { name: 'Send comment' }).click()
+  await expect(guestThread).toContainText('Yes, both ways')
 
   // A reload keeps the guest in (their cookie); signing out ends it.
   await guest.reload()
