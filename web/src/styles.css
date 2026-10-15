@@ -232,3 +232,55 @@
    and charts on a large screen; the column inside a card (a form's fields) keeps its own width. */
 :root[data-width="wide"] main { max-width: none; }
 :root[data-width="wide"] main > div > .mx-auto { max-width: min(100%, 1600px); }
+
+/* ---------------------------------------------------------------- voice mode
+   A glow around the edge of the screen: it breathes while listening, beats like a heart while you speak, sweeps while
+   thinking and pulses while it talks. Transforms, opacity and one animated angle only, so it stays smooth. */
+@property --voice-angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+
+.voice-edge {
+  position: fixed; inset: 0; z-index: 90; pointer-events: none;
+  --voice-a: var(--accent); --voice-b: #8b5cf6; --voice-c: #22d3ee; --voice-d: #f472b6;
+}
+.voice-edge > .ring, .voice-edge > .halo {
+  position: absolute; inset: 0; border-radius: inherit;
+  background: conic-gradient(from var(--voice-angle), var(--voice-a), var(--voice-b), var(--voice-c), var(--voice-d), var(--voice-a));
+  animation: voice-spin 6s linear infinite;
+}
+/* The ring: only the edge shows (the middle is masked out). */
+.voice-edge > .ring {
+  padding: 3px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  opacity: 0.9;
+}
+/* The halo: a soft light thrown inwards from the edge. */
+.voice-edge > .halo {
+  padding: 26px; filter: blur(22px); opacity: 0.55;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  transform-origin: center;
+}
+.voice-edge[data-state="listening"] > .halo { animation: voice-spin 6s linear infinite, voice-breathe 2.6s ease-in-out infinite; }
+.voice-edge[data-state="hearing"] > .halo { animation: voice-spin 3s linear infinite, voice-heartbeat 1.05s ease-in-out infinite; opacity: 0.8; }
+.voice-edge[data-state="hearing"] > .ring { animation: voice-spin 3s linear infinite, voice-heartbeat-ring 1.05s ease-in-out infinite; }
+.voice-edge[data-state="thinking"] > .ring, .voice-edge[data-state="thinking"] > .halo { animation: voice-spin 1.1s linear infinite; }
+.voice-edge[data-state="thinking"] > .halo { opacity: 0.7; }
+.voice-edge[data-state="speaking"] > .halo { animation: voice-spin 4s linear infinite, voice-talk 0.7s ease-in-out infinite alternate; }
+.voice-edge[data-state="idle"] > .halo { opacity: 0.25; }
+.voice-edge[data-state="idle"] > .ring { opacity: 0.45; }
+
+@keyframes voice-spin { to { --voice-angle: 360deg; } }
+@keyframes voice-breathe { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.6; } }
+/* Lub-dub: two quick beats, then rest. */
+@keyframes voice-heartbeat {
+  0% { opacity: 0.55; } 14% { opacity: 1; } 24% { opacity: 0.6; } 36% { opacity: 0.95; } 52%, 100% { opacity: 0.55; }
+}
+@keyframes voice-heartbeat-ring {
+  0% { padding: 3px; } 14% { padding: 5px; } 24% { padding: 3px; } 36% { padding: 4.5px; } 52%, 100% { padding: 3px; }
+}
+@keyframes voice-talk { from { opacity: 0.4; } to { opacity: 0.85; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-edge > .ring, .voice-edge > .halo { animation: none !important; }
+}

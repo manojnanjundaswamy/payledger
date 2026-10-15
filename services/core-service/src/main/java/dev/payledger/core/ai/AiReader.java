@@ -85,7 +85,7 @@ public class AiReader {
         long started = System.nanoTime();
         LlmClient.Completion done;
         try {
-            done = llm.complete(SYSTEM, user, 1_200);
+            done = llm.complete(SYSTEM, user, 2_000);
         } catch (LlmClient.LlmException e) {
             long ms = (System.nanoTime() - started) / 1_000_000;
             log.warn("AI read failed: {}", e.getMessage());
@@ -109,6 +109,36 @@ public class AiReader {
                 done.outputTokens(), null, cost, ms, user, done.text(), counted, reading.entries().isEmpty() ? null : model,
                 reading.entries().isEmpty() ? null : best, reading.transaction() ? null : "NOT_A_TRANSACTION", reading.entries().size(), null));
         return new Reading(id, reading.cleanText(), reading.transaction(), reading.reason(), reading.entries());
+    }
+
+    /** A model's answer to someone else's prompt (the assistant), logged; the caller reads it and records the outcome. */
+    public record Raw(UUID requestId, String text) {
+    }
+
+    /**
+     * One call with the caller's own prompt. The user message must already be masked. Same limits and log as {@link #read}.
+     */
+    public Raw ask(UUID userId, String feature, String channel, String system, String maskedUser, boolean counted, int maxTokens) {
+        if (!enabled()) {
+            throw new AiOffException();
+        }
+        if (audit.lastMinute(userId) >= PER_MINUTE) {
+            throw new AiBusyException();
+        }
+        long started = System.nanoTime();
+        LlmClient.Completion done;
+        try {
+            done = llm.complete(system, maskedUser, maxTokens);
+        } catch (LlmClient.LlmException e) {
+            log.warn("AI call failed: {}", e.getMessage());
+            audit.record(new AiAudit.Call(userId, feature, channel, llm.provider(), llm.model(), "ERROR", e.getMessage(), 0, 0, null, 0,
+                    (System.nanoTime() - started) / 1_000_000, maskedUser, null, false, null, null, "FAILED", 0, null));
+            throw new AiUnavailableException();
+        }
+        UUID id = audit.record(new AiAudit.Call(userId, feature, channel, llm.provider(), done.model(), "OK", null, done.inputTokens(),
+                done.outputTokens(), null, prices.costMicros(done.inputTokens(), done.outputTokens()), (System.nanoTime() - started) / 1_000_000,
+                maskedUser, done.text(), counted, null, null, null, null, null));
+        return new Raw(id, done.text());
     }
 
     // ---------------------------------------------------------------- the prompt
@@ -187,7 +217,8 @@ public class AiReader {
         return new Reading(null, text(root, "cleanText"), transaction && !entries.isEmpty(), text(root, "reason"), entries);
     }
 
-    private Entry entry(JsonNode e, String original, Context ctx) {
+    /** One entry from a model's JSON, checked against the original text (also used by the assistant). */
+    Entry entry(JsonNode e, String original, Context ctx) {
         String kind = text(e, "kind");
         if (kind == null || !List.of("EXPENSE", "INCOME", "TRANSFER").contains(kind.toUpperCase(Locale.ROOT))) {
             return null;
@@ -297,7 +328,7 @@ public class AiReader {
         return null;
     }
 
-    private static String text(JsonNode node, String field) {
+    static String text(JsonNode node, String field) {
         JsonNode v = node.path(field);
         if (v.isMissingNode() || v.isNull()) {
             return null;

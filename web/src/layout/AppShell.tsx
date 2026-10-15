@@ -14,6 +14,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { AddMenu } from './AddMenu'
 import { EdgeDock } from '@/utilities/EdgeDock'
 import { QuickAdd, openQuickAdd } from '@/components/QuickAdd'
+import { VoiceMode, VoiceModeToggle } from '@/components/VoiceMode'
 import { Onboarding } from './Onboarding'
 import { NotificationSignals } from './NotificationSignals'
 import { ProgressCelebrator } from './ProgressCelebrator'
@@ -81,6 +82,7 @@ export function AppShell() {
           <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
           <EdgeDock />
           <QuickAdd />
+          <VoiceMode />
           <Onboarding pathname={pathname} />
           <NotificationSignals />
           <ProgressCelebrator />
@@ -197,6 +199,7 @@ function Topbar({ title, onSearch }: { title: string; onSearch: () => void }) {
           <span className="ml-auto flex gap-0.5"><Kbd>{isMac ? '⌘' : 'Ctrl'}</Kbd><Kbd>K</Kbd></span>
         </button>
         <Button variant="ghost" size="icon" className="sm:hidden" onClick={onSearch} aria-label="Search" data-tour="search"><Search /></Button>
+        <VoiceModeToggle />
         <SaveIndicator />
         <span className="inline-flex" data-tour="bell"><NotificationBell /></span>
         <WidthToggle />

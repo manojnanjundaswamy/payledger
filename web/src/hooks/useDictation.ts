@@ -51,12 +51,19 @@ const SILENCE_STOP_MS = 10_000
 
 const tidy = (s: string) => s.replace(/\s+/g, ' ').trim()
 
-export function useDictation({ lang, serverCanTranscribe, onText }: {
+export function useDictation({ lang, serverCanTranscribe, onText, onUtterance, utteranceGapMs = 1300, silenceStopMs = SILENCE_STOP_MS }: {
   /** BCP 47, like en-IN or hi-IN */
   lang: string
   serverCanTranscribe: boolean
   /** Everything said so far: {@code committed} is settled, {@code interim} is still being heard (may change). */
   onText: (committed: string, interim: string) => void
+  /**
+   * Hands-free turns (voice mode): after a pause of {@code utteranceGapMs} following speech, what was said is handed
+   * over as one turn and listening stops (the caller starts it again after replying).
+   */
+  onUtterance?: (text: string) => void
+  utteranceGapMs?: number
+  silenceStopMs?: number
 }) {
   const [liveBroken, setLiveBroken] = useState(false)
   const mode: DictationMode = recognitionClass() && !liveBroken ? 'live' : canRecord() && serverCanTranscribe ? 'record' : 'none'
@@ -69,6 +76,11 @@ export function useDictation({ lang, serverCanTranscribe, onText }: {
 
   const onTextRef = useRef(onText)
   onTextRef.current = onText
+  const onUtteranceRef = useRef(onUtterance)
+  onUtteranceRef.current = onUtterance
+  const heardNow = useRef('')
+  const discard = useRef(false)
+  const gap = useRef<number | null>(null)
   const active = useRef(false)
   const committed = useRef('')
   const began = useRef(0)
@@ -104,12 +116,30 @@ export function useDictation({ lang, serverCanTranscribe, onText }: {
 
   const stop = useCallback(() => {
     active.current = false
+    if (gap.current) window.clearTimeout(gap.current)
+    gap.current = null
     stopClock()
     recognition.current?.stop()
     if (recorder.current && recorder.current.state !== 'inactive') recorder.current.stop()
     else stopMeter()
     setHearing(false)
   }, [stopMeter])
+
+  /** A pause after speech in voice mode: hand over what was said as one turn. */
+  const utter = useCallback(() => {
+    gap.current = null
+    const text = tidy(committed.current + ' ' + heardNow.current)
+    if (!text || !active.current) return
+    discard.current = true
+    active.current = false
+    committed.current = ''
+    heardNow.current = ''
+    stopClock()
+    setHearing(false)
+    recognition.current?.abort()
+    onTextRef.current('', '')
+    onUtteranceRef.current?.(text)
+  }, [])
 
   /** One recognition session; when it ends while still dictating, the next one starts with what was said kept. */
   const session = useCallback(() => {
@@ -133,8 +163,13 @@ export function useDictation({ lang, serverCanTranscribe, onText }: {
       // Android may repeat the whole phrase in its last final result: keep the longest final reading.
       heardFinal = ANDROID ? tidy(e.results.length ? Array.from(e.results).filter((x) => x.isFinal).map((x) => x[0].transcript).sort((a, b) => b.length - a.length)[0] ?? '' : '') : tidy(finals)
       heard = tidy(heardFinal + ' ' + interim)
+      heardNow.current = heard
       lastSpeech.current = Date.now()
       onTextRef.current(committed.current, heard)
+      if (onUtteranceRef.current) {
+        if (gap.current) window.clearTimeout(gap.current)
+        gap.current = window.setTimeout(utter, utteranceGapMs)
+      }
     }
     r.onspeechstart = () => { setHearing(true); lastSpeech.current = Date.now() }
     r.onspeechend = () => setHearing(false)
@@ -154,12 +189,20 @@ export function useDictation({ lang, serverCanTranscribe, onText }: {
       // no-speech and aborted: a pause; the session ends and starts again below.
     }
     r.onend = () => {
+      if (discard.current) {
+        // Handed over as a turn already: nothing to keep, and no new session.
+        discard.current = false
+        recognition.current = null
+        finish()
+        return
+      }
       // What this session heard is settled, even the last words that never became "final".
       committed.current = tidy(committed.current + ' ' + (heard || heardFinal))
+      heardNow.current = ''
       onTextRef.current(committed.current, '')
       recognition.current = null
       const now = Date.now()
-      if (active.current && now - began.current < MAX_MS && now - lastSpeech.current < SILENCE_STOP_MS) {
+      if (active.current && now - began.current < (onUtteranceRef.current ? 30 * 60_000 : MAX_MS) && now - lastSpeech.current < silenceStopMs) {
         try { session() } catch { finish() }
       } else {
         finish()
@@ -167,13 +210,15 @@ export function useDictation({ lang, serverCanTranscribe, onText }: {
     }
     recognition.current = r
     r.start()
-  }, [lang, serverCanTranscribe, finish])
+  }, [lang, serverCanTranscribe, finish, utter, utteranceGapMs, silenceStopMs])
 
   /** @param existing text already in the box: what's said is added after it */
   const start = useCallback(async (existing = '') => {
     if (active.current) return
     setError(null)
     committed.current = tidy(existing)
+    heardNow.current = ''
+    discard.current = false
     began.current = Date.now()
     lastSpeech.current = Date.now()
     setElapsed(0)
@@ -181,7 +226,7 @@ export function useDictation({ lang, serverCanTranscribe, onText }: {
     clock.current = window.setInterval(() => {
       const ms = Date.now() - began.current
       setElapsed(Math.floor(ms / 1000))
-      if (ms > MAX_MS || (mode === 'live' && Date.now() - lastSpeech.current > SILENCE_STOP_MS + 2000)) stop()
+      if ((!onUtteranceRef.current && ms > MAX_MS) || (mode === 'live' && Date.now() - lastSpeech.current > silenceStopMs + 2000)) stop()
     }, 250)
     if (mode === 'live') {
       active.current = true
@@ -235,8 +280,13 @@ export function useDictation({ lang, serverCanTranscribe, onText }: {
         setState('transcribing')
         try {
           const text = await transcribe(new Blob(chunks, { type: rec.mimeType }), seconds, lang.split('-')[0])
-          committed.current = tidy(committed.current + ' ' + text)
-          onTextRef.current(committed.current, '')
+          if (onUtteranceRef.current) {
+            committed.current = ''
+            if (text) onUtteranceRef.current(text)
+          } else {
+            committed.current = tidy(committed.current + ' ' + text)
+            onTextRef.current(committed.current, '')
+          }
           if (!text) setError("Didn't catch that. Try again.")
         } catch {
           setError("Couldn't turn that into text just now. Type it instead.")
@@ -249,7 +299,7 @@ export function useDictation({ lang, serverCanTranscribe, onText }: {
       rec.start()
       setState('listening')
     }
-  }, [lang, mode, session, stop, stopMeter, finish])
+  }, [lang, mode, session, stop, stopMeter, finish, silenceStopMs])
 
   // Leaving the page stops the mic.
   useEffect(() => () => {

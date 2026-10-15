@@ -214,6 +214,56 @@ class AiIntegrationTest {
     }
 
     @Test
+    void voiceModeTurnsOneSentenceIntoSeveralCheckedProposalsAndAnswersFromTheData() throws Exception {
+        var me = user();
+        String space = JsonPath.read(body(get("/api/core/me"), me, null), "$.spaces[0].id");
+        String hdfc = JsonPath.read(body(post("/api/core/spaces/" + space + "/accounts"), me, "{\"kind\":\"BANK\",\"name\":\"HDFC Savings\",\"openingBalance\":0}"), "$.id");
+        String categories = body(get("/api/core/spaces/" + space + "/categories"), me, null);
+        String eatingOut = JsonPath.<List<String>>read(categories, "$[?(@.name == 'Eating out')].id").getFirst();
+        String groceries = JsonPath.<List<String>>read(categories, "$[?(@.name == 'Groceries')].id").getFirst();
+        // Something already spent on eating out this month, for the question.
+        body(post("/api/core/spaces/" + space + "/transactions"), me, """
+                {"id":"%s","kind":"EXPENSE","amount":120000,"accountId":"%s","categoryId":"%s","occurredOn":"%s","description":"Dinner"}
+                """.formatted(UUID.randomUUID(), hdfc, eatingOut, today));
+
+        answer = q -> """
+                {"heard":"set groceries budget 6000, 450 petrol yesterday from HDFC Savings, how much on eating out","say":"All done!","intent":null,
+                 "navigate":null,"actions":[
+                  {"type":"set_budget","category":"Groceries","amount":"6000","month":"%s","confidence":0.97},
+                  {"type":"add_transaction","kind":"EXPENSE","amount":"450","currency":"INR","date":"%s","dateGiven":true,"description":"Petrol",
+                   "account":"HDFC Savings","category":"Fuel & transport","confidence":0.97,"missing":[]},
+                  {"type":"add_transaction","kind":"EXPENSE","amount":"300","currency":"INR","date":"%s","dateGiven":false,"description":"Auto",
+                   "account":null,"category":"Fuel & transport","confidence":0.8,"missing":["account"]},
+                  {"type":"ask_spending","metric":"spent","category":"Eating out","from":"%s","to":"%s"}]}
+                """.formatted(java.time.YearMonth.from(today), today.minusDays(1), today, today.withDayOfMonth(1), today);
+        String r = body(post("/api/core/ai/assistant"), me, """
+                {"turns":[{"role":"person","text":"set groceries budget six thousand, 450 petrol yesterday from HDFC savings and 300 auto, how much did I spend on eating out"}],
+                 "shown":[],"page":"/dashboard","channel":"VOICE"}
+                """);
+        assertThat(JsonPath.<List<String>>read(r, "$.proposals[*].type")).containsExactly("BUDGET", "TRANSACTION", "TRANSACTION");
+        assertThat(JsonPath.<String>read(r, "$.proposals[0].body.categoryId")).isEqualTo(groceries);
+        assertThat(JsonPath.<Integer>read(r, "$.proposals[0].body.amount")).isEqualTo(600_000);
+        assertThat(JsonPath.<String>read(r, "$.proposals[1].body.accountId")).isEqualTo(hdfc);
+        assertThat(JsonPath.<Boolean>read(r, "$.proposals[1].ready")).isTrue();
+        assertThat(JsonPath.<Boolean>read(r, "$.proposals[2].ready")).isFalse();
+        assertThat(JsonPath.<List<String>>read(r, "$.proposals[2].why")).contains("Which account?");
+        // Said by us, not the model's "All done!": nothing is saved yet. The answer comes from the data.
+        String say = JsonPath.read(r, "$.say");
+        assertThat(say).startsWith("A budget and 2 entries ready.").doesNotContain("All done").contains("1,200").contains("Eating out");
+        assertThat(jdbc.sql("select count(*) from transactions where space_id = ?::uuid and description = 'Petrol'").param(space).query(Long.class).single()).isZero();
+        assertThat(JsonPath.<Integer>read(r, "$.usage.used")).isEqualTo(1);
+
+        // A plain yes: the model's intent comes back for the app to act on.
+        answer = q -> "{\"heard\":\"yes add them\",\"say\":\"Okay.\",\"intent\":\"CONFIRM\",\"actions\":[]}";
+        String yes = body(post("/api/core/ai/assistant"), me, """
+                {"turns":[{"role":"person","text":"set groceries budget"},{"role":"assistant","text":"A budget ready."},{"role":"person","text":"yes add them"}],
+                 "shown":[{"index":0,"type":"BUDGET","summary":"Groceries 6000"}],"page":"/dashboard"}
+                """);
+        assertThat(JsonPath.<String>read(yes, "$.intent")).isEqualTo("CONFIRM");
+        assertThat(ASKED.getLast()).contains("[0] BUDGET: Groceries 6000");
+    }
+
+    @Test
     void whenTheRulesReadEverythingNoAiIsSpent() throws Exception {
         var me = user();
         String space = JsonPath.read(body(get("/api/core/me"), me, null), "$.spaces[0].id");

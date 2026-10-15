@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'motion/react'
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Check, Loader2, Mic, PenLine, Sparkles, Square, Undo2, X } from 'lucide-react'
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, AudioLines, Check, Loader2, Mic, PenLine, Sparkles, Square, Undo2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/card'
@@ -11,6 +11,7 @@ import { MoneyInput } from '@/components/ui/money-input'
 import { Dialog } from '@/components/ui/overlay'
 import { SearchSelect } from '@/components/ui/search-select'
 import { useDictation } from '@/hooks/useDictation'
+import { toggleVoiceMode } from '@/components/VoiceMode'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { minorToInput, parseMoney } from '@/lib/money'
@@ -165,6 +166,10 @@ export function QuickAdd() {
               {quickAdd.isPending ? <><Loader2 className="animate-spin" />Reading…</> : <><Sparkles />Add</>}
             </Button>
             <ManualLinks onPick={() => close(false)} />
+            <button type="button" onClick={() => { close(false); toggleVoiceMode(true) }}
+              className="mx-auto inline-flex items-center gap-1.5 text-xs text-muted underline-offset-4 hover:text-fg hover:underline">
+              <AudioLines className="size-3.5" />Go hands-free: voice mode, for many at once
+            </button>
           </>
         )}
         {result && <Results result={result} onAgain={() => { setResult(null); setText(''); setInterim(''); setTimeout(() => box.current?.focus(), 50) }} onDone={() => close(false)} />}
