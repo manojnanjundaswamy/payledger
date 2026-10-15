@@ -6,7 +6,7 @@ import { api } from '@/lib/api'
 import { useGroups, type GroupBalances } from '@/state/groups'
 import {
   ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BarChart3, CalendarClock, Check, Goal, Home, ListChecks, ListOrdered,
-  Inbox, Landmark, PieChart, Rocket, StickyNote, Upload, Users, Wallet, Zap,
+  HeartPulse, Inbox, Landmark, PieChart, Rocket, Scale, StickyNote, Upload, Users, Wallet, Zap,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
@@ -21,6 +21,7 @@ import {
 } from '@/state/money'
 import { SafeToSpendCard } from '@/pages/money/SafeToSpendCard'
 import { CountUp } from '@/components/CountUp'
+import { CanIAfford, MoneyHealth } from './insightWidgets'
 import { useCapture } from '@/state/capture'
 import { useHousehold, useHouseholds } from '@/state/households'
 
@@ -624,6 +625,8 @@ export const WIDGETS = {
   goals: { name: 'Savings goals', description: 'Progress towards what you are saving for.', icon: Goal, defaultSize: 'm', sample: true, component: Goals },
   household: { name: 'Household', description: 'The family budget and who paid what.', icon: Home, defaultSize: 'l', sample: false, component: Household },
   toReview: { name: 'To review', description: 'Bank alerts waiting to be added (Auto-capture).', icon: Inbox, defaultSize: 's', sample: false, component: ToReview },
+  moneyHealth: { name: 'Money health', description: 'A score from saving, cushion, card dues, budgets and balance, with what to do.', icon: HeartPulse, defaultSize: 'm', sample: false, component: MoneyHealth },
+  canIAfford: { name: 'Can I afford it?', description: 'Check a purchase or a new EMI against your plan and savings.', icon: Scale, defaultSize: 'm', sample: false, component: CanIAfford },
   netWorth: { name: 'Net worth', description: 'What you have minus what you owe, by kind of account.', icon: Landmark, defaultSize: 'm', sample: false, component: NetWorth },
   quickActions: { name: 'Quick actions', description: 'One tap to record or split.', icon: Zap, defaultSize: 'm', sample: false, component: QuickActions },
   note: { name: 'Note', description: 'A sticky note for reminders and plans.', icon: StickyNote, defaultSize: 's', sample: false, component: Note },
