@@ -6,16 +6,11 @@ The full roadmap is in [product-plan.md](product-plan.md) (section 7); the owner
 
 ## Needs the owner (blocks something live)
 
-- [ ] **Real email on the live site.** Put the Gmail app password in `.env` (`SMTP_*`, see `docs/hosting.md`) and run
-  `scripts/keycloak-sync.sh`. Until then sign-up verification, password reset, guest join codes, bill reminders and
-  the weekly recap go only to the local Mailpit (http://localhost:8025), not to people's inboxes.
-- [ ] **Google sign-in.** Create the OAuth client (links in `docs/hosting.md`), put `GOOGLE_CLIENT_ID` and
-  `GOOGLE_CLIENT_SECRET` in `.env`.
-- [ ] **Forwarding addresses for bank alerts.** The live site has no mail domain yet (it used the placeholder
-  `in.payledger.local`, which is why Gmail's code never came; the page now says it isn't set up instead). Needs your
-  OK to set up Cloudflare Email Routing for `in.manojnanjundaswamy.com` and the Worker (`deploy/cloudflare/
-  email-worker.js`), then `CAPTURE_DOMAIN` and `INBOUND_SECRET` in `.env`. Then in Gmail: remove the old
-  `...@in.payledger.local` address and add the new one.
+- [ ] **AI key.** Put `AI_API_KEY` (and `AI_PROVIDER`, `AI_MODEL`, the prices) in `.env` (see `docs/ai.md`), then
+  `scripts/env.sh production deploy`. Until then quick add gives a simple reading and bank messages go by the rules only.
+  Optional: `STT_API_KEY` (OpenAI or Groq) so Firefox users can speak entries too.
+- [ ] **Delete the Cloudflare API token** you pasted in chat (My Profile, API Tokens) now that email is set up.
+- [x] Real email on the live site (Gmail app password), Google sign-in, forwarding addresses (in.manojnanjundaswamy.com).
 - [ ] Change the demo account's password and the Keycloak admin password before sharing the site.
 - [ ] Decide: prices, the product name ([naming.md](naming.md)), payments (Razorpay) before charging.
 - [ ] Keycloak upgrade PR #33 (sign-up asks for the password after email verification; works, needs your OK).
@@ -30,6 +25,13 @@ The full roadmap is in [product-plan.md](product-plan.md) (section 7); the owner
   receipt photos; item-by-item bill splitting; multiple currencies in one group.
 - [ ] **Transactions**: split one transaction across several categories; receipt attachments.
 - [ ] **Reports**: custom report builder; year in review.
+- [ ] **Android app that reads bank SMS** (Play Store allows it for money management): the only capture with no setup.
+  A thin app around the web app; the AI reader is ready for it.
+- [ ] **Forwarded HDFC emails are refused** ("550 5.7.1 DMARC"): Gmail rewrites HDFC's broken Message-ID, which breaks
+  HDFC's signature, and Cloudflare Email Routing enforces HDFC's reject policy. Axis works. Forwarding is no longer
+  recommended; paste or share the SMS for such banks.
+- [ ] **Remember which account a card or account number is**: once you add an alert for "ending 0474" to an account, use
+  that next time (today it's the account name's digits, or the only account at that bank).
 - [ ] **Bank sync** through Account Aggregator (needs a licensed partner; statements, SMS and forwarding cover it now).
 - [ ] **Languages**: UI text in translation files (English only today; every currency, number format and financial
   year already works).

@@ -3,6 +3,8 @@ import { callApi, signIn } from './helpers'
 
 test('pasted bank SMS wait in To review, guessed, and become a transaction when added', async ({ page }) => {
   await signIn(page)
+  // This test is about To review: an alert we're sure of would otherwise be added on its own (switched back on below).
+  await callApi(page, 'POST', '/api/core/capture/auto-add', { on: false })
   const run = Date.now()
   const me = await callApi<{ spaces: { id: string }[] }>(page, 'GET', '/api/core/me')
   const bank = `E2E HDFC ${run}`
@@ -30,6 +32,7 @@ test('pasted bank SMS wait in To review, guessed, and become a transaction when 
 
   await page.goto(`/transactions?q=${encodeURIComponent(`E2E capture ${run}`)}`)
   await expect(page.getByText(`E2E capture ${run}`)).toBeVisible()
+  await callApi(page, 'POST', '/api/core/capture/auto-add', { on: true })
 })
 
 test('the email guide shows your own address and the Gmail filter to copy', async ({ page }) => {

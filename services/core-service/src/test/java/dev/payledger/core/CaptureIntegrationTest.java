@@ -33,7 +33,7 @@ class CaptureIntegrationTest {
 
     @Test
     void pastedAndForwardedAlertsWaitForReviewAndBecomeTransactionsWhenAdded() throws Exception {
-        var me = user();
+        var me = askFirst(user());
         String space = JsonPath.read(body(get("/api/core/me"), me, null), "$.spaces[0].id");
         String hdfc = JsonPath.read(body(post("/api/core/spaces/" + space + "/accounts"), me, "{\"kind\":\"BANK\",\"name\":\"HDFC Salary\",\"openingBalance\":0}"), "$.id");
 
@@ -123,7 +123,7 @@ class CaptureIntegrationTest {
 
     @Test
     void aBankStatementGoesIntoToReviewOnceAndAddAllAddsWhatsReady() throws Exception {
-        var me = user();
+        var me = askFirst(user());
         String space = JsonPath.read(body(get("/api/core/me"), me, null), "$.spaces[0].id");
         String hdfc = JsonPath.read(body(post("/api/core/spaces/" + space + "/accounts"), me, "{\"kind\":\"BANK\",\"name\":\"HDFC\",\"openingBalance\":500000,\"openingDate\":\"2026-01-01\"}"), "$.id");
         String csv = """
@@ -161,7 +161,7 @@ class CaptureIntegrationTest {
 
     @Test
     void whatYouFixOnceIsReadByItselfNextTime() throws Exception {
-        var me = user();
+        var me = askFirst(user());
         String space = JsonPath.read(body(get("/api/core/me"), me, null), "$.spaces[0].id");
         String bank = JsonPath.read(body(post("/api/core/spaces/" + space + "/accounts"), me, "{\"kind\":\"BANK\",\"name\":\"Kotak\",\"openingBalance\":0}"), "$.id");
 
@@ -239,6 +239,13 @@ class CaptureIntegrationTest {
         assertThat(JsonPath.<String>read(view, "$.recentEmails[3].subject")).isEqualTo("Pre-approved personal loan offer just for you");
         assertThat(JsonPath.<Integer>read(view, "$.emailsThisWeek")).isEqualTo(4);
         assertThat(JsonPath.<Boolean>read(view, "$.forwardingOn")).isTrue();
+    }
+
+    /** These tests are about "To review": alerts we're sure of would otherwise be added on their own (AiIntegrationTest covers that). */
+    private RequestPostProcessor askFirst(RequestPostProcessor me) throws Exception {
+        mvc.perform(post("/api/core/capture/auto-add").with(me).contentType(MediaType.APPLICATION_JSON).content("{\"on\":false}"))
+                .andExpect(status().isOk());
+        return me;
     }
 
     private static RequestPostProcessor user() {

@@ -14,6 +14,7 @@ export const PLAN_LINES: PlanLine[] = [
   { feature: 'Export and your full history', free: true, premium: true },
   { feature: 'Split with friends, guests join by link', free: true, premium: true },
   { feature: 'Household: one budget for up to 6 people', free: false, premium: 'Coming soon' },
+  { feature: 'Say or type an entry, read by AI', free: '25 a month', premium: 'Unlimited' },
   { feature: 'Bank sync and statement parsing', free: false, premium: 'Coming later' },
 ]
 
@@ -25,4 +26,6 @@ export const LIMIT_LABELS: Record<string, string> = {
   'big-costs': 'Big yearly costs',
   imports: 'Imports this month',
   goals: 'Savings goals',
+  ai: 'AI reads this month (say or type, bank alerts)',
+  'ai-extras': 'Other AI uses this month',
 }

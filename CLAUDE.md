@@ -12,6 +12,7 @@ splitting groups by link without an account. Owner: Manoj. Read these before cha
 - **What is not done yet** (owner actions, roadmap gaps, operations): `docs/plan/not-done.md`; keep it current
 - Security, tenant isolation and integrity (read before adding an endpoint): `docs/security.md`
 - Notifications (bell, email outbox, providers and costs, WhatsApp, activity audit): `docs/notifications.md`
+- AI reading (quick add by voice/text, AI fallback for bank messages, masking, confidence, cost log, providers): `docs/ai.md`
 - Design decisions: `docs/adr/0001`–`0008` (ledger, locking, idempotency, outbox, ledger v2 books, identity/BFF, groups and splitting, admin console)
 - Event contract: `docs/events/ledger-entry-posted.md`
 - How to run everything: `README.md`; hosting from the laptop through a Cloudflare Tunnel: `docs/hosting.md`

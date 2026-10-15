@@ -8,6 +8,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, Eye, LayoutGrid, MoreHorizontal, PencilLine, Plus, RotateCcw, Sparkles, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { QuickAddBar } from '@/components/QuickAddBar'
 import { Button } from '@/components/ui/button'
 import { Input, Switch } from '@/components/ui/controls'
 import { Dialog, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@/components/ui/overlay'
@@ -91,6 +92,8 @@ export function DashboardPage() {
             </Button>
           </div>
         </div>
+
+        <QuickAddBar />
 
         {prefs.welcomed && <PushPrompt />}
 

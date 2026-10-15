@@ -24,8 +24,12 @@ export interface CapturedItem {
   categoryId: string | null
   categorySource: string | null
   duplicateOf: string | null
-  /** RULES: the built-in reader; LEARNED: a pattern you taught it by filling one in. */
-  readBy: 'RULES' | 'LEARNED' | null
+  /** RULES: the built-in reader; LEARNED: a pattern you taught it; AI: the rules weren't sure, so the AI read it (masked). */
+  readBy: 'RULES' | 'LEARNED' | 'AI' | null
+  /** 0..1, how sure we are every detail is right; 0.95 and up is added on its own (if you allow it). */
+  confidence: number | null
+  /** Added without asking; Undo takes it back. */
+  autoAdded: boolean
   /** Set on the answer to "add": what this taught it (a pattern, or a name), if anything. */
   learned?: 'pattern' | 'name' | null
 }
@@ -33,7 +37,7 @@ export interface CapturedItem {
 /** An email that reached your address: added, kept to look at, skipped as not a transaction, Gmail's confirmation… */
 export interface ReceivedEmail {
   id: string; receivedAt: string; sender: string | null; subject: string | null
-  result: 'added' | 'unreadable-kept' | 'not-a-transaction' | 'duplicate' | 'gmail-confirmation' | 'over-daily-limit' | 'unreadable'
+  result: 'added' | 'added-automatically' | 'unreadable-kept' | 'not-a-transaction' | 'duplicate' | 'gmail-confirmation' | 'over-daily-limit' | 'unreadable'
   itemId: string | null
 }
 
@@ -51,6 +55,8 @@ export interface CaptureView {
   emailsThisWeek: number
   /** The latest emails and what came of each. */
   recentEmails: ReceivedEmail[]
+  /** Add alerts we're at least 95% sure of without asking. */
+  autoAdd: boolean
 }
 
 export interface Pasted { added: number; duplicates: number; unreadable: number; items: CapturedItem[] }
@@ -120,6 +126,14 @@ export function useDismissCaptured() {
 
 export function useForwardingConfirmed() {
   return useCaptureWrite(() => api<CaptureView>('/api/core/capture/address/confirmed', { method: 'POST' }))
+}
+
+export function useUndoCaptured() {
+  return useCaptureWrite((id: string) => api<CapturedItem>(`/api/core/capture/items/${id}/undo`, { method: 'POST' }))
+}
+
+export function useAutoAdd() {
+  return useCaptureWrite((on: boolean) => api<CaptureView>('/api/core/capture/auto-add', { method: 'POST', json: { on } }))
 }
 
 export function useResetAddress() {

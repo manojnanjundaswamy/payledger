@@ -85,6 +85,21 @@ class CaptureController {
         return capture.statement(user, file.getBytes(), file.getOriginalFilename(), accountId, password);
     }
 
+    @PostMapping("/api/core/capture/items/{id}/undo")
+    @Operation(summary = "Take back an added entry: its transaction is deleted and it waits to review again")
+    CaptureService.Item undo(CurrentUser user, @PathVariable UUID id) {
+        return capture.undo(user, id);
+    }
+
+    record AutoAdd(boolean on) {
+    }
+
+    @PostMapping("/api/core/capture/auto-add")
+    @Operation(summary = "Add bank alerts we're at least 95% sure of without asking (on by default), or always ask")
+    CaptureService.View autoAdd(CurrentUser user, @RequestBody AutoAdd body) {
+        return capture.autoAdd(user, body.on());
+    }
+
     @PostMapping("/api/core/capture/items/{id}/dismiss")
     @Operation(summary = "Not a transaction, or already entered: let it go")
     CaptureService.Item dismiss(CurrentUser user, @PathVariable UUID id) {

@@ -97,7 +97,7 @@ class AdminLogsController {
 
     @GetMapping(value = "/api/core/admin/export/{kind}.csv", produces = "text/csv")
     @Operation(summary = "Staff: download a log as CSV (requests, activity, audit, emails, users), with the same filters as its list; up to 100,000 rows; audited")
-    ResponseEntity<byte[]> export(CurrentUser user, @PathVariable @Pattern(regexp = "requests|activity|audit|emails|users") String kind,
+    ResponseEntity<byte[]> export(CurrentUser user, @PathVariable @Pattern(regexp = "requests|activity|audit|emails|users|ai") String kind,
                                   @RequestParam(required = false) @Pattern(regexp = "2xx|4xx|5xx|errors") String status,
                                   @RequestParam(required = false) @Size(max = 200) String q,
                                   @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
@@ -118,6 +118,19 @@ class AdminLogsController {
                           and (cast(:q as text) is null or u.email ilike :like or e.action ilike :like or e.type = :q)
                           and (cast(:status as text) is null or e.status >= 400)
                         order by e.at desc
+                        """;
+            }
+            case "ai" -> {
+                staff.require(user, Permission.AUDIT_VIEW);
+                sql = """
+                        select r.id, r.at, r.user_id, u.email, r.feature, r.channel, r.provider, r.model, r.status, r.error, r.input_tokens,
+                               r.output_tokens, r.audio_seconds, r.cost_micros, r.latency_ms, r.counted, r.model_confidence, r.confidence, r.outcome,
+                               r.entries, r.captured_item_id, array_to_string(r.transaction_ids, ' ') as transaction_ids, r.input_text, r.output_text
+                        from ai_requests r left join users u on u.id = r.user_id
+                        where (cast(:from as timestamptz) is null or r.at >= :from) and (cast(:to as timestamptz) is null or r.at < :to)
+                          and (cast(:q as text) is null or u.email ilike :like or r.feature ilike :like or r.model ilike :like or r.outcome ilike :like)
+                          and (cast(:status as text) is null or r.status <> 'OK')
+                        order by r.at desc
                         """;
             }
             case "audit" -> {

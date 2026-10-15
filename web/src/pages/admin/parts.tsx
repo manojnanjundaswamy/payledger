@@ -19,7 +19,7 @@ export function dateTime(iso: string | null | undefined, locale = 'en-IN'): stri
 }
 
 /** Downloads a log as CSV with the filters on screen (the server checks the permission and records the export). */
-export function ExportButton({ kind, params }: { kind: 'requests' | 'activity' | 'audit' | 'emails' | 'users'; params?: Record<string, string | undefined> }) {
+export function ExportButton({ kind, params }: { kind: 'requests' | 'activity' | 'audit' | 'emails' | 'users' | 'ai'; params?: Record<string, string | undefined> }) {
   const q = new URLSearchParams()
   Object.entries(params ?? {}).forEach(([k, v]) => { if (v) q.set(k, v) })
   return (

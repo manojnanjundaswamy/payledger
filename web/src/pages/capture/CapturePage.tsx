@@ -6,12 +6,12 @@ import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Check, CheckCircle2, Chevro
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Skeleton } from '@/components/ui/card'
-import { Input, Segmented } from '@/components/ui/controls'
+import { Input, Segmented, Switch } from '@/components/ui/controls'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatMoneyWhole, minorToInput, parseMoney } from '@/lib/money'
 import { accountOptions, categoryOptions, dayLabel, today, useMoneyFormat } from '@/pages/money/parts'
-import { BANK_SENDERS, bankFilter, type CaptureView, type CapturedItem, type ReceivedEmail, useAddAll, useAddCaptured, useCapture, useDismissCaptured, useForwardingConfirmed, usePaste, useResetAddress, useStatement } from '@/state/capture'
+import { BANK_SENDERS, bankFilter, useAutoAdd, useUndoCaptured, type CaptureView, type CapturedItem, type ReceivedEmail, useAddAll, useAddCaptured, useCapture, useDismissCaptured, useForwardingConfirmed, usePaste, useResetAddress, useStatement } from '@/state/capture'
 import { useAccounts, useCategories, usePersonalSpaceId } from '@/state/money'
 import { ForwardFlow, GmailSettings, MethodIcon, PhoneSms } from './illustrations'
 
@@ -77,8 +77,8 @@ export function CapturePage() {
         <h2 className="text-base font-semibold">{pending.length ? 'Bring more in' : 'Set it up once'}</h2>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" role="tablist">
           {([
-            { key: 'email', title: 'Forward bank emails', text: 'Automatic, once set up. Best on a computer.', tag: 'Recommended' },
-            { key: 'paste', title: 'Paste SMS', text: 'Copy one or many bank SMS and paste them here.' },
+            { key: 'paste', title: 'Paste SMS', text: 'Copy one or many bank SMS and paste them here.', tag: 'Works for every bank' },
+            { key: 'email', title: 'Forward bank emails', text: 'Automatic once set up, for banks whose emails can be forwarded.' },
             { key: 'share', title: 'Share from Messages', text: 'Android: Share → PayLedger, after installing the app.' },
             { key: 'statement', title: 'Bank statement', text: 'Months of history at once: CSV, Excel or PDF from net banking.' },
           ] as const).map((m) => (
@@ -93,11 +93,22 @@ export function CapturePage() {
             </button>
           ))}
         </div>
-        {data && method === 'email' && <EmailGuide data={data} />}
+        {data && method === 'email' && (
+          <>
+            <p className="flex items-start gap-2 rounded-control bg-warning/10 px-3 py-2 text-xs">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" />
+              <span>Some banks' emails (HDFC's, for one) are refused when Gmail forwards them, because of how the bank signs them. Gmail then
+                emails you "Message blocked". For those banks, paste or share the SMS instead.</span>
+            </p>
+            <EmailGuide data={data} />
+          </>
+        )}
         {method === 'paste' && <PasteBox />}
         {method === 'share' && <ShareGuide />}
         {method === 'statement' && <StatementBox />}
       </section>
+
+      {data && <AutoAddSetting on={data.autoAdd} />}
 
       {decided.length > 0 && (
         <section className="flex flex-col gap-2" aria-label="Recently decided">
@@ -108,8 +119,12 @@ export function CapturePage() {
                 {i.status === 'ADDED' ? <Check className="size-4 text-good-text" /> : <X className="size-4 text-subtle" />}
                 <span className="min-w-0 flex-1 truncate">{i.merchant ?? i.bank ?? 'Bank alert'}</span>
                 {i.amount !== null && <span className={cn('tabular text-xs', i.kind === 'INCOME' ? 'text-[var(--flow-in)]' : 'text-muted')}>{i.kind === 'INCOME' ? '+' : '−'}{formatMoneyWhole(i.amount)}</span>}
+                {i.autoAdded && <Badge tone="accent" title={i.confidence != null ? `${Math.round(i.confidence * 100)}% sure` : undefined}>On its own</Badge>}
                 {i.status === 'ADDED' && i.transactionId
-                  ? <Link to="/transactions" search={{ open: i.transactionId }} className="text-xs underline underline-offset-4">Open</Link>
+                  ? <>
+                      <Link to="/transactions" search={{ open: i.transactionId }} className="text-xs underline underline-offset-4">Open</Link>
+                      <UndoButton id={i.id} />
+                    </>
                   : <span className="text-xs text-subtle">dismissed</span>}
               </div>
             ))}
@@ -123,6 +138,34 @@ export function CapturePage() {
         dismiss an entry, and everything goes with your account if you delete it.
       </p>
     </div>
+  )
+}
+
+/** Sure ones in without a tap: on by default; off means everything waits here. */
+function AutoAddSetting({ on }: { on: boolean }) {
+  const set = useAutoAdd()
+  return (
+    <Card className="flex items-start justify-between gap-4 p-pad">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">Add on their own when we're sure</p>
+        <p className="text-xs text-muted">An alert we're at least 95% sure of (amount, date, payee and your account) is added without asking. You'll get a
+          notification, and Undo is here if it's wrong.</p>
+      </div>
+      <Switch checked={on} label="Add on their own when we're sure" onCheckedChange={(v) => set.mutate(v)} />
+    </Card>
+  )
+}
+
+function UndoButton({ id }: { id: string }) {
+  const undo = useUndoCaptured()
+  return (
+    <button type="button" className="text-xs text-muted underline underline-offset-4 hover:text-fg disabled:opacity-50" disabled={undo.isPending}
+      onClick={() => undo.mutate(id, {
+        onSuccess: () => toast('Taken back', { description: 'It waits in To review again.' }),
+        onError: () => toast.error("Couldn't undo it", { description: 'Open it in Transactions to change or delete it.' }),
+      })}>
+      Undo
+    </button>
   )
 }
 
@@ -225,6 +268,10 @@ function ReviewCard({ item }: { item: CapturedItem }) {
       {item.readBy === 'LEARNED' && (
         <p className="flex items-center gap-1.5 text-xs text-subtle"><Sparkles className="size-3.5 text-accent" />Read with what you taught it.</p>
       )}
+      {item.readBy === 'AI' && (
+        <p className="flex items-center gap-1.5 text-xs text-subtle"><Sparkles className="size-3.5 text-accent" />
+          Read by AI{item.confidence != null ? ` · ${Math.round(item.confidence * 100)}% sure` : ''} · account numbers were hidden first</p>
+      )}
       {item.duplicateOf && (
         <p className="flex flex-wrap items-center gap-2 rounded-control bg-warning/10 px-3 py-2 text-xs">
           <AlertTriangle className="size-3.5 shrink-0 text-warning" />
@@ -293,6 +340,7 @@ function CopyBox({ value, label, mono = true }: { value: string; label: string; 
 
 const OUTCOME: Record<ReceivedEmail['result'], { label: string; tone: 'good' | 'muted' | 'warn' }> = {
   added: { label: 'Added to review', tone: 'good' },
+  'added-automatically': { label: 'Added on its own', tone: 'good' },
   'unreadable-kept': { label: 'Kept to look at', tone: 'warn' },
   'not-a-transaction': { label: 'Skipped: not a transaction', tone: 'muted' },
   duplicate: { label: 'Already had it', tone: 'muted' },

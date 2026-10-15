@@ -1,5 +1,5 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { Activity, BarChart3, Mail, Network, ScrollText, Settings2, ShieldAlert, ShieldCheck, Users } from 'lucide-react'
+import { Activity, BarChart3, Mail, Network, ScrollText, Settings2, ShieldAlert, ShieldCheck, Users, Sparkles } from 'lucide-react'
 import { Badge, Card } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
 import { useProfile, type StaffPermission } from '@/state/profile'
@@ -12,6 +12,7 @@ import { AdminSettings } from './AdminSettings'
 import { AdminStaff } from './AdminStaff'
 import { AdminUsers } from './AdminUsers'
 import { ADMIN_TABS_KEYS, type AdminTab } from './tabs'
+import { AdminAi } from './AdminAi'
 import { setAdminTimeZone } from './parts'
 
 const TABS: Record<AdminTab, { label: string; icon: typeof BarChart3; needs: StaffPermission; component: () => React.JSX.Element }> = {
@@ -23,6 +24,7 @@ const TABS: Record<AdminTab, { label: string; icon: typeof BarChart3; needs: Sta
   activity: { label: 'User activity', icon: Activity, needs: 'USERS_VIEW', component: AdminActivity },
   requests: { label: 'Requests', icon: Network, needs: 'AUDIT_VIEW', component: AdminRequests },
   audit: { label: 'Audit log', icon: ScrollText, needs: 'AUDIT_VIEW', component: AdminAudit },
+  ai: { label: 'AI usage', icon: Sparkles, needs: 'ANALYTICS_VIEW', component: AdminAi },
 }
 
 const ROLE_LABEL = { OWNER: 'Owner', ADMIN: 'Admin', SUPPORT: 'Support', ANALYST: 'Analyst' } as const
