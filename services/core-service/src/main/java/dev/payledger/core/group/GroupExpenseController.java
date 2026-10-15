@@ -23,9 +23,34 @@ import java.util.UUID;
 class GroupExpenseController {
 
     private final GroupExpenseService expenses;
+    private final GroupService groups;
+    private final GroupComments comments;
 
-    GroupExpenseController(GroupExpenseService expenses) {
+    GroupExpenseController(GroupExpenseService expenses, GroupService groups, GroupComments comments) {
         this.expenses = expenses;
+        this.groups = groups;
+        this.comments = comments;
+    }
+
+    record NewComment(String body) {
+    }
+
+    @GetMapping("/comments")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Comments on the group's expenses, oldest first")
+    java.util.List<GroupComments.Comment> comments(CurrentUser user, @PathVariable UUID groupId) {
+        return comments.list(groups.doer(user, groupId), groupId);
+    }
+
+    @PostMapping("/expenses/{expenseId}/comments")
+    @ResponseStatus(HttpStatus.CREATED)
+    GroupComments.Comment comment(CurrentUser user, @PathVariable UUID groupId, @PathVariable UUID expenseId, @RequestBody NewComment body) {
+        return comments.add(groups.doer(user, groupId), groupId, expenseId, body.body());
+    }
+
+    @DeleteMapping("/comments/{commentId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteComment(CurrentUser user, @PathVariable UUID groupId, @PathVariable UUID commentId) {
+        comments.delete(groups.doer(user, groupId), groupId, commentId);
     }
 
     @GetMapping("/activity")

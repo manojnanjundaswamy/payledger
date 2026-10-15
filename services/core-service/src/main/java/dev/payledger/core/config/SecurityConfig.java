@@ -22,6 +22,8 @@ class SecurityConfig {
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         // The Email Worker's door: no user, its own shared secret (CaptureController).
                         .requestMatchers("/inbound/**").permitAll()
+                        // Guests without an account: their own session cookie, checked in GuestController.
+                        .requestMatchers("/api/guest/**").permitAll()
                         // Health probes (Docker, Kubernetes) on the management port; metrics stay closed.
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/api/**").authenticated()

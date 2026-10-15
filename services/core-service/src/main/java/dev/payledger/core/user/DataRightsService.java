@@ -57,12 +57,16 @@ public class DataRightsService {
         out.put("goalContributions", rows("select c.* from goal_contributions c join goals g on g.id = c.goal_id where g.space_id in (" + MY_SPACES + ")", u));
         out.put("categoryRules", rows("select * from category_rules where space_id in (" + MY_SPACES + ") order by match", u));
         out.put("taxMappings", rows("select * from tax_mappings where space_id in (" + MY_SPACES + ")", u));
+        out.put("dailyServices", rows("select * from daily_services where space_id in (" + MY_SPACES + ") order by created_at", u));
+        out.put("dailyServiceDays", rows("select d.* from daily_service_days d join daily_services s on s.id = d.service_id where s.space_id in (" + MY_SPACES + ") order by d.day", u));
+        out.put("dailyServicePayments", rows("select p.* from daily_service_payments p join daily_services s on s.id = p.service_id where s.space_id in (" + MY_SPACES + ") order by p.month", u));
         out.put("imports", rows("select * from imports where space_id in (" + MY_SPACES + ") order by created_at", u));
         out.put("groups", rows("select * from groups where id in (" + MY_GROUPS + ")", u));
         out.put("groupMembers", rows("select id, group_id, display_name, role, user_id = :u as you, left_at from group_members where group_id in (" + MY_GROUPS + ")", u));
         out.put("groupExpenses", rows("select * from group_expenses where group_id in (" + MY_GROUPS + ") and deleted_at is null order by occurred_on", u));
         out.put("groupExpenseParts", rows("select p.* from group_expense_parts p join group_expenses e on e.id = p.expense_id where e.group_id in (" + MY_GROUPS + ") and e.deleted_at is null", u));
         out.put("groupSettlements", rows("select * from group_settlements where group_id in (" + MY_GROUPS + ") and deleted_at is null order by occurred_on", u));
+        out.put("groupComments", rows("select id, expense_id, body, created_at from group_comments where group_id in (" + MY_GROUPS + ") and deleted_at is null and member_id in (select id from group_members where user_id = :u) order by created_at", u));
         out.put("notifications", rows("select kind, title, body, link, created_at, read_at from inbox where user_id = :u order by created_at", u));
         out.put("emailsSent", rows("select kind, to_email, subject, created_at, sent_at from email_outbox where user_id = :u order by created_at", u));
         out.put("activity", rows("select type, action, status, target, ip, user_agent, at from user_events where user_id = :u order by at", u));

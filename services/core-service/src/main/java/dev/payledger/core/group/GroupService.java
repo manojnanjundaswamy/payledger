@@ -62,7 +62,12 @@ public class GroupService {
     public record Member(UUID id, String name, String email, String role, boolean joined, boolean you, String upiId) {
     }
 
-    public record Group(UUID id, String name, String emoji, String currency, boolean archived, UUID you, List<Member> members) {
+    /** The owner's switches (product plan 3.3). */
+    public record Settings(boolean linkOpen, boolean guestsAllowed, boolean ownEditsOnly) {
+    }
+
+    public record Group(UUID id, String name, String emoji, String currency, boolean archived, UUID you, List<Member> members,
+                        String role, Settings settings) {
     }
 
     public record Invite(String groupName, String emoji, int members, boolean alreadyMember) {
@@ -111,21 +116,27 @@ public class GroupService {
 
     @Transactional(readOnly = true)
     public Group get(CurrentUser user, UUID groupId) {
-        Me me = member(user, groupId);
-        record Row(UUID id, String name, String emoji, String currency, boolean archived) {
+        return get(doer(user, groupId), groupId);
+    }
+
+    @Transactional(readOnly = true)
+    public Group get(Doer me, UUID groupId) {
+        record Row(UUID id, String name, String emoji, String currency, boolean archived, boolean linkOpen, boolean guestsAllowed, boolean ownEditsOnly) {
         }
-        Row g = jdbc.sql("select id, name, emoji, currency, archived_at is not null as archived from groups where id = :id")
+        Row g = jdbc.sql("select id, name, emoji, currency, archived_at is not null as archived, link_open, guests_allowed, own_edits_only from groups where id = :id")
                 .param("id", groupId).query(Row.class).single();
         List<Member> members = jdbc.sql("""
                         select m.id, m.display_name as name, case when m.user_id is null then m.email end as email, m.role,
-                               m.user_id is not null as joined, coalesce(m.user_id = :userId, false) as you, u.upi_id
+                               m.user_id is not null as joined, m.id = :memberId as you, u.upi_id
                         from group_members m left join users u on u.id = m.user_id
                         where m.group_id = :groupId and m.left_at is null
                         order by m.role = 'OWNER' desc, m.created_at
                         """)
-                .param("groupId", groupId).param("userId", user.id())
+                .param("groupId", groupId).param("memberId", me.memberId())
                 .query(Member.class).list();
-        return new Group(g.id(), g.name(), g.emoji(), g.currency(), g.archived(), me.id(), members);
+        String role = members.stream().filter(Member::you).map(Member::role).findFirst().orElse("MEMBER");
+        return new Group(g.id(), g.name(), g.emoji(), g.currency(), g.archived(), me.memberId(), members, role,
+                new Settings(g.linkOpen(), g.guestsAllowed(), g.ownEditsOnly()));
     }
 
     @Transactional
@@ -134,9 +145,19 @@ public class GroupService {
         if (request.archived() != null && !me.role().equals("OWNER")) {
             throw new InvalidRequestException("owner-only", "only the group's owner can archive it");
         }
-        record Was(String name, String emoji, boolean archived) {
+        boolean settings = request.linkOpen() != null || request.guestsAllowed() != null || request.ownEditsOnly() != null;
+        if (settings && !me.role().equals("OWNER")) {
+            throw new InvalidRequestException("owner-only", "only the group's owner can change its settings");
         }
-        Was was = jdbc.sql("select name, emoji, archived_at is not null as archived from groups where id = :id").param("id", groupId).query(Was.class).single();
+        record Was(String name, String emoji, boolean archived, boolean linkOpen, boolean guestsAllowed, boolean ownEditsOnly) {
+        }
+        Was was = jdbc.sql("select name, emoji, archived_at is not null as archived, link_open, guests_allowed, own_edits_only from groups where id = :id")
+                .param("id", groupId).query(Was.class).single();
+        jdbc.sql("""
+                        update groups set link_open = coalesce(:link, link_open), guests_allowed = coalesce(:guests, guests_allowed),
+                            own_edits_only = coalesce(:own, own_edits_only) where id = :id
+                        """).param("link", request.linkOpen()).param("guests", request.guestsAllowed()).param("own", request.ownEditsOnly())
+                .param("id", groupId).update();
         jdbc.sql("""
                         update groups set name = coalesce(:name, name), emoji = coalesce(:emoji, emoji),
                             archived_at = case when cast(:archived as boolean) is null then archived_at
@@ -155,6 +176,15 @@ public class GroupService {
         }
         if (request.archived() != null && request.archived() != was.archived()) {
             changes.add(GroupHistory.details("field", "archived", "before", was.archived(), "after", request.archived()));
+        }
+        if (request.linkOpen() != null && request.linkOpen() != was.linkOpen()) {
+            changes.add(GroupHistory.details("field", "join link works", "before", was.linkOpen(), "after", request.linkOpen()));
+        }
+        if (request.guestsAllowed() != null && request.guestsAllowed() != was.guestsAllowed()) {
+            changes.add(GroupHistory.details("field", "guests can join", "before", was.guestsAllowed(), "after", request.guestsAllowed()));
+        }
+        if (request.ownEditsOnly() != null && request.ownEditsOnly() != was.ownEditsOnly()) {
+            changes.add(GroupHistory.details("field", "only the person who added it can change it", "before", was.ownEditsOnly(), "after", request.ownEditsOnly()));
         }
         if (!changes.isEmpty()) {
             history.record(groupId, user, GroupHistory.Action.GROUP_UPDATED, GroupHistory.details("changes", changes));
@@ -357,6 +387,30 @@ public class GroupService {
     public record Me(UUID id, String role) {
     }
 
+    /**
+     * Who is acting in a group: a member with an account ({@code account} set), or a guest who proved their email
+     * ({@code id} and {@code account} null). {@code id} is the user id, kept in the name the services already use.
+     */
+    public record Doer(UUID id, String displayName, UUID memberId, CurrentUser account) {
+    }
+
+    public Doer doer(CurrentUser user, UUID groupId) {
+        return new Doer(user.id(), user.displayName(), member(user, groupId).id(), user);
+    }
+
+    /** A guest's membership: by their verified email, in a group where that email has no account yet. 404 otherwise. */
+    public Doer guest(String email, UUID groupId) {
+        record Row(UUID id, String name) {
+        }
+        Row r = jdbc.sql("""
+                        select m.id, m.display_name as name from group_members m join groups g on g.id = m.group_id
+                        where m.group_id = :groupId and lower(m.email) = lower(:email) and m.user_id is null and m.left_at is null
+                          and g.guests_allowed
+                        """).param("groupId", groupId).param("email", email).query(Row.class).optional()
+                .orElseThrow(() -> new NotFoundException("group"));
+        return new Doer(null, r.name(), r.id(), null);
+    }
+
     /** 404 unless the user is a member: ids of other people's groups leak nothing. */
     public Me member(CurrentUser user, UUID groupId) {
         return jdbc.sql("select id, role from group_members where group_id = :groupId and user_id = :userId and left_at is null")
@@ -370,17 +424,17 @@ public class GroupService {
                 .param("groupId", groupId).param("userId", user.id()).query(Boolean.class).single();
     }
 
-    private UUID groupOf(String token) {
+    UUID groupOf(String token) {
         return jdbc.sql("""
                         select l.group_id from group_links l join groups g on g.id = l.group_id
-                        where l.token = :token and l.revoked_at is null and g.archived_at is null
+                        where l.token = :token and l.revoked_at is null and g.archived_at is null and g.link_open
                         """)
                 .param("token", token).query(UUID.class).optional()
                 .orElseThrow(InvalidLinkException::new);
     }
 
     /** Serialises changes to a group's members and link. */
-    private void lockGroup(UUID groupId) {
+    void lockGroup(UUID groupId) {
         jdbc.sql("select id from groups where id = :id for update").param("id", groupId).query(UUID.class).single();
     }
 

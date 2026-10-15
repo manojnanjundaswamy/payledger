@@ -103,6 +103,12 @@ class TenantIsolationIntegrationTest {
         a.put("settlementId", id(post("/api/core/groups/" + group + "/settlements", alice,
                 "{\"fromMemberId\":\"" + friend + "\",\"toMemberId\":\"" + self + "\",\"amount\":100,\"occurredOn\":\"2026-10-06\",\"note\":\"" + secret + "\"}")));
 
+        a.put("commentId", id(post("/api/core/groups/" + group + "/expenses/" + a.get("expenseId") + "/comments", alice, "{\"body\":\"" + secret + " note\"}")));
+        a.put("dailyService", JsonPath.read(post("/api/core/spaces/" + space + "/daily-services", alice,
+                "{\"name\":\"" + secret + " milk\",\"rate\":6000,\"per\":\"DAY\",\"accountId\":\"" + account + "\",\"startedOn\":\"2026-10-01\"}"), "$.service.id"));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/core/spaces/" + space + "/daily-services/" + a.get("dailyService") + "/days/2026-10-05")
+                .with(alice).contentType(MediaType.APPLICATION_JSON).content("{\"quantity\":0}")).andExpect(status().isOk());
+
         bobSpace = JsonPath.read(me(bob), "$.spaces[0].id");
         bobGroup = id(post("/api/core/groups", bob, "{\"name\":\"Bob's flat\"}"));
     }
@@ -183,7 +189,10 @@ class TenantIsolationIntegrationTest {
                 case "spaceId" -> own ? bobSpace : a.get("spaceId");
                 case "groupId" -> own ? bobGroup : a.get("groupId");
                 case "id" -> pattern.contains("/commitments/") ? a.get("commitment") : pattern.contains("/category-rules/") ? a.get("rule")
-                        : pattern.contains("/goals/") ? a.get("goal") : a.get("transaction");
+                        : pattern.contains("/goals/") ? a.get("goal") : pattern.contains("/daily-services/") ? a.get("dailyService") : a.get("transaction");
+                // Dates aren't secrets: kept out of A's values, which the leak check looks for in every answer.
+                case "day" -> "2026-10-05";
+                case "month" -> "2026-10";
                 default -> a.get(name);
             };
             if (value == null) {

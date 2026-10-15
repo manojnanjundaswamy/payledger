@@ -229,6 +229,7 @@ interface Restored { counts: Record<string, number>; skipped: string[] }
 const RESTORED_LABELS: Record<string, string> = {
   categories: 'categories', accounts: 'accounts', goals: 'goals', transactions: 'entries', budgets: 'budgets', billsAndSavings: 'bills and savings',
   billPayments: 'bill payments', goalContributions: 'goal top-ups', categoryRules: 'category rules', taxMappings: 'tax sections',
+  dailyServices: 'daily services', dailyServiceDays: 'marked days', dailyServicePayments: 'service payments',
 }
 
 /**

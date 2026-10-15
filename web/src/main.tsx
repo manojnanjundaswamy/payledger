@@ -35,6 +35,8 @@ function onError(error: Error) {
     })
     return
   }
+  // Guest pages have their own session (a cookie from a join link); they say so themselves.
+  if (error instanceof UnauthorizedError && location.pathname.startsWith('/guest')) return
   if (error instanceof UnauthorizedError) {
     // The session expired (or was ended elsewhere): go back to sign in, once.
     queryClient.clear()

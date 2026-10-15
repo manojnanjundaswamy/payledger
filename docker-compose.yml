@@ -254,6 +254,8 @@ services:
       # Auto-capture (docs/hosting.md): forwarding addresses are <token>@CAPTURE_DOMAIN; the Email Worker sends INBOUND_SECRET.
       CAPTURE_DOMAIN: ${CAPTURE_DOMAIN:-in.payledger.local}
       INBOUND_SECRET: ${INBOUND_SECRET:-}
+      # Guests' session cookie (GuestController) is Secure on the hosted site, like the gateway's.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:
       - "${CORE_PORT:-8060}:8060"
       - "${CORE_MANAGEMENT_PORT:-8061}:8061"

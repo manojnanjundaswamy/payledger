@@ -64,7 +64,7 @@ public class GroupHistory {
                 .query((rs, n) -> new Row(rs.getObject("id", UUID.class), rs.getString("action"), rs.getString("actor_name"),
                         rs.getObject("actor_user_id", UUID.class), rs.getTimestamp("at").toInstant(), rs.getString("details")))
                 .list().stream()
-                .map(r -> new Event(r.id(), r.action(), r.actorName(), me.equals(r.actorUserId()), r.at(), json.readValue(r.details(), LinkedHashMap.class)))
+                .map(r -> new Event(r.id(), r.action(), r.actorName(), me != null && me.equals(r.actorUserId()), r.at(), json.readValue(r.details(), LinkedHashMap.class)))
                 .toList();
     }
 

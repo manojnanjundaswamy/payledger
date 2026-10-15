@@ -86,6 +86,9 @@ public class DataImportService {
         counts.put("goalContributions", restoreContributions(user, root.path("goalContributions"), ids));
         counts.put("categoryRules", restoreRules(space, user, rows(root, "categoryRules", personal), ids));
         counts.put("taxMappings", restoreTax(space, rows(root, "taxMappings", personal), ids));
+        counts.put("dailyServices", restoreDailyServices(space, user, rows(root, "dailyServices", personal), ids));
+        counts.put("dailyServiceDays", restoreServiceDays(root.path("dailyServiceDays"), ids));
+        counts.put("dailyServicePayments", restoreServicePayments(root.path("dailyServicePayments"), ids));
         if (root.path("groups").size() > 0) {
             skipped.add(root.path("groups").size() + " groups: shared with others, so they stay with them (ask to be added again)");
         }
@@ -313,6 +316,50 @@ public class DataImportService {
             jdbc.sql("insert into tax_mappings (space_id, category_id, section) values (:s, :c, :section) on conflict do nothing")
                     .param("s", space.id()).param("c", category).param("section", text(t, "section")).update();
             n++;
+        }
+        return n;
+    }
+
+    private int restoreDailyServices(Space space, CurrentUser user, List<JsonNode> rows, Map<String, UUID> ids) {
+        int n = 0;
+        for (JsonNode d : rows) {
+            UUID id = Uuid7.next();
+            jdbc.sql("""
+                            insert into daily_services (id, space_id, name, emoji, rate, per, paid_leaves, account_id, category_id, started_on, ended_on, created_by)
+                            values (:id, :s, :name, :emoji, :rate, :per, :leaves, :account, :category, :start, :end, :u)
+                            """).param("id", id).param("s", space.id()).param("name", text(d, "name")).param("emoji", text(d, "emoji"))
+                    .param("rate", d.path("rate").asLong()).param("per", text(d, "per")).param("leaves", d.path("paid_leaves").asInt(0))
+                    .param("account", ids.get(text(d, "account_id"))).param("category", ids.get(text(d, "category_id")))
+                    .param("start", date(d, "started_on")).param("end", date(d, "ended_on")).param("u", user.id()).update();
+            ids.put(text(d, "id"), id);
+            n++;
+        }
+        return n;
+    }
+
+    private int restoreServiceDays(JsonNode rows, Map<String, UUID> ids) {
+        int n = 0;
+        for (JsonNode d : rows) {
+            UUID service = ids.get(text(d, "service_id"));
+            if (service != null) {
+                jdbc.sql("insert into daily_service_days (service_id, day, quantity) values (:s, :d, :q) on conflict do nothing")
+                        .param("s", service).param("d", date(d, "day")).param("q", d.path("quantity").asInt(1)).update();
+                n++;
+            }
+        }
+        return n;
+    }
+
+    private int restoreServicePayments(JsonNode rows, Map<String, UUID> ids) {
+        int n = 0;
+        for (JsonNode p : rows) {
+            UUID service = ids.get(text(p, "service_id"));
+            UUID txn = ids.get(text(p, "transaction_id"));
+            if (service != null && txn != null) {
+                jdbc.sql("insert into daily_service_payments (service_id, month, transaction_id, amount) values (:s, :m, :t, :a) on conflict do nothing")
+                        .param("s", service).param("m", date(p, "month")).param("t", txn).param("a", p.path("amount").asLong()).update();
+                n++;
+            }
         }
         return n;
     }
