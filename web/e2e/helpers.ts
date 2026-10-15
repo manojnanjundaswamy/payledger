@@ -36,7 +36,8 @@ export async function waitForSave(page: Page) {
   await expect(page.getByRole('status', { name: 'All changes saved to your account' })).toBeVisible({ timeout: 10_000 })
 }
 
-export const MAILPIT = 'http://localhost:8025'
+// Each environment has its own mail catcher (scripts/env.sh passes staging's).
+export const MAILPIT = process.env.MAILPIT_URL ?? 'http://localhost:8025'
 
 /** A brand-new person: sign up in Keycloak, verify the email through Mailpit, land in the app. */
 export async function signUp(page: Page, request: APIRequestContext, email: string) {

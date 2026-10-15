@@ -1,6 +1,6 @@
 import { uuid7 } from '@/lib/uuid'
 import { SearchSelect } from '@/components/ui/search-select'
-import { categoryTree, useAccounts, useCategories, useGroupBudget } from '@/state/money'
+import { categoryTree, useAccounts, useCategories, useGroupBudget, usePersonalSpaceId } from '@/state/money'
 import { CategoryIcon, accountOptions } from '@/pages/money/parts'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Trash2 } from 'lucide-react'
@@ -46,7 +46,7 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
   const [error, setError] = useState<string>()
   const [fromAccount, setFromAccount] = useState('')
   const { data: bookSettings } = useGroupBudget()
-  const { data: myAccounts } = useAccounts()
+  const { data: myAccounts } = useAccounts(false, usePersonalSpaceId())
   const payable = (myAccounts ?? []).filter((a) => a.kind !== 'OWED' && !a.archived)
 
   useEffect(() => {
@@ -83,7 +83,7 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
   const total = parseMoney(amount)
   // The category: one of your own spending categories, or a label this group already uses, or a new one. It's
   // stored by name, so each member's share lands in their own category of that name (or Other).
-  const { data: myCategories = [] } = useCategories()
+  const { data: myCategories = [] } = useCategories(usePersonalSpaceId())
   const { data: activity } = useActivity(groupId)
   const labelOptions = useMemo(() => {
     const mine = myCategories.filter((c) => c.kind === 'EXPENSE' && !c.hidden)

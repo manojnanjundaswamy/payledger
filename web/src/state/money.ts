@@ -1,4 +1,5 @@
 import { infiniteQueryOptions, queryOptions, useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useChosenSpace } from './space'
 import { api } from '@/lib/api'
 import { useProfile } from './profile'
 
@@ -97,8 +98,15 @@ export function useTransactionSummary(filter: TransactionFilter, enabled = true)
 
 interface Page { items: Transaction[]; nextCursor: string | null }
 
-/** Money lives in a space; for now that is always the personal one (households come in Phase 5). */
+/** The space the money pages show: the one chosen in the top bar (a household), else your personal one. */
 export function useSpaceId(): string | undefined {
+  const spaces = useProfile().data?.spaces
+  const chosen = useChosenSpace()
+  return (chosen && spaces?.some((s) => s.id === chosen) ? chosen : undefined) ?? spaces?.find((s) => s.kind === 'PERSONAL')?.id
+}
+
+/** Always your personal space: for what's only ever yours (group payments, loans, auto-capture). */
+export function usePersonalSpaceId(): string | undefined {
   return useProfile().data?.spaces.find((s) => s.kind === 'PERSONAL')?.id
 }
 
@@ -127,13 +135,15 @@ export const transactionsQuery = (spaceId: string, filter: TransactionFilter) =>
   getNextPageParam: (last) => last.nextCursor,
 })
 
-export function useAccounts(includeArchived = false) {
-  const spaceId = useSpaceId()
+export function useAccounts(includeArchived = false, space?: string) {
+  const current = useSpaceId()
+  const spaceId = space ?? current
   return useQuery({ ...accountsQuery(spaceId ?? '', includeArchived), enabled: !!spaceId })
 }
 
-export function useCategories() {
-  const spaceId = useSpaceId()
+export function useCategories(space?: string) {
+  const current = useSpaceId()
+  const spaceId = space ?? current
   return useQuery({ ...categoriesQuery(spaceId ?? ''), enabled: !!spaceId })
 }
 

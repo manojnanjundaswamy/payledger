@@ -14,8 +14,10 @@ end $$;
 create temp table gone_users on commit drop as select id from users where id not in (select id from keep_user)
   and (:'everyone' = 'yes' or email ~* '@example\.com$');
 create temp table gone_spaces on commit drop as
-  select id from spaces where created_by in (select id from gone_users)
-    and id not in (select space_id from space_members where user_id in (select id from keep_user));
+  select id from spaces where (created_by in (select id from gone_users)
+    and id not in (select space_id from space_members where user_id in (select id from keep_user)))
+    -- The tests' households, whoever is in them.
+    or (kind = 'HOUSEHOLD' and name ~* '^E2E\M');
 create temp table gone_groups on commit drop as
   select id from groups where name ~* '^E2E\M' or created_by in (select id from gone_users);
 create temp table kept_spaces on commit drop as select id from spaces where id not in (select id from gone_spaces);
@@ -74,6 +76,7 @@ delete from captured_items where user_id in (select id from gone_users) or space
 delete from capture_addresses where user_id in (select id from gone_users);
 delete from transactions where space_id in (select id from gone_spaces);
 delete from budget_limits where space_id in (select id from gone_spaces);
+delete from space_invites where space_id in (select id from gone_spaces);
 delete from tax_mappings where space_id in (select id from gone_spaces);
 delete from imports where space_id in (select id from gone_spaces);
 delete from group_entry_accounts where user_id in (select id from gone_users)

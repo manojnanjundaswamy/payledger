@@ -3,7 +3,7 @@ import { signIn } from './helpers'
 
 // Every main page fits a phone's width: nothing pokes out, so nothing needs a sideways scroll to be seen.
 const PAGES = ['/dashboard', '/transactions', '/transactions?view=calendar', '/budgets', '/accounts', '/categories', '/plan', '/goals',
-  '/reports', '/tax', '/groups', '/people', '/utilities', '/settings', '/import']
+  '/reports', '/tax', '/groups', '/people', '/utilities', '/settings', '/import', '/household', '/capture']
 
 test('main pages fit a phone screen @phone', async ({ page }) => {
   test.setTimeout(180_000)

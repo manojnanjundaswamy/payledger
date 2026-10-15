@@ -68,7 +68,7 @@ case "$CMD" in
   logs) compose logs -f --tail 100 "$@" ;;
   e2e)
     [ "$ENV" = staging ] || { echo "browser tests run against staging only" >&2; exit 2; }
-    (cd web && WEB_URL="$WEB_URL" npx playwright test "$@") ;;
+    (cd web && WEB_URL="$WEB_URL" MAILPIT_URL="http://localhost:${MAILPIT_PORT:-8025}" npx playwright test "$@") ;;
   clean)
     [ "$ENV" = staging ] || { echo "clean runs against staging only (production keeps real people's data)" >&2; exit 2; }
     (cd web && WEB_URL="$WEB_URL" CLEANUP=1 npx playwright test cleanup.spec.ts --project=desktop --reporter=line)

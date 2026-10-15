@@ -14,7 +14,7 @@ import { upiPayLink } from '@/lib/upi'
 import { uuid7 } from '@/lib/uuid'
 import { whatsAppShare } from '@/lib/whatsapp'
 import { Field, accountOptions, dayLabel, today } from '@/pages/money/parts'
-import { useAccounts, useGroupBudget } from '@/state/money'
+import { useAccounts, useGroupBudget, usePersonalSpaceId } from '@/state/money'
 import { useLend, usePeople, type Person } from '@/state/people'
 import { useProfile } from '@/state/profile'
 
@@ -172,7 +172,7 @@ function LoanDialog({ open, onOpenChange, person, direction: initial, people }: 
   const [note, setNote] = useState('')
   const [account, setAccount] = useState('')
   const [error, setError] = useState<string>()
-  const { data: accounts } = useAccounts()
+  const { data: accounts } = useAccounts(false, usePersonalSpaceId())
   const { data: book } = useGroupBudget()
   const payable = (accounts ?? []).filter((a) => a.kind !== 'OWED' && !a.archived)
   const known = people.some((p) => p.key === who)
