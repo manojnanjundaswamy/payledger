@@ -35,26 +35,31 @@ const EXAMPLES = ['450 petrol yesterday on HDFC card', 'Got 50k salary today', '
 export function QuickAdd() {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
+  /** Words still being heard (may change); shown dimmed after the settled ones. */
+  const [interim, setInterim] = useState('')
   const [channel, setChannel] = useState<'TYPED' | 'VOICE'>('TYPED')
   const [result, setResult] = useState<QuickAddResult | null>(null)
   const [example, setExample] = useState(0)
   const pendingListen = useRef(false)
   const box = useRef<HTMLTextAreaElement>(null)
+  const caption = useRef<HTMLDivElement>(null)
   const status = useAiStatus()
   const quickAdd = useQuickAdd()
   const locale = useProfile().data?.settings.locale ?? 'en-IN'
   const dictation = useDictation({
     lang: locale,
     serverCanTranscribe: !!status.data?.speechToText,
-    onText: (t) => { setText(t); setChannel('VOICE') },
+    onText: (committed, heard) => { setText(committed); setInterim(heard); setChannel('VOICE') },
   })
   const listening = dictation.state === 'listening'
+  const spoken = `${text} ${interim}`.trim()
 
   useEffect(() => {
     const onOpen = (e: Event) => {
       const d = (e as CustomEvent<{ listen?: boolean; text?: string }>).detail ?? {}
       setResult(null)
       setText(d.text ?? '')
+      setInterim('')
       setChannel('TYPED')
       setOpen(true)
       pendingListen.current = !!d.listen
@@ -72,10 +77,13 @@ export function QuickAdd() {
   }, [open, dictation])
 
   useEffect(() => {
-    if (!open || text) return
+    if (!open || spoken || listening) return
     const t = window.setInterval(() => setExample((i) => (i + 1) % EXAMPLES.length), 2800)
     return () => window.clearInterval(t)
-  }, [open, text])
+  }, [open, spoken, listening])
+
+  // The newest words stay in view while speaking.
+  useEffect(() => { caption.current?.scrollTo({ top: caption.current.scrollHeight }) }, [spoken])
 
   const close = (o: boolean) => {
     if (!o) dictation.stop()
@@ -83,9 +91,12 @@ export function QuickAdd() {
   }
 
   async function submit() {
+    // Add while still talking: what's been heard so far, including the words still settling.
+    const said = spoken
     if (listening) dictation.stop()
-    const said = text.trim()
     if (!said || quickAdd.isPending) return
+    setText(said)
+    setInterim('')
     try {
       const r = await quickAdd.mutateAsync({ text: said, channel })
       setResult(r)
@@ -99,38 +110,64 @@ export function QuickAdd() {
   }
 
   const usage = status.data?.usage
+  const clock = `${Math.floor(dictation.elapsed / 60)}:${String(dictation.elapsed % 60).padStart(2, '0')}`
   return (
     <Dialog open={open} onOpenChange={close} title="Say it or type it" description="Like you'd tell a friend. We'll fill in the rest.">
-      <div className="flex max-h-[75dvh] flex-col gap-4 overflow-y-auto p-pad">
-        {!result && (
+      <div className="flex max-h-[78dvh] flex-col gap-4 overflow-y-auto p-pad">
+        {!result && listening && (
+          <div className="flex flex-col gap-4" aria-live="polite">
+            <div className="flex items-center justify-between text-xs text-muted">
+              <span className="inline-flex items-center gap-2">
+                <span className="relative flex size-2.5"><span className="absolute inline-flex size-full animate-ping rounded-full bg-critical opacity-60" /><span className="relative inline-flex size-2.5 rounded-full bg-critical" /></span>
+                {dictation.mode === 'record' ? 'Recording' : 'Listening'} · pause as long as you like
+              </span>
+              <span className="tabular">{clock}</span>
+            </div>
+            <div ref={caption} className="min-h-32 max-h-56 overflow-y-auto rounded-card bg-surface-2 px-4 py-4 text-xl leading-relaxed font-medium tracking-tight">
+              {spoken
+                ? <><span>{text}</span>{interim && <span className="text-muted"> {interim}</span>}<span aria-hidden className="ml-0.5 inline-block h-6 w-0.5 translate-y-1 animate-pulse bg-accent" /></>
+                : <span className="text-subtle">{dictation.mode === 'record' ? 'Speak now. Your words appear when you stop.' : `Say something like “${EXAMPLES[example]}”`}</span>}
+            </div>
+            <Waveform active={dictation.hearing} level={dictation.level} />
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" size="lg" onClick={() => dictation.stop()}><Square className="fill-current" />Stop</Button>
+              <Button variant="primary" size="lg" disabled={!spoken || quickAdd.isPending} onClick={() => void submit()}><Sparkles />Add it</Button>
+            </div>
+          </div>
+        )}
+        {!result && !listening && (
           <>
-            <div className="flex flex-col items-center gap-3 pt-1">
-              <MicButton listening={listening} busy={dictation.state === 'transcribing'} level={dictation.level}
-                disabled={dictation.mode === 'none'}
-                onClick={() => (listening ? dictation.stop() : void dictation.start(text))} />
-              <p className="h-5 text-center text-sm text-muted" aria-live="polite">
-                {dictation.state === 'transcribing' ? 'Turning that into text…'
-                  : listening ? (dictation.mode === 'record' ? 'Recording… tap to stop' : 'Listening… tap to stop')
-                  : dictation.mode === 'none' ? 'Type below (this browser can’t take dictation)'
-                  : 'Tap and speak'}
-              </p>
-              {dictation.error && <p className="text-center text-sm text-critical">{dictation.error}</p>}
-            </div>
-            <div className="relative">
-              <textarea ref={box} value={text} rows={3} aria-label="What you spent or received"
-                onChange={(e) => { setText(e.target.value); setChannel('TYPED') }}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submit() } }}
-                className="w-full resize-none rounded-card border border-border bg-surface-2 px-4 py-3 text-base leading-relaxed outline-none placeholder:text-subtle focus:border-border-strong"
-                placeholder={`e.g. ${EXAMPLES[example]}`} />
-              {listening && <span aria-hidden className="pointer-events-none absolute right-3 bottom-3 size-2 animate-pulse rounded-full bg-critical" />}
-            </div>
+            {dictation.state === 'transcribing' ? (
+              <div className="flex flex-col items-center gap-2 py-6 text-sm text-muted"><Loader2 className="size-6 animate-spin" />Turning that into text…</div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 pt-1">
+                <MicButton disabled={dictation.mode === 'none'} onClick={() => void dictation.start(text)} />
+                <p className="text-center text-sm text-muted">
+                  {dictation.mode === 'none' ? 'Type below (this browser can’t take dictation)' : spoken ? 'Tap to keep talking' : 'Tap and speak'}
+                </p>
+              </div>
+            )}
+            {dictation.error && <p className="text-center text-sm text-critical">{dictation.error}</p>}
+            <textarea ref={box} value={text} rows={3} aria-label="What you spent or received"
+              onChange={(e) => { setText(e.target.value); setChannel('TYPED') }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submit() } }}
+              className="w-full resize-none rounded-card border border-border bg-surface-2 px-4 py-3 text-base leading-relaxed outline-none placeholder:text-subtle focus:border-border-strong"
+              placeholder={`e.g. ${EXAMPLES[example]}`} />
+            {!text && (
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {EXAMPLES.slice(0, 3).map((ex) => (
+                  <button key={ex} type="button" onClick={() => { setText(ex); box.current?.focus() }}
+                    className="rounded-full border border-border px-3 py-1 text-xs text-muted hover:border-border-strong hover:text-fg">{ex}</button>
+                ))}
+              </div>
+            )}
             <Button variant="primary" size="lg" className="w-full" disabled={!text.trim() || quickAdd.isPending} onClick={() => void submit()}>
               {quickAdd.isPending ? <><Loader2 className="animate-spin" />Reading…</> : <><Sparkles />Add</>}
             </Button>
             <ManualLinks onPick={() => close(false)} />
           </>
         )}
-        {result && <Results result={result} onAgain={() => { setResult(null); setText(''); setTimeout(() => box.current?.focus(), 50) }} onDone={() => close(false)} />}
+        {result && <Results result={result} onAgain={() => { setResult(null); setText(''); setInterim(''); setTimeout(() => box.current?.focus(), 50) }} onDone={() => close(false)} />}
         <p className="text-center text-xs text-subtle">
           {status.data && !status.data.enabled ? 'Simple reading: amount and words. Check before adding.'
             : usage?.limit != null ? `${Math.max(0, usage.limit - usage.used)} of ${usage.limit} AI reads left this month · Account numbers and names are hidden before reading`
@@ -141,22 +178,33 @@ export function QuickAdd() {
   )
 }
 
-function MicButton({ listening, busy, level, disabled, onClick }: { listening: boolean; busy: boolean; level: number; disabled: boolean; onClick: () => void }) {
+function MicButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
   return (
-    <div className="relative flex size-28 items-center justify-center">
-      {listening && (
-        <>
-          <motion.span aria-hidden className="absolute inset-0 rounded-full bg-accent/15" animate={{ scale: 1 + level * 0.35 }} transition={{ duration: 0.08 }} />
-          <motion.span aria-hidden className="absolute inset-0 rounded-full border-2 border-accent/40"
-            initial={{ scale: 0.9, opacity: 0.8 }} animate={{ scale: 1.35, opacity: 0 }} transition={{ duration: 1.4, repeat: Infinity, ease: 'easeOut' }} />
-        </>
-      )}
-      <button type="button" onClick={onClick} disabled={disabled || busy} aria-pressed={listening}
-        aria-label={listening ? 'Stop listening' : 'Speak an entry'}
-        className={cn('relative flex size-20 items-center justify-center rounded-full shadow-lift transition-transform active:scale-95 disabled:opacity-40',
-          listening ? 'bg-critical text-white' : 'bg-accent text-accent-fg')}>
-        {busy ? <Loader2 className="size-8 animate-spin" /> : listening ? <Square className="size-7 fill-current" /> : <Mic className="size-8" />}
+    <div className="relative flex size-24 items-center justify-center">
+      <motion.span aria-hidden className="absolute inset-1 rounded-full bg-accent/10"
+        animate={{ scale: [1, 1.12, 1] }} transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }} />
+      <button type="button" onClick={onClick} disabled={disabled} aria-label="Speak an entry"
+        className="relative flex size-20 items-center justify-center rounded-full bg-accent text-accent-fg shadow-lift transition-transform active:scale-95 disabled:opacity-40">
+        <Mic className="size-8" />
       </button>
+    </div>
+  )
+}
+
+/** Bars that move while you speak, and rest while you pause: you can see it's still listening. */
+function Waveform({ active, level }: { active: boolean; level: number }) {
+  const bars = 28
+  return (
+    <div aria-hidden className="flex h-12 items-center justify-center gap-[3px]">
+      {Array.from({ length: bars }, (_, i) => {
+        const centre = 1 - Math.abs(i - (bars - 1) / 2) / (bars / 2)
+        const peak = active ? 0.35 + Math.max(level, 0.5) * 0.65 * centre : 0.12
+        return (
+          <motion.span key={i} className="w-1 rounded-full bg-accent"
+            animate={{ height: active ? [`${12 + peak * 20}%`, `${20 + peak * 80}%`, `${12 + peak * 30}%`] : '12%', opacity: active ? 1 : 0.35 }}
+            transition={active ? { duration: 0.5 + ((i * 37) % 7) / 14, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' } : { duration: 0.3 }} />
+        )
+      })}
     </div>
   )
 }

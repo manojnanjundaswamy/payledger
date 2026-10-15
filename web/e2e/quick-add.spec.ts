@@ -52,3 +52,61 @@ test('on a phone the + opens quick add straight away @phone', async ({ page }) =
   expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1)
   await expect(sheet.getByRole('button', { name: 'Expense' })).toBeVisible()
 })
+
+/**
+ * A stand-in for the browser's speech recognition that behaves like the real ones: each phrase is heard (first as
+ * "interim", then "final"), then the session ends on the pause, as Chrome on Android does after a second or two.
+ * Listening must carry on through the pauses and keep every word.
+ */
+async function fakeSpeech(page: import('@playwright/test').Page, phrases: string[]) {
+  await page.addInitScript((said: string[]) => {
+    const queue = [...said]
+    class FakeRecognition {
+      lang = ''; continuous = false; interimResults = false; maxAlternatives = 1
+      onresult: ((e: unknown) => void) | null = null
+      onend: (() => void) | null = null
+      onerror: ((e: unknown) => void) | null = null
+      onspeechstart: (() => void) | null = null
+      onspeechend: (() => void) | null = null
+      private stopped = false
+      start() {
+        const phrase = queue.shift()
+        const result = (text: string, isFinal: boolean) => Object.assign([{ transcript: text }], { isFinal })
+        if (!phrase) { setTimeout(() => this.onend?.(), 200); return }
+        const words = phrase.split(' ')
+        setTimeout(() => this.onspeechstart?.(), 50)
+        setTimeout(() => this.onresult?.({ resultIndex: 0, results: [result(words.slice(0, Math.ceil(words.length / 2)).join(' '), false)] }), 150)
+        setTimeout(() => this.onresult?.({ resultIndex: 0, results: [result(phrase, true)] }), 300)
+        // The pause: the browser ends the session by itself.
+        setTimeout(() => { this.onspeechend?.(); if (!this.stopped) this.onend?.() }, 600)
+      }
+      stop() { this.stopped = true; setTimeout(() => this.onend?.(), 20) }
+      abort() { this.stop() }
+    }
+    ;(window as unknown as { webkitSpeechRecognition: unknown }).webkitSpeechRecognition = FakeRecognition
+  }, phrases)
+}
+
+test('speaking keeps listening through pauses and every word lands in the box', async ({ page }) => {
+  await fakeSpeech(page, ['450 petrol', 'yesterday on HDFC', 'and 200 auto'])
+  await signIn(page)
+  await page.getByRole('button', { name: 'Speak an entry' }).first().click()
+  const sheet = page.getByRole('dialog', { name: 'Say it or type it' })
+  await expect(sheet.getByText(/Listening/)).toBeVisible()
+  // Three phrases with pauses between them: still listening, all three kept, in order.
+  await expect(sheet.getByText('450 petrol yesterday on HDFC and 200 auto')).toBeVisible({ timeout: 10_000 })
+  await expect(sheet.getByText(/Listening/)).toBeVisible()
+  await sheet.getByRole('button', { name: 'Stop' }).click()
+  await expect(sheet.getByLabel('What you spent or received')).toHaveValue('450 petrol yesterday on HDFC and 200 auto')
+})
+
+test('speaking on a phone keeps every word too @phone', async ({ page }) => {
+  await fakeSpeech(page, ['250 swiggy', 'on my card'])
+  await signIn(page)
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Add' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Say it or type it' })
+  await sheet.getByRole('button', { name: 'Speak an entry' }).click()
+  await expect(sheet.getByText('250 swiggy on my card')).toBeVisible({ timeout: 10_000 })
+  await sheet.getByRole('button', { name: 'Stop' }).click()
+  await expect(sheet.getByLabel('What you spent or received')).toHaveValue('250 swiggy on my card')
+})
