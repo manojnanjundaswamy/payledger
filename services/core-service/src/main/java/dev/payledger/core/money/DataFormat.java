@@ -17,12 +17,13 @@ public final class DataFormat {
     }
 
     public static final String NAME = "payledger-export";
-    /** 1: the first export (no version field); 2: adds format, version, personal space and tax sections. */
-    public static final int VERSION = 2;
+    /** 1: the first export (no version field); 2: adds format, version, personal space and tax sections; 3: daily services. */
+    public static final int VERSION = 3;
 
     /** Sections a restore brings back into your personal space, in the order they're restored. */
     public static final List<String> RESTORED = List.of("profile", "categories", "accounts", "goals", "transactions", "budgets",
-            "billsAndSavings", "billPayments", "goalContributions", "categoryRules", "taxMappings");
+            "billsAndSavings", "billPayments", "goalContributions", "categoryRules", "taxMappings", "dailyServices", "dailyServiceDays",
+            "dailyServicePayments");
 
     /**
      * Every table with a person's data: the export section it's in, or (starting "-") why it isn't exported. A new
@@ -43,6 +44,9 @@ public final class DataFormat {
             entry("category_rules", "categoryRules"),
             entry("tax_mappings", "taxMappings"),
             entry("imports", "imports"),
+            entry("daily_services", "dailyServices"),
+            entry("daily_service_days", "dailyServiceDays"),
+            entry("daily_service_payments", "dailyServicePayments"),
             entry("captured_items", "capturedItems"),
             entry("groups", "groups"),
             entry("group_members", "groupMembers"),

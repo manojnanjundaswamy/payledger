@@ -150,6 +150,12 @@ const goals = createRoute({
   component: lazyRouteComponent(() => import('@/pages/money/GoalsPage'), 'GoalsPage'),
 })
 
+const dailyServices = createRoute({
+  getParentRoute: () => app,
+  path: '/daily-services',
+  component: lazyRouteComponent(() => import('@/pages/money/DailyServicesPage'), 'DailyServicesPage'),
+})
+
 const plan = createRoute({
   getParentRoute: () => app,
   path: '/plan',
@@ -300,7 +306,7 @@ const utilities = createRoute({
   component: lazyRouteComponent(() => import('@/pages/UtilitiesPage'), 'UtilitiesPage'),
 })
 
-const routeTree = root.addChildren([landing, guestJoin, guestGroup, app.addChildren([dashboard, settings, accounts, categories, budgets, plan, goals, importPage, reports, groups, group, people, tax, capture, households, householdJoin, household, join, transactions, admin, welcome, utilities])])
+const routeTree = root.addChildren([landing, guestJoin, guestGroup, app.addChildren([dashboard, dailyServices, settings, accounts, categories, budgets, plan, goals, importPage, reports, groups, group, people, tax, capture, households, householdJoin, household, join, transactions, admin, welcome, utilities])])
 
 export function createAppRouter(queryClient: QueryClient) {
   return createRouter({

@@ -57,6 +57,9 @@ public class DataRightsService {
         out.put("goalContributions", rows("select c.* from goal_contributions c join goals g on g.id = c.goal_id where g.space_id in (" + MY_SPACES + ")", u));
         out.put("categoryRules", rows("select * from category_rules where space_id in (" + MY_SPACES + ") order by match", u));
         out.put("taxMappings", rows("select * from tax_mappings where space_id in (" + MY_SPACES + ")", u));
+        out.put("dailyServices", rows("select * from daily_services where space_id in (" + MY_SPACES + ") order by created_at", u));
+        out.put("dailyServiceDays", rows("select d.* from daily_service_days d join daily_services s on s.id = d.service_id where s.space_id in (" + MY_SPACES + ") order by d.day", u));
+        out.put("dailyServicePayments", rows("select p.* from daily_service_payments p join daily_services s on s.id = p.service_id where s.space_id in (" + MY_SPACES + ") order by p.month", u));
         out.put("imports", rows("select * from imports where space_id in (" + MY_SPACES + ") order by created_at", u));
         out.put("groups", rows("select * from groups where id in (" + MY_GROUPS + ")", u));
         out.put("groupMembers", rows("select id, group_id, display_name, role, user_id = :u as you, left_at from group_members where group_id in (" + MY_GROUPS + ")", u));

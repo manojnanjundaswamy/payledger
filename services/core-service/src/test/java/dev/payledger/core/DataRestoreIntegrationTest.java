@@ -94,6 +94,12 @@ class DataRestoreIntegrationTest {
         body(post(base + "/commitments/" + bill + "/payments"), asha, "{\"dueDate\":\"2026-10-05\"}");
         body(post(base + "/category-rules"), asha, "{\"match\":\"bigbasket\",\"categoryId\":\"" + food + "\"}");
         body(put(base + "/tax/mappings/" + vet), asha, "{\"section\":\"80D\"}");
+        String milk = JsonPath.read(body(post(base + "/daily-services"), asha, """
+                {"name":"Milk","emoji":"🥛","rate":6000,"per":"DAY","accountId":"%s","startedOn":"2026-09-01"}
+                """.formatted(hdfc)), "$.service.id");
+        body(put(base + "/daily-services/" + milk + "/days/2026-09-03"), asha, "{\"quantity\":0}");
+        body(put(base + "/daily-services/" + milk + "/days/2026-09-04"), asha, "{\"quantity\":2}");
+        body(post(base + "/daily-services/" + milk + "/payments"), asha, "{\"month\":\"2026-09\"}");
 
         byte[] file = mvc.perform(get("/api/core/me/export").with(asha)).andReturn().getResponse().getContentAsByteArray();
         JsonNode before = json.readTree(file);
@@ -103,7 +109,7 @@ class DataRestoreIntegrationTest {
         var again = user();
         String restored = mvc.perform(multipart("/api/core/me/import").file(new MockMultipartFile("file", "export.json", "application/json", file)).with(again))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        assertThat(JsonPath.<Integer>read(restored, "$.counts.transactions")).isEqualTo(5);  // the four above and the paid bill
+        assertThat(JsonPath.<Integer>read(restored, "$.counts.transactions")).isEqualTo(6);  // the four above, the paid bill and the milk
         JsonNode after = json.readTree(mvc.perform(get("/api/core/me/export").with(again)).andReturn().getResponse().getContentAsByteArray());
         for (String section : DataFormat.RESTORED) {
             assertThat(normal(after, section)).as(section).isEqualTo(normal(before, section));
@@ -122,7 +128,7 @@ class DataRestoreIntegrationTest {
     /** A section's rows as comparable text: ids replaced by what they point to (names), times and ids left out. */
     private List<String> normal(JsonNode export, String section) {
         Map<String, String> names = new HashMap<>();
-        for (String s : List.of("accounts", "categories", "goals", "billsAndSavings")) {
+        for (String s : List.of("accounts", "categories", "goals", "billsAndSavings", "dailyServices")) {
             export.path(s).forEach(r -> names.put(r.path("id").asString(), r.path("name").asString()));
         }
         export.path("transactions").forEach(r -> names.put(r.path("id").asString(), r.path("description").asString()));
@@ -141,7 +147,11 @@ class DataRestoreIntegrationTest {
                 Map.entry("billPayments", r -> n.apply(r.path("commitment_id")) + "|" + r.path("due_date") + "|" + n.apply(r.path("transaction_id"))),
                 Map.entry("goalContributions", r -> n.apply(r.path("goal_id")) + "|" + r.path("amount") + "|" + r.path("note")),
                 Map.entry("categoryRules", r -> r.path("match") + "|" + n.apply(r.path("category_id"))),
-                Map.entry("taxMappings", r -> n.apply(r.path("category_id")) + "|" + r.path("section")));
+                Map.entry("taxMappings", r -> n.apply(r.path("category_id")) + "|" + r.path("section")),
+                Map.entry("dailyServices", r -> r.path("name") + "|" + r.path("emoji") + "|" + r.path("rate") + "|" + r.path("per") + "|" + r.path("paid_leaves")
+                        + "|" + n.apply(r.path("account_id")) + "|" + n.apply(r.path("category_id")) + "|" + r.path("started_on")),
+                Map.entry("dailyServiceDays", r -> n.apply(r.path("service_id")) + "|" + r.path("day") + "|" + r.path("quantity")),
+                Map.entry("dailyServicePayments", r -> n.apply(r.path("service_id")) + "|" + r.path("month") + "|" + n.apply(r.path("transaction_id")) + "|" + r.path("amount")));
         assertThat(rows.keySet()).as("every restored section is compared").containsExactlyInAnyOrderElementsOf(DataFormat.RESTORED);
         List<String> out = new ArrayList<>();
         export.path(section).forEach(r -> out.add(rows.get(section).apply(r)));

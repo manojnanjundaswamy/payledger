@@ -1,5 +1,5 @@
 import {
-  ArrowLeftRight, BarChart3, Inbox, Calculator, CalendarClock, Goal, Home, LayoutDashboard, PieChart, Settings, ShieldCheck, Tags, UserRoundPlus, Users, Wallet, type LucideIcon,
+  ArrowLeftRight, BarChart3, Inbox, Calculator, CalendarClock, Goal, Home, LayoutDashboard, Milk, PieChart, Settings, ShieldCheck, Tags, UserRoundPlus, Users, Wallet, type LucideIcon,
 } from 'lucide-react'
 import { useProfile } from '@/state/profile'
 
@@ -27,6 +27,7 @@ export const NAV: NavItem[] = [
   { to: '/goals', label: 'Goals', icon: Goal, section: 'money' },
   { to: '/reports', label: 'Reports', icon: BarChart3, section: 'money' },
   { to: '/household', label: 'Household', icon: Home, section: 'together' },
+  { to: '/daily-services', label: 'Daily services', icon: Milk, section: 'together' },
   { to: '/groups', label: 'Groups', icon: Users, section: 'together' },
   { to: '/people', label: 'People', icon: UserRoundPlus, section: 'together' },
   { to: '/utilities', label: 'Utilities', icon: Calculator, section: 'app' },
