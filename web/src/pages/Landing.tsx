@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'motion/react'
+import { GoogleButton } from '@/components/GoogleButton'
 import { ArrowRight, CalendarClock, Globe2, Home, Moon, PieChart, Split, Sun, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { WidgetEnvContext, type WidgetEnv } from '@/dashboard/context'
@@ -64,6 +65,13 @@ export function Landing() {
                 <a href={session?.loginUrl ?? '/oauth2/authorization/keycloak'}>I already have an account</a>
               </Button>
             </div>
+            {session?.googleUrl && (
+              <div className="mt-4 flex w-full max-w-sm flex-col items-center gap-3">
+                <div className="flex w-full items-center gap-3 text-xs text-subtle"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
+                {/* New or returning: Google signs you in, and the first time it also makes your account. */}
+                <GoogleButton href={session.googleUrl} className="w-full" />
+              </div>
+            )}
           </motion.div>
           <PreviewBoard />
         </section>

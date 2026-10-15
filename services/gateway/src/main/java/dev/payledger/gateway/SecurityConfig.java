@@ -61,7 +61,8 @@ class SecurityConfig {
 
     /**
      * PKCE on every login (recommended even for confidential clients), and
-     * {@code /oauth2/authorization/keycloak?signup} opens Keycloak's registration form directly.
+     * {@code /oauth2/authorization/keycloak?signup} opens Keycloak's registration form directly, and
+     * {@code ?idp=google} goes straight to Google (Keycloak's kc_idp_hint), skipping Keycloak's own form.
      */
     static OAuth2AuthorizationRequestResolver authorizationRequests(ClientRegistrationRepository clients) {
         var defaults = new DefaultOAuth2AuthorizationRequestResolver(clients, "/oauth2/authorization");
@@ -79,12 +80,26 @@ class SecurityConfig {
         };
     }
 
+    /** Only these sign-in providers can be asked for by name; anything else is ignored. */
+    static final java.util.Set<String> PROVIDERS = java.util.Set.of("google");
+
     private static OAuth2AuthorizationRequest withSignup(HttpServletRequest request, OAuth2AuthorizationRequest authorization) {
-        if (authorization == null || request.getParameter("signup") == null) {
+        if (authorization == null) {
+            return null;
+        }
+        String idp = request.getParameter("idp");
+        boolean signup = request.getParameter("signup") != null;
+        if (!signup && (idp == null || !PROVIDERS.contains(idp))) {
             return authorization;
         }
         return OAuth2AuthorizationRequest.from(authorization)
-                .additionalParameters(params -> params.put("prompt", "create"))
+                .additionalParameters(params -> {
+                    if (idp != null && PROVIDERS.contains(idp)) {
+                        params.put("kc_idp_hint", idp);
+                    } else {
+                        params.put("prompt", "create");
+                    }
+                })
                 .build();
     }
 

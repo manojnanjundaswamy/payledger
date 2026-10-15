@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, Skeleton } from '@/components/ui/card'
 import { Input } from '@/components/ui/controls'
 import { Logo } from '@/layout/Logo'
+import { GoogleButton } from '@/components/GoogleButton'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { sessionQuery } from '@/state/session'
@@ -53,6 +54,7 @@ export function GuestJoinPage() {
                 <Button variant="outline" asChild onClick={() => returnHereAfterSignIn(token)}>
                   <a href={session?.loginUrl ?? '/oauth2/authorization/keycloak'}>I have an account: sign in</a>
                 </Button>
+                {session?.googleUrl && <GoogleButton href={session.googleUrl} onClick={() => returnHereAfterSignIn(token)} className="w-full" />}
                 {link.guests && <>
                   <div className="my-1 flex items-center gap-3 text-xs text-subtle"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
                   <Button variant="ghost" onClick={() => setAsGuest(true)}><UserRound />Continue as a guest</Button>
