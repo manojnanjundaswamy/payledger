@@ -53,8 +53,10 @@ export function GuestJoinPage() {
                 <Button variant="outline" asChild onClick={() => returnHereAfterSignIn(token)}>
                   <a href={session?.loginUrl ?? '/oauth2/authorization/keycloak'}>I have an account: sign in</a>
                 </Button>
-                <div className="my-1 flex items-center gap-3 text-xs text-subtle"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
-                <Button variant="ghost" onClick={() => setAsGuest(true)}><UserRound />Continue as a guest</Button>
+                {link.guests && <>
+                  <div className="my-1 flex items-center gap-3 text-xs text-subtle"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
+                  <Button variant="ghost" onClick={() => setAsGuest(true)}><UserRound />Continue as a guest</Button>
+                </>}
               </div>
             ) : (
               <GuestForm token={token} spots={link.spots} loginUrl={session?.loginUrl ?? '/oauth2/authorization/keycloak'} />

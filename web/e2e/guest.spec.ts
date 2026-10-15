@@ -68,3 +68,22 @@ test('a guest without an account joins by link, adds an expense and the group se
   await expect(guest.getByText('Your guest session has ended')).toBeVisible()
   await context.close()
 })
+
+test('the owner can switch off guests: the link then offers only an account', async ({ page, request, browser }) => {
+  await signUp(page, request, `e2e-guest-off-${Date.now()}@example.com`)
+  const group = await callApi<{ id: string }>(page, 'POST', '/api/core/groups', { name: `E2E Members only ${Date.now()}` })
+  await callApi(page, 'POST', `/api/core/groups/${group.id}/members`, { name: 'Ravi' })
+  const { token } = await callApi<{ token: string }>(page, 'GET', `/api/core/groups/${group.id}/link`)
+  await page.goto(`/groups/${group.id}?tab=people`)
+  const settings = page.getByTestId('group-settings')
+  await settings.getByRole('switch', { name: 'People without an account can join' }).click()
+  await expect(page.getByText('Saved')).toBeVisible()
+
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } })
+  const guest = await context.newPage()
+  await guest.goto(`/join/${token}`)
+  await expect(guest.getByTestId('invite-name')).toContainText('E2E Members only')
+  await expect(guest.getByRole('link', { name: /Create a free account/ })).toBeVisible()
+  await expect(guest.getByRole('button', { name: 'Continue as a guest' })).toHaveCount(0)
+  await context.close()
+})

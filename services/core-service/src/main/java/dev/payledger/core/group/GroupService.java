@@ -62,7 +62,12 @@ public class GroupService {
     public record Member(UUID id, String name, String email, String role, boolean joined, boolean you, String upiId) {
     }
 
-    public record Group(UUID id, String name, String emoji, String currency, boolean archived, UUID you, List<Member> members) {
+    /** The owner's switches (product plan 3.3). */
+    public record Settings(boolean linkOpen, boolean guestsAllowed, boolean ownEditsOnly) {
+    }
+
+    public record Group(UUID id, String name, String emoji, String currency, boolean archived, UUID you, List<Member> members,
+                        String role, Settings settings) {
     }
 
     public record Invite(String groupName, String emoji, int members, boolean alreadyMember) {
@@ -116,9 +121,9 @@ public class GroupService {
 
     @Transactional(readOnly = true)
     public Group get(Doer me, UUID groupId) {
-        record Row(UUID id, String name, String emoji, String currency, boolean archived) {
+        record Row(UUID id, String name, String emoji, String currency, boolean archived, boolean linkOpen, boolean guestsAllowed, boolean ownEditsOnly) {
         }
-        Row g = jdbc.sql("select id, name, emoji, currency, archived_at is not null as archived from groups where id = :id")
+        Row g = jdbc.sql("select id, name, emoji, currency, archived_at is not null as archived, link_open, guests_allowed, own_edits_only from groups where id = :id")
                 .param("id", groupId).query(Row.class).single();
         List<Member> members = jdbc.sql("""
                         select m.id, m.display_name as name, case when m.user_id is null then m.email end as email, m.role,
@@ -129,7 +134,9 @@ public class GroupService {
                         """)
                 .param("groupId", groupId).param("memberId", me.memberId())
                 .query(Member.class).list();
-        return new Group(g.id(), g.name(), g.emoji(), g.currency(), g.archived(), me.memberId(), members);
+        String role = members.stream().filter(Member::you).map(Member::role).findFirst().orElse("MEMBER");
+        return new Group(g.id(), g.name(), g.emoji(), g.currency(), g.archived(), me.memberId(), members, role,
+                new Settings(g.linkOpen(), g.guestsAllowed(), g.ownEditsOnly()));
     }
 
     @Transactional
@@ -138,9 +145,19 @@ public class GroupService {
         if (request.archived() != null && !me.role().equals("OWNER")) {
             throw new InvalidRequestException("owner-only", "only the group's owner can archive it");
         }
-        record Was(String name, String emoji, boolean archived) {
+        boolean settings = request.linkOpen() != null || request.guestsAllowed() != null || request.ownEditsOnly() != null;
+        if (settings && !me.role().equals("OWNER")) {
+            throw new InvalidRequestException("owner-only", "only the group's owner can change its settings");
         }
-        Was was = jdbc.sql("select name, emoji, archived_at is not null as archived from groups where id = :id").param("id", groupId).query(Was.class).single();
+        record Was(String name, String emoji, boolean archived, boolean linkOpen, boolean guestsAllowed, boolean ownEditsOnly) {
+        }
+        Was was = jdbc.sql("select name, emoji, archived_at is not null as archived, link_open, guests_allowed, own_edits_only from groups where id = :id")
+                .param("id", groupId).query(Was.class).single();
+        jdbc.sql("""
+                        update groups set link_open = coalesce(:link, link_open), guests_allowed = coalesce(:guests, guests_allowed),
+                            own_edits_only = coalesce(:own, own_edits_only) where id = :id
+                        """).param("link", request.linkOpen()).param("guests", request.guestsAllowed()).param("own", request.ownEditsOnly())
+                .param("id", groupId).update();
         jdbc.sql("""
                         update groups set name = coalesce(:name, name), emoji = coalesce(:emoji, emoji),
                             archived_at = case when cast(:archived as boolean) is null then archived_at
@@ -159,6 +176,15 @@ public class GroupService {
         }
         if (request.archived() != null && request.archived() != was.archived()) {
             changes.add(GroupHistory.details("field", "archived", "before", was.archived(), "after", request.archived()));
+        }
+        if (request.linkOpen() != null && request.linkOpen() != was.linkOpen()) {
+            changes.add(GroupHistory.details("field", "join link works", "before", was.linkOpen(), "after", request.linkOpen()));
+        }
+        if (request.guestsAllowed() != null && request.guestsAllowed() != was.guestsAllowed()) {
+            changes.add(GroupHistory.details("field", "guests can join", "before", was.guestsAllowed(), "after", request.guestsAllowed()));
+        }
+        if (request.ownEditsOnly() != null && request.ownEditsOnly() != was.ownEditsOnly()) {
+            changes.add(GroupHistory.details("field", "only the person who added it can change it", "before", was.ownEditsOnly(), "after", request.ownEditsOnly()));
         }
         if (!changes.isEmpty()) {
             history.record(groupId, user, GroupHistory.Action.GROUP_UPDATED, GroupHistory.details("changes", changes));
@@ -379,6 +405,7 @@ public class GroupService {
         Row r = jdbc.sql("""
                         select m.id, m.display_name as name from group_members m join groups g on g.id = m.group_id
                         where m.group_id = :groupId and lower(m.email) = lower(:email) and m.user_id is null and m.left_at is null
+                          and g.guests_allowed
                         """).param("groupId", groupId).param("email", email).query(Row.class).optional()
                 .orElseThrow(() -> new NotFoundException("group"));
         return new Doer(null, r.name(), r.id(), null);
@@ -400,7 +427,7 @@ public class GroupService {
     UUID groupOf(String token) {
         return jdbc.sql("""
                         select l.group_id from group_links l join groups g on g.id = l.group_id
-                        where l.token = :token and l.revoked_at is null and g.archived_at is null
+                        where l.token = :token and l.revoked_at is null and g.archived_at is null and g.link_open
                         """)
                 .param("token", token).query(UUID.class).optional()
                 .orElseThrow(InvalidLinkException::new);

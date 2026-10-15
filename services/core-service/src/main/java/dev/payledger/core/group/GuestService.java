@@ -53,7 +53,8 @@ public class GuestService {
     }
 
     /** What the join page shows someone without an account. */
-    public record Link(String groupName, String emoji, int members, List<Spot> spots) {
+    /** @param guests whether people without an account may join (else: sign in or sign up) */
+    public record Link(String groupName, String emoji, int members, List<Spot> spots, boolean guests) {
     }
 
     public record CodeSent(UUID codeId, String email) {
@@ -68,16 +69,16 @@ public class GuestService {
     @Transactional(readOnly = true)
     public Link link(String token) {
         UUID groupId = groups.groupOf(token);
-        record Row(String name, String emoji) {
+        record Row(String name, String emoji, boolean guestsAllowed) {
         }
-        Row g = jdbc.sql("select name, emoji from groups where id = :id").param("id", groupId).query(Row.class).single();
+        Row g = jdbc.sql("select name, emoji, guests_allowed from groups where id = :id").param("id", groupId).query(Row.class).single();
         int members = jdbc.sql("select count(*)::int from group_members where group_id = :id and left_at is null").param("id", groupId)
                 .query(Integer.class).single();
         List<Spot> spots = jdbc.sql("""
                         select id, display_name as name from group_members
                         where group_id = :id and user_id is null and left_at is null order by created_at
                         """).param("id", groupId).query(Spot.class).list();
-        return new Link(g.name(), g.emoji(), members, spots);
+        return new Link(g.name(), g.emoji(), members, g.guestsAllowed() ? spots : List.of(), g.guestsAllowed());
     }
 
     /**
@@ -87,6 +88,10 @@ public class GuestService {
     @Transactional
     public CodeSent sendCode(String token, UUID memberId, String name, String rawEmail) {
         UUID groupId = groups.groupOf(token);
+        if (!jdbc.sql("select guests_allowed from groups where id = :id").param("id", groupId).query(Boolean.class).single()) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "guests-off", "this group is for people with an account: sign in or sign up to join") {
+            };
+        }
         String email = rawEmail == null ? "" : rawEmail.strip().toLowerCase();
         if (email.length() > 320 || !EMAIL.matcher(email).matches()) {
             throw new InvalidRequestException("invalid-email", "enter a valid email address");

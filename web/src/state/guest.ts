@@ -6,7 +6,7 @@ import type { ExpenseFields, Group, GroupActivity, GroupBalances, GroupExpense, 
  * Guests: people in a group without an account (core-service GuestController). They prove their email with a code
  * and get a guest session cookie; these calls use it. Same shapes as the signed-in groups API.
  */
-export interface GuestLink { groupName: string; emoji: string | null; members: number; spots: { id: string; name: string }[] }
+export interface GuestLink { groupName: string; emoji: string | null; members: number; spots: { id: string; name: string }[]; guests: boolean }
 export interface GuestMe { email: string; name: string | null; groups: { id: string; name: string; emoji: string | null; currency: string; you: string }[] }
 
 const base = (groupId: string) => `/api/guest/groups/${groupId}`

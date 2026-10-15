@@ -231,6 +231,7 @@ public class GroupExpenseService {
 
     @Transactional
     public Expense replace(Doer user, UUID groupId, UUID id, int version, GroupExpenseRequests.Fields f) {
+        mayChange(user, groupId, "group_expenses", id);
         writable(groupId);
         record Row(int version, int ledgerVersion, String description) {
         }
@@ -286,6 +287,7 @@ public class GroupExpenseService {
 
     @Transactional
     public void delete(Doer user, UUID groupId, UUID id, int version) {
+        mayChange(user, groupId, "group_expenses", id);
         record Row(int version, int ledgerVersion, String description) {
         }
         Row before = jdbc.sql("""
@@ -358,6 +360,7 @@ public class GroupExpenseService {
 
     @Transactional
     public void deleteSettlement(Doer user, UUID groupId, UUID id) {
+        mayChange(user, groupId, "group_settlements", id);
         int deleted = jdbc.sql("update group_settlements set deleted_at = now() where id = :id and group_id = :groupId and deleted_at is null")
                 .param("id", id).param("groupId", groupId).update();
         if (deleted == 0) {
@@ -439,6 +442,24 @@ public class GroupExpenseService {
                         undone ? "Your balance is back to what it was before it." : "Recorded by " + user.displayName() + ".",
                         "/groups/" + groupId, user.id());
             }
+        }
+    }
+
+    /**
+     * With "only the person who added it can change it" on, a member changes only their own entries; the owner, any.
+     * (Guests are always limited to their own, in GuestController.)
+     */
+    private void mayChange(Doer user, UUID groupId, String table, UUID id) {
+        if (user.account() == null) {
+            return;
+        }
+        boolean allowed = jdbc.sql("select not g.own_edits_only or m.role = 'OWNER' or exists (select 1 from " + table
+                        + " t where t.id = :id and t.created_by = :u) from groups g join group_members m on m.group_id = g.id and m.id = :m where g.id = :g")
+                .param("id", id).param("u", user.id()).param("m", user.memberId()).param("g", groupId).query(Boolean.class).single();
+        if (!allowed) {
+            throw new dev.payledger.core.common.ApiException(org.springframework.http.HttpStatus.FORBIDDEN, "not-yours",
+                    "in this group only the person who added it, or the owner, can change it") {
+            };
         }
     }
 

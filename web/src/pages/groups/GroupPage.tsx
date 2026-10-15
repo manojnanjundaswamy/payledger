@@ -6,7 +6,7 @@ import { whatsAppShare } from '@/lib/whatsapp'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Skeleton } from '@/components/ui/card'
-import { Input } from '@/components/ui/controls'
+import { Input, Switch } from '@/components/ui/controls'
 import { ApiError } from '@/lib/api'
 import { Field } from '@/pages/money/parts'
 import { joinUrl, useAddMember, useGroup, useGroupLink, useRemoveMember, useResetLink, useUpdateGroup } from '@/state/groups'
@@ -98,6 +98,27 @@ export function GroupPage() {
 
       {!group.archived && <AddPerson groupId={groupId} />}
       {!group.archived && <InviteLink groupId={groupId} />}
+      {owner && group.settings && !group.archived && (
+        <Card className="flex flex-col gap-3 p-pad" data-testid="group-settings">
+          <h2 className="font-medium">Group settings</h2>
+          {([
+            ['linkOpen', 'The invite link works', 'Off: nobody new can join by the link, until you turn it back on.'],
+            ['guestsAllowed', 'People without an account can join', 'They confirm their email with a code, then add expenses and settle up.'],
+            ['ownEditsOnly', 'Only the person who added an entry can change it', 'You, as the owner, can still change anything.'],
+          ] as const).map(([key, label, hint]) => (
+            <div key={key} className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm">{label}</p>
+                <p className="text-xs text-muted">{hint}</p>
+              </div>
+              <Switch label={label} checked={group.settings![key]} onCheckedChange={(v) => update.mutate({ [key]: v }, {
+                onSuccess: () => toast.success('Saved'),
+                onError: (e) => toast.error(e instanceof ApiError ? e.message : 'Could not save it'),
+              })} />
+            </div>
+          ))}
+        </Card>
+      )}
 
 
       <div className="flex flex-wrap justify-end gap-2">
