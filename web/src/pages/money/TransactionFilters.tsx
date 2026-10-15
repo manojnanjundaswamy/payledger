@@ -24,14 +24,16 @@ export interface FilterSearch {
   tag?: string
   /** A savings goal's entries. */
   goal?: string
+  /** Everything with one person. */
+  person?: string
 }
 
-export const FILTER_KEYS = ['q', 'kind', 'account', 'category', 'from', 'to', 'min', 'max', 'tag', 'goal'] as const
+export const FILTER_KEYS = ['q', 'kind', 'account', 'category', 'from', 'to', 'min', 'max', 'tag', 'goal', 'person'] as const
 
 /** The URL's search as the API's filter. */
 export function toFilter(s: FilterSearch): TransactionFilter {
   return {
-    q: s.q, kind: s.kind, accountId: s.account, categoryId: s.category, from: s.from, to: s.to, tag: s.tag, goalId: s.goal,
+    q: s.q, kind: s.kind, accountId: s.account, categoryId: s.category, from: s.from, to: s.to, tag: s.tag, goalId: s.goal, person: s.person,
     minAmount: s.min === undefined ? undefined : Math.round(s.min * 100),
     maxAmount: s.max === undefined ? undefined : Math.round(s.max * 100),
   }
@@ -88,6 +90,7 @@ export function TransactionFilters({ search, onChange, accounts, categories }: {
     chips.push({ key: ['min', 'max'], label: search.min !== undefined && search.max !== undefined ? `${rupees(search.min)} – ${rupees(search.max)}` : search.min !== undefined ? `${rupees(search.min)} or more` : `Up to ${rupees(search.max!)}` })
   }
   if (search.tag) chips.push({ key: ['tag'], label: `#${search.tag}` })
+  if (search.person) chips.push({ key: ['person'], label: `With ${search.person}` })
   if (search.goal) {
     const g = goals.find((x) => x.id === search.goal)
     chips.push({ key: ['goal'], label: g ? `For ${g.emoji ?? '🎯'} ${g.name}` : 'For a goal' })

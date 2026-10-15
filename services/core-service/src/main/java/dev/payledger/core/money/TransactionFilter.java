@@ -18,18 +18,26 @@ import java.util.UUID;
  * @param minAmount paise, inclusive
  * @param maxAmount paise, inclusive
  * @param tag       one tag, exactly
+ * @param person    who it was with, exactly (ignoring case)
  */
 public record TransactionFilter(@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                                 @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to, UUID accountId, UUID categoryId, String kind, String q,
-                                Long minAmount, Long maxAmount, String tag, UUID goalId) {
+                                Long minAmount, Long maxAmount, String tag, UUID goalId, String person) {
 
-    public static final TransactionFilter NONE = new TransactionFilter(null, null, null, null, null, null, null, null, null, null);
+    public static final TransactionFilter NONE = new TransactionFilter(null, null, null, null, null, null, null, null, null, null, null);
+
+    /** Without a person (older callers). */
+    public TransactionFilter(LocalDate from, LocalDate to, UUID accountId, UUID categoryId, String kind, String q,
+                             Long minAmount, Long maxAmount, String tag, UUID goalId) {
+        this(from, to, accountId, categoryId, kind, q, minAmount, maxAmount, tag, goalId, null);
+    }
 
     // Only tidies: Spring builds this from query parameters, and an exception here would surface as a 500.
     public TransactionFilter {
         kind = kind == null || kind.isBlank() ? null : kind.toUpperCase(Locale.ROOT);
         q = q == null || q.isBlank() ? null : q.strip();
         tag = tag == null || tag.isBlank() ? null : tag.strip();
+        person = person == null || person.isBlank() ? null : person.strip();
     }
 
     /** This filter, or 422 with a stable code when it can't match anything sensible. */
@@ -62,8 +70,9 @@ public record TransactionFilter(@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) L
               and (cast(:maxAmount as bigint) is null or t.amount <= :maxAmount)
               and (cast(:tag as text) is null or :tag = any (t.tags))
               and (cast(:goalId as uuid) is null or t.goal_id = :goalId)
+              and (cast(:person as text) is null or lower(t.counterparty) = lower(:person))
               and (cast(:q as text) is null
-                   or t.description ilike :q escape '\\' or t.note ilike :q escape '\\'
+                   or t.description ilike :q escape '\\' or t.note ilike :q escape '\\' or t.counterparty ilike :q escape '\\'
                    or array_to_string(t.tags, ' ') ilike :q escape '\\'
                    or t.amount = cast(:qAmount as bigint)
                    or exists (select 1 from categories c where c.id = t.category_id and c.name ilike :q escape '\\')
@@ -74,7 +83,7 @@ public record TransactionFilter(@DateTimeFormat(iso = DateTimeFormat.ISO.DATE) L
         checked();
         return spec.param("from", from).param("to", to)
                 .param("accountId", accountId).param("categoryId", categoryId)
-                .param("kind", kind).param("minAmount", minAmount).param("maxAmount", maxAmount).param("tag", tag).param("goalId", goalId)
+                .param("kind", kind).param("minAmount", minAmount).param("maxAmount", maxAmount).param("tag", tag).param("goalId", goalId).param("person", person)
                 .param("q", q == null ? null : "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%")
                 .param("qAmount", q == null ? null : amountIn(q));
     }

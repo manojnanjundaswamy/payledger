@@ -6,6 +6,7 @@ import { defineConfig, devices } from '@playwright/test'
  * then `npm run e2e`. WEB_URL points elsewhere; PW_CHROMIUM_PATH uses a preinstalled Chromium.
  */
 const executablePath = process.env.PW_CHROMIUM_PATH
+const baseURL = process.env.WEB_URL ?? 'http://localhost:5173'
 export default defineConfig({
   testDir: './e2e',
   // Not tests: scripts/clean-test-data.sh and scripts/seed-sample-data.sh run these on purpose.
@@ -16,7 +17,9 @@ export default defineConfig({
   timeout: 60_000,
   reporter: [['list']],
   use: {
-    baseURL: process.env.WEB_URL ?? 'http://localhost:5173',
+    baseURL,
+    // The welcome and tour would cover what tests click; onboarding.spec.ts starts without this.
+    storageState: { cookies: [], origins: [{ origin: new URL(baseURL).origin, localStorage: [{ name: 'payledger.e2e.noTour', value: '1' }] }] },
     trace: 'retain-on-failure',
     launchOptions: executablePath ? { executablePath } : {},
   },

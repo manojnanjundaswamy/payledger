@@ -11,15 +11,19 @@ import { useCategories, useCreateCategory, useDeleteCategory, useMergeCategory, 
 import { CATEGORY_COLORS, CATEGORY_ICONS, Field, categoryOptions } from './parts'
 
 /** Add a category, or rename it, change its icon or colour, move it under another, hide or delete it. */
-export function CategoryDialog({ open, onOpenChange, category, kind }: {
+export function CategoryDialog({ open, onOpenChange, category, kind, initialName, space, onCreated }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   category?: Category
   /** For a new category. */
   kind: Category['kind']
+  /** "Add new" from a dropdown: what was typed there. */
+  initialName?: string
+  space?: string
+  onCreated?: (category: Category) => void
 }) {
-  const { data: categories = [] } = useCategories()
-  const create = useCreateCategory()
+  const { data: categories = [] } = useCategories(space)
+  const create = useCreateCategory(space)
   const update = useUpdateCategory()
   const remove = useDeleteCategory()
   const [name, setName] = useState('')
@@ -33,7 +37,7 @@ export function CategoryDialog({ open, onOpenChange, category, kind }: {
 
   useEffect(() => {
     if (!open) return
-    setName(category?.name ?? '')
+    setName(category?.name ?? initialName ?? '')
     setIcon(category?.icon ?? 'tag')
     setColor(category?.color ?? 'series-1')
     setParentId(category?.parentId ?? '')
@@ -59,8 +63,9 @@ export function CategoryDialog({ open, onOpenChange, category, kind }: {
         await update.mutateAsync({ id: category.id, ...fields, hidden: category.hidden })
         toast.success('Saved')
       } else {
-        await create.mutateAsync({ kind: theKind, ...fields })
+        const made = await create.mutateAsync({ kind: theKind, ...fields })
         toast.success(`${fields.name} added`)
+        onCreated?.(made)
       }
       onOpenChange(false)
     } catch (err) {

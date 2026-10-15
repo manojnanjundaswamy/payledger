@@ -14,6 +14,9 @@ test('main pages fit a phone screen @phone', async ({ page }) => {
     const width = await page.evaluate(() => ({ page: document.documentElement.scrollWidth, screen: document.documentElement.clientWidth }))
     expect(width.page, `${path} is wider than the screen`).toBeLessThanOrEqual(width.screen)
   }
+  // A page from More says so in the tab bar.
+  await page.goto('/plan')
+  await expect(page.getByRole('button', { name: 'More: Plan' })).toBeVisible()
   // The calendar shows the whole week.
   await page.goto('/transactions?view=calendar')
   const grid = page.getByRole('grid').first()

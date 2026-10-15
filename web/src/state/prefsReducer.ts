@@ -7,6 +7,7 @@ export type PrefsAction =
   | { type: 'theme'; patch: Partial<Theme> }
   | { type: 'sampleData'; value: boolean }
   | { type: 'sidebar'; collapsed: boolean }
+  | { type: 'onboarding'; patch: Partial<Pick<Preferences, 'welcomed' | 'tourOff'>> }
   | { type: 'selectDashboard'; id: string }
   | { type: 'addDashboard'; template: TemplateKey; name?: string }
   | { type: 'renameDashboard'; id: string; name: string }
@@ -34,6 +35,8 @@ export function prefsReducer(prefs: Preferences, action: PrefsAction): Preferenc
       return { ...prefs, sampleData: action.value }
     case 'sidebar':
       return { ...prefs, sidebarCollapsed: action.collapsed }
+    case 'onboarding':
+      return { ...prefs, welcomed: action.patch.welcomed ?? prefs.welcomed, tourOff: action.patch.tourOff ?? prefs.tourOff }
     case 'selectDashboard':
       return prefs.dashboards.some((d) => d.id === action.id) ? { ...prefs, activeDashboard: action.id } : prefs
     case 'addDashboard': {

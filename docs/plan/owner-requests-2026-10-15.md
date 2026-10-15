@@ -1,0 +1,29 @@
+# Owner's requests, 15 October 2026 (tracked to done)
+
+Each is ticked when built, tested on staging and committed to `develop`.
+
+1. [x] **Phone menu shows where you are**: a page opened from More (Plan, Household…) highlights More and names the page.
+2. [x] **Filters carry into Add**: adding from a filtered list (a category, account, tag, date) starts with those, with a
+   small "From your filter" note that can be cleared.
+3. [x] **"Add new…" at the end of every dropdown** (category, account, group, person…): opens the create form, and the new
+   one is chosen when it closes.
+4. [x] **Unlinking a paid bill**: "Mark paid" records an expense; unlinking it left that expense behind with no way to
+   remove it there. Unlinking now asks: keep the expense, or delete it (it was a mistake).
+5. [x] **Who it was with**: an optional "From whom / To whom" on entries (incomes especially), from your people or a new
+   name; shown in lists, filterable, used by captured alerts ("Neha sent you 1,500").
+6. [x] **Capture learns from corrections**: what you fix in To review (the name, in or out, an alert it couldn't read)
+   becomes a pattern used next time, so accuracy keeps improving (and any future AI reading feeds the same patterns).
+7. [x] **A tour for new people**: an animated, spotlighted walk through the layout and features; Skip any time;
+   "Don't show again" — otherwise it offers itself again at each sign-in.
+8. [x] **Welcome journey**: at the first sign-in, "Make it yours" (theme palette, light/dark, text size, spacing), the
+   whole app changing live behind it, then the tour. Payday, accounts and bills stay in "Set up in two minutes"
+   (Getting started on the dashboard). Done: layout/Onboarding.tsx, e2e onboarding (desktop and phone).
+9. [x] **"Shared expense" on any expense**: tick it, pick a group, who paid and the split; it becomes a group expense
+   (your share lands in your budget as usual).
+10. [x] **Admin activity in plain words**: each request as "Added a transaction", "Signed in"…, with the endpoint,
+    status, timing and any error when expanded.
+11. [x] **Theme palette**: Mode and Palette merged into one "Theme palette" picker (Classic, Bumblebee yellow, Ferrari
+    orange × Light, Dark, Match device), designed like the palette cards, also in the top bar's theme menu.
+12. [x] **Import your data back**: Settings > Account can restore a PayLedger export into this account (after deleting
+    and signing up again, or moving). Export and import share one versioned format, and a round-trip test (export,
+    import into a fresh account, export again, compare) fails the build if either side falls behind.

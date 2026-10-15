@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { SearchSelect } from '@/components/ui/search-select'
+import { AccountPicker, CategoryPicker } from '@/pages/money/pickers'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -140,16 +140,16 @@ export function CommitmentDialog({ open, onOpenChange, commitment, initialDue, p
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Paid from" htmlFor="commitment-account">
-            <SearchSelect id="commitment-account" value={accountId} onChange={(v) => set('accountId', v)} options={accountOptions(accounts)}
+            <AccountPicker id="commitment-account" value={accountId} onChange={(v) => set('accountId', v)} options={accountOptions(accounts)}
               placeholder={accounts.length === 0 ? 'No accounts yet' : 'Choose…'} />
           </Field>
           {bill ? (
             <Field label="Category" htmlFor="commitment-category">
-              <SearchSelect id="commitment-category" value={d.categoryId} onChange={(v) => set('categoryId', v)} options={categoryOptions(expenseCategories, categories)} />
+              <CategoryPicker kind="EXPENSE" id="commitment-category" value={d.categoryId} onChange={(v) => set('categoryId', v)} options={categoryOptions(expenseCategories, categories)} />
             </Field>
           ) : (
             <Field label="Into" htmlFor="commitment-to">
-              <SearchSelect id="commitment-to" value={d.toAccountId} onChange={(v) => set('toAccountId', v)} options={accountOptions(accounts.filter((a) => a.id !== accountId))} />
+              <AccountPicker id="commitment-to" value={d.toAccountId} onChange={(v) => set('toAccountId', v)} options={accountOptions(accounts.filter((a) => a.id !== accountId))} />
             </Field>
           )}
         </div>

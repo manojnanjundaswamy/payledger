@@ -47,6 +47,7 @@ export interface Transaction {
   version: number
   /** The savings goal it's for, if any. */
   goalId?: string | null
+  counterparty?: string | null
 }
 
 export interface TransactionFields {
@@ -60,6 +61,8 @@ export interface TransactionFields {
   note?: string | null
   tags?: string[]
   goalId?: string | null
+  /** Who it was with: who paid you, or whom you paid (optional). */
+  counterparty?: string | null
 }
 
 /** What to find (all optional): the same filter for the list, its totals and exports. Amounts are paise. */
@@ -75,6 +78,8 @@ export interface TransactionFilter {
   maxAmount?: number
   tag?: string
   goalId?: string
+  /** Who it was with, exactly (ignoring case). */
+  person?: string
 }
 
 /** A filter as query parameters, leaving out what isn't set. */
@@ -166,8 +171,9 @@ function refreshAfterWrite(client: QueryClient, spaceId: string) {
   }
 }
 
-function useMoneyMutation<V, R>(write: (spaceId: string, vars: V) => Promise<R>) {
-  const spaceId = useSpaceId()
+function useMoneyMutation<V, R>(write: (spaceId: string, vars: V) => Promise<R>, space?: string) {
+  const current = useSpaceId()
+  const spaceId = space ?? current
   const client = useQueryClient()
   return useMutation({
     mutationFn: (vars: V) => {
@@ -178,9 +184,9 @@ function useMoneyMutation<V, R>(write: (spaceId: string, vars: V) => Promise<R>)
   })
 }
 
-export function useCreateAccount() {
+export function useCreateAccount(space?: string) {
   return useMoneyMutation((spaceId, body: { kind: AccountKind; name: string; openingBalance: number; openingDate?: string }) =>
-    api<Account>(`${base(spaceId)}/accounts`, { method: 'POST', json: body }))
+    api<Account>(`${base(spaceId)}/accounts`, { method: 'POST', json: body }), space)
 }
 
 export function useUpdateAccount() {
@@ -253,9 +259,9 @@ export interface CategoryFields {
   parentId: string | null
 }
 
-export function useCreateCategory() {
+export function useCreateCategory(space?: string) {
   return useMoneyMutation((spaceId, body: CategoryFields & { kind: Category['kind'] }) =>
-    api<Category>(`${base(spaceId)}/categories`, { method: 'POST', json: body }))
+    api<Category>(`${base(spaceId)}/categories`, { method: 'POST', json: body }), space)
 }
 
 /** Sends the whole category; hiding or showing a parent does the same to its subcategories. */

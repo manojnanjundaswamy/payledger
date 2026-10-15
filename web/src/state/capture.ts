@@ -24,6 +24,10 @@ export interface CapturedItem {
   categoryId: string | null
   categorySource: string | null
   duplicateOf: string | null
+  /** RULES: the built-in reader; LEARNED: a pattern you taught it by filling one in. */
+  readBy: 'RULES' | 'LEARNED' | null
+  /** Set on the answer to "add": what this taught it (a pattern, or a name), if anything. */
+  learned?: 'pattern' | 'name' | null
 }
 
 export interface CaptureView {
@@ -74,6 +78,7 @@ export interface AddCaptured {
   categoryId: string | null
   occurredOn: string
   description: string
+  counterparty?: string | null
 }
 
 export function useAddCaptured() {

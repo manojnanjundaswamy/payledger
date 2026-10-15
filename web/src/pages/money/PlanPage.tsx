@@ -1,17 +1,17 @@
 import { Fragment, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { CalendarClock, CalendarDays, Check, History, List, PiggyBank, Plus, Receipt, Sparkles, Unlink } from 'lucide-react'
+import { CalendarClock, CalendarDays, Check, History, List, PiggyBank, Plus, Receipt, Sparkles, Trash2, Unlink } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Skeleton } from '@/components/ui/card'
 import { Segmented } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/overlay'
-import { ApiError } from '@/lib/api'
+import { ApiError, api } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatMoneyWhole } from '@/lib/money'
 import {
-  daysUntil, everyLabel, isoDate, useCommitments, useDue, useLinkPayment, usePayCommitment, usePlanner, useSafeToSpend, useTransactions, useUnlinkPayment,
-  type Commitment, type Due,
+  daysUntil, everyLabel, isoDate, useCommitments, useDeleteTransaction, useDue, useLinkPayment, usePayCommitment, usePlanner, useSafeToSpend,
+  useSpaceId, useTransactions, useUnlinkPayment, type Commitment, type Due, type Transaction,
 } from '@/state/money'
 import { useProfile } from '@/state/profile'
 import { BillCalendar } from './BillCalendar'
@@ -129,8 +129,9 @@ function DueThisMonth({ start, end, money, locale, onOpen, onAdd }: {
   const { data: due = [], isPending } = useDue(isoDate(new Date(y!, m! - 2, d!)), end)
   const pay = usePayCommitment()
   const link = useLinkPayment()
-  const unlink = useUnlinkPayment()
   const [linking, setLinking] = useState<Due | null>(null)
+  const [unlinking, setUnlinking] = useState<Due | null>(null)
+  const [deleting, setDeleting] = useState<Entry | null>(null)
   const rows = due.filter((x) => x.dueDate >= start || !x.paid)
   const [view, setView] = useState<'list' | 'calendar'>(() => {
     try { return localStorage.getItem('plan-view') === 'calendar' ? 'calendar' : 'list' } catch { return 'list' }
@@ -181,8 +182,8 @@ function DueThisMonth({ start, end, money, locale, onOpen, onAdd }: {
                     <Link to="/transactions" search={{ open: x.transactionId! }} aria-label={`Open the payment of ${x.name}`}>
                       <Badge tone="good"><Check className="size-3" />Paid</Badge>
                     </Link>
-                    <Button size="sm" variant="ghost" aria-label={`Unlink the payment of ${x.name}`} title="Not this payment? Unlink it (the transaction stays)"
-                      onClick={() => unlink.mutate({ id: x.commitmentId, dueDate: x.dueDate })}><Unlink /></Button>
+                    <Button size="sm" variant="ghost" aria-label={`Unlink the payment of ${x.name}`} title="Not this payment, or paid by mistake?"
+                      onClick={() => setUnlinking(x)}><Unlink /></Button>
                   </span>
                 ) : (
                   // On a phone the buttons take their own line, so the name keeps its room.
@@ -199,6 +200,9 @@ function DueThisMonth({ start, end, money, locale, onOpen, onAdd }: {
                     Looks paid: <span className="font-medium">{x.suggestion.description}</span>
                     <span className="text-muted"> · {new Date(`${x.suggestion.occurredOn}T00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short' })} · {money(x.suggestion.amount)}</span>
                   </span>
+                  <Button size="sm" variant="ghost" onClick={() => setDeleting({ name: x.name, transactionId: x.suggestion!.transactionId, description: x.suggestion!.description, amount: x.suggestion!.amount })}>
+                    Delete it
+                  </Button>
                   <Button size="sm" variant="primary" onClick={() => link.mutate({ id: x.commitmentId, dueDate: x.dueDate, transactionId: x.suggestion!.transactionId },
                     { onSuccess: () => toast.success(`${x.name} marked paid`, { description: `With ${x.suggestion!.description}.` }) })}>That's it</Button>
                 </div>
@@ -209,6 +213,8 @@ function DueThisMonth({ start, end, money, locale, onOpen, onAdd }: {
         </Card>
       )}
       <LinkPaymentDialog due={linking} onClose={() => setLinking(null)} money={money} locale={locale} />
+      <UnlinkDialog due={unlinking} onClose={() => setUnlinking(null)} money={money} />
+      <DeleteEntryDialog entry={deleting} onClose={() => setDeleting(null)} money={money} />
     </section>
   )
 }
@@ -287,6 +293,68 @@ function dateLabel(iso: string, locale: string): string {
  * Pick the transaction that paid a due date: the bill's category (or transfers for a saving), around the date. For
  * when you entered the expense yourself and it wasn't matched (a different amount, a later date).
  */
+interface Entry { name: string; transactionId: string; description: string; amount: number }
+
+/** Deletes an expense by id: it needs the current version, so it reads it first. */
+function useDeleteEntry() {
+  const spaceId = useSpaceId()
+  const remove = useDeleteTransaction()
+  return {
+    isPending: remove.isPending,
+    run: async (transactionId: string) => {
+      const t = await api<Transaction>(`/api/core/spaces/${spaceId}/transactions/${transactionId}`)
+      await remove.mutateAsync({ id: t.id, version: t.version })
+    },
+  }
+}
+
+/**
+ * "Paid" undone: was it the wrong transaction (keep it, just unlink), or was the payment itself a mistake (delete the
+ * expense "Mark paid" recorded, so it doesn't stay behind in your spending)?
+ */
+function UnlinkDialog({ due, onClose, money }: { due: Due | null; onClose: () => void; money: (m: number) => string }) {
+  const unlink = useUnlinkPayment()
+  const del = useDeleteEntry()
+  if (!due) return null
+  const keep = () => unlink.mutate({ id: due.commitmentId, dueDate: due.dueDate }, { onSuccess: () => { toast(`${due.name} is unpaid again`, { description: 'The transaction stays in your list.' }); onClose() } })
+  const remove = async () => {
+    await unlink.mutateAsync({ id: due.commitmentId, dueDate: due.dueDate })
+    await del.run(due.transactionId!)
+    toast(`${due.name} is unpaid again`, { description: 'Its payment was deleted.' })
+    onClose()
+  }
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()} title={`Unlink ${due.name}'s payment?`}
+      description={`It was paid with a transaction of ${money(due.amount)}. Was that the wrong transaction, or a payment you didn't make?`}>
+      <div className="flex flex-col gap-2 p-pad">
+        <Button variant="outline" className="justify-start" onClick={keep} disabled={unlink.isPending}>
+          <Unlink />Wrong transaction: unlink it, keep the transaction
+        </Button>
+        <Button variant="outline" className="justify-start text-critical" onClick={() => void remove()} disabled={unlink.isPending || del.isPending}>
+          <Trash2 />Not paid: unlink and delete that expense
+        </Button>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+      </div>
+    </Dialog>
+  )
+}
+
+/** A suggested payment that shouldn't exist at all (left behind by a mistaken "Mark paid"): delete it here. */
+function DeleteEntryDialog({ entry, onClose, money }: { entry: Entry | null; onClose: () => void; money: (m: number) => string }) {
+  const del = useDeleteEntry()
+  if (!entry) return null
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()} title={`Delete ${entry.description}?`}
+      description={`${money(entry.amount)}. It leaves your spending and balances; ${entry.name} stays due.`}>
+      <div className="flex justify-end gap-2 p-pad">
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button variant="primary" className="bg-critical text-white" disabled={del.isPending}
+          onClick={() => void del.run(entry.transactionId).then(() => { toast(`${entry.description} deleted`); onClose() })}><Trash2 />Delete</Button>
+      </div>
+    </Dialog>
+  )
+}
+
 function LinkPaymentDialog({ due, onClose, money, locale }: { due: Due | null; onClose: () => void; money: (m: number) => string; locale: string }) {
   const { data: commitments = [] } = useCommitments()
   const link = useLinkPayment()

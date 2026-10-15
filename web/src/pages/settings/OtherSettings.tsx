@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { Download, ExternalLink, LogOut, RotateCcw, Trash2 } from 'lucide-react'
+import { Check, Download, ExternalLink, FileJson, LogOut, RotateCcw, Trash2, Upload } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input, Switch } from '@/components/ui/controls'
@@ -153,6 +154,7 @@ export function AccountSettings() {
   const { data: session } = useSession()
   const { data: profile } = useProfile()
   const [deleting, setDeleting] = useState(false)
+  const [restoring, setRestoring] = useState(false)
   return (
     <Section title="Account" description="Sign-in and security are handled by our identity provider.">
       <Field label="Signed in as"><span className="text-sm text-muted">{profile?.email}</span></Field>
@@ -162,6 +164,10 @@ export function AccountSettings() {
       <Field label="Your data" hint="Everything we keep about you, as one file: accounts, transactions, budgets, bills, goals, groups and notifications.">
         <Button variant="outline" asChild><a href="/api/core/me/export" download><Download />Download all my data</a></Button>
       </Field>
+      <Field label="Restore from a download" hint="Bring a PayLedger download back into this account: after starting over, or moving to a new email.">
+        <Button variant="outline" onClick={() => setRestoring(true)}><Upload />Restore my data</Button>
+      </Field>
+      <RestoreDialog open={restoring} onOpenChange={setRestoring} />
       <Field label="Delete account" hint="Your data and your sign-in go for good. Groups you share keep their history, with you as a name only.">
         <Button variant="danger" onClick={() => setDeleting(true)}><Trash2 />Delete my account</Button>
       </Field>
@@ -214,6 +220,81 @@ function DeleteAccountDialog({ open, onOpenChange, email }: { open: boolean; onO
           <Button type="submit" variant="danger" disabled={busy || typed.trim().toLowerCase() !== email.toLowerCase()}>Delete for good</Button>
         </div>
       </form>
+    </Dialog>
+  )
+}
+
+interface Restored { counts: Record<string, number>; skipped: string[] }
+
+const RESTORED_LABELS: Record<string, string> = {
+  categories: 'categories', accounts: 'accounts', goals: 'goals', transactions: 'entries', budgets: 'budgets', billsAndSavings: 'bills and savings',
+  billPayments: 'bill payments', goalContributions: 'goal top-ups', categoryRules: 'category rules', taxMappings: 'tax sections',
+}
+
+/**
+ * A PayLedger download, brought back: settings, accounts, entries, budgets, bills, goals, rules. Only into an account
+ * with no money in it yet, so nothing is doubled. Groups and households stay with the people you share them with.
+ */
+function RestoreDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const [file, setFile] = useState<File | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string>()
+  const [done, setDone] = useState<Restored | null>(null)
+  const client = useQueryClient()
+  async function restore() {
+    if (!file) return
+    setBusy(true)
+    setError(undefined)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const r = await api<Restored>('/api/core/me/import', { method: 'POST', body: form })
+      setDone(r)
+      void client.invalidateQueries()
+      toast.success('Your data is back')
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not restore it. Try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  const close = (o: boolean) => { if (!o) { setFile(null); setDone(null); setError(undefined) } onOpenChange(o) }
+  return (
+    <Dialog open={open} onOpenChange={close} title="Restore your data"
+      description="From a file you downloaded here (Download all my data). It goes into this account, which must have no accounts or entries yet.">
+      <div className="flex flex-col gap-4 p-pad">
+        {!done ? (
+          <>
+            <label className="flex cursor-pointer flex-col items-center gap-2 rounded-card border-2 border-dashed border-border-strong p-6 text-center hover:border-accent">
+              <FileJson className="size-8 text-accent" />
+              <span className="text-sm">{file ? <b>{file.name}</b> : <><b>Choose the download</b> (payledger-my-data-….json)</>}</span>
+              <input type="file" accept=".json,application/json" className="sr-only" aria-label="Your PayLedger download" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            </label>
+            <ul className="list-disc space-y-1 pl-5 text-xs text-muted">
+              <li>Comes back: your settings, accounts and balances, every entry, budgets, bills, goals, category rules and tax sections.</li>
+              <li>Stays with others: groups and households, because they're shared. Ask to be added again.</li>
+            </ul>
+            {error && <p className="rounded-control bg-critical/10 px-3 py-2 text-sm text-critical" role="alert">{error}</p>}
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => close(false)}>Cancel</Button>
+              <Button variant="primary" disabled={!file || busy} onClick={() => void restore()}><Upload />{busy ? 'Restoring…' : 'Restore'}</Button>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col gap-3" data-testid="restored">
+            <p className="flex items-center gap-2 font-medium text-good-text"><Check className="size-5" />Restored</p>
+            <ul className="grid grid-cols-2 gap-1 text-sm">
+              {Object.entries(done.counts).filter(([k, v]) => k !== 'settings' && v > 0).map(([k, v]) => (
+                <li key={k}><b className="tabular">{v}</b> {RESTORED_LABELS[k] ?? k}</li>
+              ))}
+            </ul>
+            {done.skipped.length > 0 && (
+              <ul className="list-disc space-y-1 pl-5 text-xs text-muted">{done.skipped.map((x) => <li key={x}>{x}</li>)}</ul>
+            )}
+            <Button variant="primary" className="self-end" onClick={() => close(false)}>Done</Button>
+          </div>
+        )}
+      </div>
     </Dialog>
   )
 }

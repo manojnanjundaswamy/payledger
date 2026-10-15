@@ -1,4 +1,5 @@
 import { uuid7 } from '@/lib/uuid'
+import { AccountPicker } from '@/pages/money/pickers'
 import { SearchSelect } from '@/components/ui/search-select'
 import { categoryTree, useAccounts, useCategories, useGroupBudget, usePersonalSpaceId } from '@/state/money'
 import { CategoryIcon, accountOptions } from '@/pages/money/parts'
@@ -46,7 +47,8 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
   const [error, setError] = useState<string>()
   const [fromAccount, setFromAccount] = useState('')
   const { data: bookSettings } = useGroupBudget()
-  const { data: myAccounts } = useAccounts(false, usePersonalSpaceId())
+  const personalSpace = usePersonalSpaceId()
+  const { data: myAccounts } = useAccounts(false, personalSpace)
   const payable = (myAccounts ?? []).filter((a) => a.kind !== 'OWED' && !a.archived)
 
   useEffect(() => {
@@ -83,7 +85,7 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
   const total = parseMoney(amount)
   // The category: one of your own spending categories, or a label this group already uses, or a new one. It's
   // stored by name, so each member's share lands in their own category of that name (or Other).
-  const { data: myCategories = [] } = useCategories(usePersonalSpaceId())
+  const { data: myCategories = [] } = useCategories(personalSpace)
   const { data: activity } = useActivity(groupId)
   const labelOptions = useMemo(() => {
     const mine = myCategories.filter((c) => c.kind === 'EXPENSE' && !c.hidden)
@@ -182,7 +184,7 @@ export function ExpenseDialog({ open, onOpenChange, groupId, members, you, expen
 
         {youPaid && bookSettings?.enabled && payable.length > 0 && (
           <Field label="You paid from" htmlFor="gexp-from" hint="Your share counts in your budget; the rest waits in Friends & groups until they pay you back.">
-            <SearchSelect id="gexp-from" value={fromAccount} onChange={setFromAccount}
+            <AccountPicker space={personalSpace} id="gexp-from" value={fromAccount} onChange={setFromAccount}
               options={[{ value: '', label: 'My usual account' }, ...accountOptions(payable)]} />
           </Field>
         )}

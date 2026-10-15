@@ -70,7 +70,7 @@ public class CategoryMergeService {
         for (Live l : live) {
             Transaction t = transactions.get(user, spaceId, l.id());
             transactions.replace(user, spaceId, t.id(), new TransactionRequests.Replace(t.version(), t.kind(), t.amount(),
-                    t.accountId(), t.toAccountId(), targetId, t.occurredOn(), t.description(), t.note(), t.tags(), t.goalId()));
+                    t.accountId(), t.toAccountId(), targetId, t.occurredOn(), t.description(), t.note(), t.tags(), t.goalId(), t.counterparty()));
         }
         jdbc.sql("update category_rules set category_id = :target where category_id = :source")
                 .param("target", targetId).param("source", sourceId).update();

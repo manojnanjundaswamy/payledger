@@ -50,7 +50,7 @@ export function EdgeDock() {
 
   if (hidden) return null
   return (
-    <div className="fixed right-0 z-[55] flex items-center max-md:hidden print:hidden" style={{ top: `${y}%`, transform: 'translateY(-50%)' }}>
+    <div className="fixed right-0 z-[55] flex items-center max-md:hidden print:hidden" data-tour="tools" style={{ top: `${y}%`, transform: 'translateY(-50%)' }}>
       {open && (
         <div role="dialog" aria-label="Utilities" className="mr-1 w-60 rounded-card border border-border bg-surface p-2 shadow-lift data-[state=open]:animate-[pop-in_120ms_ease-out]">
           <div className="flex items-center justify-between px-1 pb-1">

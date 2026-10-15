@@ -53,6 +53,9 @@ delete from transactions where deleted_at is not null
   and (account_id in (select id from test_accounts) or to_account_id in (select id from test_accounts) or category_id in (select id from test_categories));
 delete from budget_limits where category_id in (select id from test_categories);
 delete from tax_mappings where category_id in (select id from test_categories);
+-- Captured entries (alerts, statements) from or into test accounts go with them.
+delete from captured_items where account_id in (select id from test_accounts)
+  or transaction_id in (select id from transactions where account_id in (select id from test_accounts) or to_account_id in (select id from test_accounts));
 delete from group_entry_accounts where account_id in (select id from test_accounts);
 update users set group_account_id = null where group_account_id in (select id from test_accounts);
 delete from money_accounts where id in (select id from test_accounts)
@@ -67,6 +70,9 @@ delete from imports i where i.space_id in (select id from kept_spaces) and i.fil
   and not exists (select 1 from transactions t where t.import_id = i.id);
 
 delete from captured_items where user_id in (select id from keep_user) and (merchant ~* '^E2E' or body ~* 'e2e');
+-- What the tests taught auto-capture.
+delete from capture_aliases where name ~* '^E2E' or raw ~* 'e2e';
+delete from capture_patterns where pattern ~* 'e2e|zeppo|blinkit';
 
 -- Everything the other users owned.
 delete from commitment_payments where commitment_id in (select id from commitments where space_id in (select id from gone_spaces));
@@ -74,6 +80,8 @@ delete from commitment_payments where transaction_id in (select id from transact
 delete from commitments where space_id in (select id from gone_spaces);
 delete from captured_items where user_id in (select id from gone_users) or space_id in (select id from gone_spaces);
 delete from capture_addresses where user_id in (select id from gone_users);
+delete from capture_patterns where user_id in (select id from gone_users);
+delete from capture_aliases where user_id in (select id from gone_users);
 delete from transactions where space_id in (select id from gone_spaces);
 delete from budget_limits where space_id in (select id from gone_spaces);
 delete from space_invites where space_id in (select id from gone_spaces);

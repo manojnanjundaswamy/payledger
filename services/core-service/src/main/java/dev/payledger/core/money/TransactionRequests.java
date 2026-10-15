@@ -18,7 +18,12 @@ public final class TransactionRequests {
 
     /** What a transaction says, validated; the same for create and replace. */
     record Fields(String kind, long amount, UUID accountId, UUID toAccountId, UUID categoryId, LocalDate occurredOn,
-                  String description, String note, List<String> tags, UUID goalId) {
+                  String description, String note, List<String> tags, UUID goalId, String counterparty) {
+
+        Fields(String kind, long amount, UUID accountId, UUID toAccountId, UUID categoryId, LocalDate occurredOn,
+               String description, String note, List<String> tags, UUID goalId) {
+            this(kind, amount, accountId, toAccountId, categoryId, occurredOn, description, note, tags, goalId, null);
+        }
     }
 
     /**
@@ -40,10 +45,18 @@ public final class TransactionRequests {
             @Size(max = 1000) String note,
             @Size(max = 10) List<@NotBlank @Size(max = 30) String> tags,
             // Optional: the savings goal this is for.
-            UUID goalId) {
+            UUID goalId,
+            // Optional: who it was with (who paid you, whom you paid).
+            @Size(max = 80) String counterparty) {
+
+        /** Without who it was with (older callers). */
+        public Create(UUID id, String kind, Long amount, UUID accountId, UUID toAccountId, UUID categoryId, LocalDate occurredOn,
+                      String description, String note, List<String> tags, UUID goalId) {
+            this(id, kind, amount, accountId, toAccountId, categoryId, occurredOn, description, note, tags, goalId, null);
+        }
 
         Fields fields() {
-            return new Fields(kind, amount, accountId, toAccountId, categoryId, occurredOn, description, note, tags, goalId);
+            return new Fields(kind, amount, accountId, toAccountId, categoryId, occurredOn, description, note, tags, goalId, counterparty);
         }
     }
 
@@ -60,10 +73,11 @@ public final class TransactionRequests {
             @Size(max = 1000) String note,
             @Size(max = 10) List<@NotBlank @Size(max = 30) String> tags,
             // Optional: the savings goal this is for.
-            UUID goalId) {
+            UUID goalId,
+            @Size(max = 80) String counterparty) {
 
         Fields fields() {
-            return new Fields(kind, amount, accountId, toAccountId, categoryId, occurredOn, description, note, tags, goalId);
+            return new Fields(kind, amount, accountId, toAccountId, categoryId, occurredOn, description, note, tags, goalId, counterparty);
         }
     }
 }

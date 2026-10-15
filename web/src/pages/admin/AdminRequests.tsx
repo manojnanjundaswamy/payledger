@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
+import { describeAction } from './describe'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useSearch } from '@tanstack/react-router'
 import { ChevronDown, ChevronRight, Copy, Search } from 'lucide-react'
@@ -71,7 +72,10 @@ export function AdminRequests() {
                     {expanded ? <ChevronDown className="size-4 shrink-0 text-muted" /> : <ChevronRight className="size-4 shrink-0 text-muted" />}
                     <span className={cn('w-10 shrink-0 font-mono text-xs tabular', r.status >= 500 ? 'text-critical' : bad ? 'text-warning' : 'text-good-text')}>{r.status}</span>
                     <span className="w-14 shrink-0 font-mono text-xs text-muted">{r.method}</span>
-                    <span className="min-w-0 flex-1 truncate font-mono text-xs">{r.route ?? r.path}</span>
+                    <span className="min-w-0 flex-1 truncate">
+                      <span className="block truncate">{describeAction(`${r.method} ${r.route ?? r.path}`, r.status)}</span>
+                      <span className="block truncate font-mono text-[0.6875rem] text-subtle">{r.route ?? r.path}</span>
+                    </span>
                     <span className="hidden w-48 shrink-0 truncate text-xs text-muted md:block">{r.email ?? 'not signed in'}</span>
                     <span className="w-16 shrink-0 text-right text-xs text-subtle tabular">{r.duration_ms} ms</span>
                     <span className="w-44 shrink-0 text-right text-xs text-subtle tabular">{dateTime(r.at, locale)}</span>

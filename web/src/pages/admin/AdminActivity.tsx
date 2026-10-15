@@ -1,4 +1,5 @@
 import { Fragment, useState } from 'react'
+import { describeAction } from './describe'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, ChevronRight, KeyRound, PenLine, TriangleAlert, UserPlus } from 'lucide-react'
 import { Card, Skeleton } from '@/components/ui/card'
@@ -61,7 +62,8 @@ export function ActivityList({ rows, withUser }: { rows: ActivityRow[]; withUser
               <span className="min-w-0 flex-1">
                 <span className="block truncate">
                   {withUser && <span className="font-medium">{r.email} </span>}
-                  {r.type === 'SIGN_IN' ? 'signed in' : r.type === 'SIGN_UP' ? 'signed up' : <><code className="text-xs">{r.action}</code> <span className={cn('text-xs', failed ? 'text-critical' : 'text-subtle')}>{r.status}</span></>}
+                  {r.type === 'SIGN_IN' ? 'Signed in' : r.type === 'SIGN_UP' ? 'Signed up'
+                    : <span className={cn(failed && 'text-critical')} data-testid="activity-plain">{describeAction(r.action, r.status)}</span>}
                 </span>
                 <span className="block truncate text-xs text-subtle">{[r.ip, r.user_agent].filter(Boolean).join(' \u00b7 ')}</span>
               </span>
@@ -69,7 +71,8 @@ export function ActivityList({ rows, withUser }: { rows: ActivityRow[]; withUser
             </button>
             {expanded && (
               <dl className="grid gap-x-4 gap-y-1.5 bg-surface-2 px-pad py-3 text-xs sm:grid-cols-[8rem_1fr]" data-testid="activity-details">
-                {([['When', dateTime(r.at, locale)], ['What', r.type === 'CHANGE' ? `${r.action} \u2192 ${r.status}` : r.type.toLowerCase().replace('_', '-')],
+                {([['When', dateTime(r.at, locale)], ['What happened', r.type === 'CHANGE' ? describeAction(r.action, r.status) : r.type === 'SIGN_IN' ? 'Signed in' : 'Signed up'],
+                  ['Request', r.type === 'CHANGE' ? `${r.action} \u2192 ${r.status}` : r.type.toLowerCase().replace('_', '-')],
                   ['About', r.target && r.target !== '{}' ? r.target : '\u2014'], ['IP', r.ip ?? '\u2014'], ['Browser', r.user_agent ?? '\u2014'],
                   ...(withUser ? [['User', r.email ?? '\u2014']] : [])] as [string, string][]).map(([k, v]) => (
                   <Fragment key={k}><dt className="text-muted">{k}</dt><dd className="font-mono break-all">{v}</dd></Fragment>
