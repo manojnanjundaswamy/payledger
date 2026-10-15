@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { MoneyInput } from '@/components/ui/money-input'
 import { AccountPicker, CategoryPicker } from '@/pages/money/pickers'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Check, ChevronDown, Copy, ExternalLink, FileUp, Inbox, Loader2, RefreshCw, ShieldCheck, Sparkles, X } from 'lucide-react'
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Check, CheckCircle2, ChevronDown, Copy, ExternalLink, FileUp, Inbox, Loader2, RefreshCw, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Skeleton } from '@/components/ui/card'
@@ -11,7 +11,7 @@ import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatMoneyWhole, minorToInput, parseMoney } from '@/lib/money'
 import { accountOptions, categoryOptions, dayLabel, today, useMoneyFormat } from '@/pages/money/parts'
-import { BANK_FILTER, useAddAll, useAddCaptured, useCapture, useStatement, useDismissCaptured, usePaste, useResetAddress, type CaptureView, type CapturedItem } from '@/state/capture'
+import { BANK_FILTER, type CaptureView, type CapturedItem, useAddAll, useAddCaptured, useCapture, useDismissCaptured, useForwardingConfirmed, usePaste, useResetAddress, useStatement } from '@/state/capture'
 import { useAccounts, useCategories, usePersonalSpaceId } from '@/state/money'
 import { ForwardFlow, GmailSettings, MethodIcon, PhoneSms } from './illustrations'
 
@@ -293,6 +293,7 @@ function CopyBox({ value, label, mono = true }: { value: string; label: string; 
 
 function EmailGuide({ data }: { data: CaptureView }) {
   const reset = useResetAddress()
+  const confirmed = useForwardingConfirmed()
   return (
     <Card className="flex flex-col gap-5 p-pad">
       <ForwardFlow />
@@ -322,15 +323,21 @@ function EmailGuide({ data }: { data: CaptureView }) {
             <GmailSettings step="forwarding" />
           </div>
         </Step>
-        <Step n={3} title="Confirm it" done={!!data.confirmation || !!data.lastEmailAt}>
-          {data.confirmation ? (
+        <Step n={3} title={data.forwardingOn ? 'Forwarding is on' : 'Confirm it'} done={data.forwardingOn}>
+          {data.forwardingOn ? (
+            <p className="flex items-center gap-2 text-sm text-good-text" data-testid="forwarding-on"><CheckCircle2 className="size-4" />
+              {data.lastEmailAt ? `Emails are arriving. The last one came ${new Date(data.lastEmailAt).toLocaleString()}.` : 'Confirmed. Bank alerts will show up in To review as they come.'}</p>
+          ) : data.confirmation ? (
             <div className="flex flex-col gap-2">
-              <p className="text-sm text-muted">Gmail's code arrived. Enter it in Gmail's settings, or open Gmail's link:</p>
+              <p className="text-sm text-muted">Gmail asked you to confirm. Open its link (or enter its code in Gmail's settings), then come back:</p>
               {data.confirmation.code && <CopyBox value={data.confirmation.code} label="Code" />}
-              {data.confirmation.link && <a href={data.confirmation.link} target="_blank" rel="noreferrer"><Button size="sm" variant="outline"><ExternalLink />Confirm with Gmail's link</Button></a>}
+              <div className="flex flex-wrap gap-2">
+                {data.confirmation.link && <a href={data.confirmation.link} target="_blank" rel="noreferrer"><Button size="sm" variant="outline"><ExternalLink />Confirm with Gmail's link</Button></a>}
+                {/* Gmail never tells us it was confirmed; the first forwarded email would, this says it sooner. */}
+                <Button size="sm" variant="primary" disabled={confirmed.isPending} onClick={() => confirmed.mutate(undefined, { onSuccess: () => toast.success('Forwarding is on') })}>
+                  <CheckCircle2 />I've confirmed it in Gmail</Button>
+              </div>
             </div>
-          ) : data.lastEmailAt ? (
-            <p className="text-sm text-good-text">Emails are arriving. The last one came {new Date(data.lastEmailAt).toLocaleString()}.</p>
           ) : (
             <p className="flex items-center gap-2 text-sm text-muted"><Loader2 className="size-4 animate-spin" />Waiting for Gmail's code. This page checks every few seconds.</p>
           )}

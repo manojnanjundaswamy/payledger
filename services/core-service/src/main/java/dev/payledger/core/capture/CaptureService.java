@@ -91,7 +91,12 @@ public class CaptureService {
      * @param emailReady the forwarding address works here (the inbound email door is configured)
      * @param confirmation Gmail's latest forwarding confirmation, while it's fresh (a week)
      */
-    public record View(String address, boolean emailReady, Confirmation confirmation, long pending, List<Item> items, Instant lastEmailAt) {
+    /**
+     * @param forwardingOn Gmail forwarding works: an email arrived through it after Gmail's confirmation (or with no
+     *                     confirmation on record), or the person said they confirmed it. Gmail itself never tells us.
+     */
+    public record View(String address, boolean emailReady, Confirmation confirmation, long pending, List<Item> items, Instant lastEmailAt,
+                       boolean forwardingOn) {
     }
 
     public record Confirmation(String code, String link, Instant receivedAt) {
@@ -105,9 +110,9 @@ public class CaptureService {
     @Transactional
     public View view(CurrentUser user) {
         String token = token(user.id());
-        record Conf(String confirmationCode, String confirmationLink, Instant confirmationAt) {
+        record Conf(String confirmationCode, String confirmationLink, Instant confirmationAt, Instant forwardingConfirmedAt, Instant addressSince) {
         }
-        Conf c = jdbc.sql("select confirmation_code, confirmation_link, confirmation_at from capture_addresses where user_id = :u")
+        Conf c = jdbc.sql("select confirmation_code, confirmation_link, confirmation_at, forwarding_confirmed_at, address_since from capture_addresses where user_id = :u")
                 .param("u", user.id()).query(Conf.class).single();
         Confirmation confirmation = c.confirmationAt() != null && c.confirmationAt().isAfter(Instant.now().minusSeconds(7 * 86_400))
                 ? new Confirmation(c.confirmationCode(), c.confirmationLink(), c.confirmationAt()) : null;
@@ -119,7 +124,18 @@ public class CaptureService {
                 .query(Long.class).single();
         Instant last = jdbc.sql("select max(received_at) from captured_items where user_id = :u and source = 'EMAIL'").param("u", user.id())
                 .query(Instant.class).optional().orElse(null);
-        return new View(token + "@" + domain, inboundEnabled, confirmation, pending, items, last);
+        // An email through this address after Gmail's confirmation (or after the address was made, with none on record).
+        Instant after = c.confirmationAt() != null ? c.confirmationAt() : c.addressSince();
+        boolean on = c.forwardingConfirmedAt() != null || last != null && last.isAfter(after);
+        return new View(token + "@" + domain, inboundEnabled, confirmation, pending, items, last, on);
+    }
+
+    /** "I've confirmed it in Gmail": Gmail doesn't tell us, so the person does. */
+    @Transactional
+    public View forwardingConfirmed(CurrentUser user) {
+        token(user.id());
+        jdbc.sql("update capture_addresses set forwarding_confirmed_at = now() where user_id = :u").param("u", user.id()).update();
+        return view(user);
     }
 
     /** How many wait to be reviewed: for the badge in the menu, so it's one cheap count. */
@@ -132,7 +148,7 @@ public class CaptureService {
     @Transactional
     public View resetAddress(CurrentUser user) {
         token(user.id());
-        jdbc.sql("update capture_addresses set token = :t, confirmation_code = null, confirmation_link = null, confirmation_at = null where user_id = :u")
+        jdbc.sql("update capture_addresses set token = :t, confirmation_code = null, confirmation_link = null, confirmation_at = null, forwarding_confirmed_at = null, address_since = now() where user_id = :u")
                 .param("t", newToken()).param("u", user.id()).update();
         return view(user);
     }
@@ -259,7 +275,7 @@ public class CaptureService {
                             update capture_addresses set confirmation_code = :code, confirmation_link = :link, confirmation_at = now() where user_id = :u
                             """).param("code", code.find() ? code.group(1) : null).param("link", link.find() ? link.group(1) : null)
                     .param("u", owner.userId()).update();
-            inbox.notify(owner.userId(), Inbox.Kind.CAPTURED, "Gmail's confirmation code arrived", "Open Auto-capture to finish setting up forwarding.",
+            inbox.notify(owner.userId(), Inbox.Kind.CAPTURED, "Gmail asked you to confirm forwarding", "Open Auto-capture and confirm with Gmail's link (or code) to finish.",
                     "/capture", null, "gmail-code:" + owner.userId() + ":" + Instant.now().getEpochSecond() / 600, null);
             return "gmail-confirmation";
         }

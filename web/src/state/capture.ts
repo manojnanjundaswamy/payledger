@@ -35,6 +35,8 @@ export interface CaptureView {
   /** Email forwarding is switched on for this site (Cloudflare Email Routing and the Worker are set up). */
   emailReady: boolean
   confirmation: { code: string | null; link: string | null; receivedAt: string } | null
+  /** Gmail forwarding works: an email came through after Gmail's confirmation, or you said you confirmed it. */
+  forwardingOn: boolean
   pending: number
   items: CapturedItem[]
   lastEmailAt: string | null
@@ -103,6 +105,10 @@ export function useAddAll() {
 
 export function useDismissCaptured() {
   return useCaptureWrite((id: string) => api<CapturedItem>(`/api/core/capture/items/${id}/dismiss`, { method: 'POST' }))
+}
+
+export function useForwardingConfirmed() {
+  return useCaptureWrite(() => api<CaptureView>('/api/core/capture/address/confirmed', { method: 'POST' }))
 }
 
 export function useResetAddress() {

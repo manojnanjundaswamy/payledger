@@ -107,12 +107,18 @@ class CaptureIntegrationTest {
                 .andExpect(jsonPath("$.confirmation.code").value("123456789"))
                 .andExpect(jsonPath("$.confirmation.link").value("https://mail-settings.google.com/mail/vf-%5BANGjdJ%5D-abc"))
                 .andExpect(jsonPath("$.pending").value(1))
-                .andExpect(jsonPath("$.items[0].merchant").value("Netflix"));
+                .andExpect(jsonPath("$.items[0].merchant").value("Netflix"))
+                // Gmail never says it was confirmed: not on yet (the Netflix alert came before Gmail's email).
+                .andExpect(jsonPath("$.forwardingOn").value(false));
+        // The person says they confirmed it.
+        mvc.perform(post("/api/core/capture/address/confirmed").with(me)).andExpect(jsonPath("$.forwardingOn").value(true));
 
         // A new address: the old one stops working.
         body(post("/api/core/capture/address/reset"), me, null);
         mvc.perform(post("/inbound/email").header("X-Inbound-Secret", "test-inbound-secret").header("X-Envelope-To", address).content(email))
                 .andExpect(jsonPath("$.result").value("unknown-address"));
+        // The new address starts again: not on until an email comes through it.
+        mvc.perform(get("/api/core/capture").with(me)).andExpect(jsonPath("$.forwardingOn").value(false));
     }
 
     @Test
