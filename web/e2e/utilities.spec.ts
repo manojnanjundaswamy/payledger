@@ -109,3 +109,13 @@ test("a calculator's answer can be added as an expense, or a loan's EMI to the p
   await page.getByRole('button', { name: 'Add as an expense' }).click()
   await expect(page.getByRole('dialog', { name: 'Add expense' }).getByLabel('Description')).toHaveValue('My share of the bill')
 })
+
+test('on a phone the edge panel is there too, and a utility opens as a sheet @phone', async ({ page }) => {
+  await page.getByRole('button', { name: 'Open utilities' }).click()
+  await page.getByRole('dialog', { name: 'Utilities' }).getByRole('button', { name: 'Loan EMI' }).click()
+  const win = page.getByTestId('window-emi')
+  await expect(win).toBeVisible()
+  // The sheet fits the screen: nothing off the right edge.
+  const box = await win.boundingBox()
+  expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1)
+})
