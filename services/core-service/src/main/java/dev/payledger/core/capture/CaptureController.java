@@ -50,6 +50,12 @@ class CaptureController {
         return capture.resetAddress(user);
     }
 
+    @PostMapping("/api/core/capture/address/confirmed")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Say Gmail forwarding is confirmed (Gmail doesn't tell us); a forwarded email arriving says so too")
+    CaptureService.View forwardingConfirmed(dev.payledger.core.user.CurrentUser user) {
+        return capture.forwardingConfirmed(user);
+    }
+
     @PostMapping("/api/core/capture/paste")
     @Operation(summary = "Read bank SMS or alerts you pasted or shared; each becomes an entry to review")
     CaptureService.Pasted paste(CurrentUser user, @RequestBody Paste body) {
