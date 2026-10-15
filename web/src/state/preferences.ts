@@ -36,7 +36,7 @@ export const PALETTES = [
   { id: 'classic', name: 'Classic', description: 'Black and white', swatches: ['#ffffff', '#f6f6f5', '#0a0a0a'] },
   { id: 'bumblebee', name: 'Bumblebee yellow', description: 'Warm yellow and black, with a hazard stripe', swatches: ['#fffcf0', '#ffc800', '#14120b'] },
   { id: 'ferrari', name: 'Ferrari orange', description: 'Race orange on carbon, with a racing stripe', swatches: ['#fff8f4', '#ea5000', '#1a0e09'] },
-  { id: 'sky', name: 'Super sky blue', description: 'Clear sky blue on cloud white, night sky in dark', swatches: ['#f3faff', '#1aa7ec', '#06192b'] },
+  { id: 'sky', name: 'Super sky blue', description: 'Clear sky blue on cloud white, deep navy at night', swatches: ['#f3faff', '#1aa7ec', '#06192b'] },
   { id: 'purple', name: 'Elegant purple', description: 'Deep violet on lavender, with a velvet sheen', swatches: ['#faf7ff', '#7c3aed', '#1a1030'] },
 ] as const
 export type PaletteId = (typeof PALETTES)[number]['id']

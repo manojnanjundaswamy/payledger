@@ -92,8 +92,8 @@ export function fractionDigits(currency: string): number {
 export function parseMoney(text: string, currency = defaults.currency, locale = defaults.locale): number | null {
   const digits = fractionDigits(currency)
   if (/-/.test(text)) return null
-  // The currency written before or after ("AED 1,200", "1 234,50 €", "₹500") goes; inside, only digits and separators.
-  const core = text.trim().replace(/^[^\d.,]+/, '').replace(/[^\d.,]+$/, '').replace(/[\s  ']/g, '')
+  // A currency written before or after ("AED 1,200", "1 234,50 €", "₹500", "Rs. 500") goes; anything else isn't an amount.
+  const core = text.trim().replace(/^(?:[A-Z]{3}|Rs\.?|\p{Sc}+)\s*/u, '').replace(/\s*(?:[A-Z]{3}|\p{Sc}+)$/u, '').replace(/[\s  ']/g, '')
   if (!core || /[^\d.,]/.test(core)) return null
   // The decimal mark is the one of the person's number format ("." in en-IN/en-US, "," in de-DE); the other is
   // grouping. "1200.50" in a "," format is still read as a decimal: one dot, no comma, at most the currency's decimals.

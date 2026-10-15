@@ -67,3 +67,11 @@ describe('money, anywhere', () => {
     expect(formatMoney(1_00_000_00)).toBe('₹1,00,000.00')
   })
 })
+
+describe('what isn\'t an amount', () => {
+  it('refuses letters that aren\'t a currency', () => {
+    for (const bad of ['12abc', 'abc12', '12 kg', 'twelve']) expect(parseMoney(bad)).toBeNull()
+    expect(parseMoney('Rs. 500')).toBe(500_00)
+    expect(parseMoney('500 INR')).toBe(500_00)
+  })
+})
