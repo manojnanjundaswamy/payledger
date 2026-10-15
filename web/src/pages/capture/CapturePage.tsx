@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { MoneyInput } from '@/components/ui/money-input'
 import { AccountPicker, CategoryPicker } from '@/pages/money/pickers'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Check, CheckCircle2, ChevronDown, Copy, ExternalLink, FileUp, Inbox, Loader2, RefreshCw, ShieldCheck, Sparkles, X } from 'lucide-react'
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Check, CheckCircle2, ChevronDown, ChevronUp, Copy, ExternalLink, FileUp, Inbox, Loader2, Mail, RefreshCw, Settings2, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Skeleton } from '@/components/ui/card'
@@ -11,7 +11,7 @@ import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatMoneyWhole, minorToInput, parseMoney } from '@/lib/money'
 import { accountOptions, categoryOptions, dayLabel, today, useMoneyFormat } from '@/pages/money/parts'
-import { BANK_FILTER, type CaptureView, type CapturedItem, useAddAll, useAddCaptured, useCapture, useDismissCaptured, useForwardingConfirmed, usePaste, useResetAddress, useStatement } from '@/state/capture'
+import { BANK_FILTER, type CaptureView, type CapturedItem, type ReceivedEmail, useAddAll, useAddCaptured, useCapture, useDismissCaptured, useForwardingConfirmed, usePaste, useResetAddress, useStatement } from '@/state/capture'
 import { useAccounts, useCategories, usePersonalSpaceId } from '@/state/money'
 import { ForwardFlow, GmailSettings, MethodIcon, PhoneSms } from './illustrations'
 
@@ -291,11 +291,86 @@ function CopyBox({ value, label, mono = true }: { value: string; label: string; 
   )
 }
 
+const OUTCOME: Record<ReceivedEmail['result'], { label: string; tone: 'good' | 'muted' | 'warn' }> = {
+  added: { label: 'Added to review', tone: 'good' },
+  'unreadable-kept': { label: 'Kept to look at', tone: 'warn' },
+  'not-a-transaction': { label: 'Skipped: not a transaction', tone: 'muted' },
+  duplicate: { label: 'Already had it', tone: 'muted' },
+  'gmail-confirmation': { label: 'Gmail’s confirmation', tone: 'muted' },
+  'over-daily-limit': { label: 'Over today’s limit', tone: 'warn' },
+  unreadable: { label: 'Couldn’t open it', tone: 'warn' },
+}
+
+const ago = (iso: string) => {
+  const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
+  if (s < 60) return 'just now'
+  if (s < 3600) return `${Math.round(s / 60)} min ago`
+  if (s < 86_400) return `${Math.round(s / 3600)} h ago`
+  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+}
+
+/**
+ * Once forwarding works, the setup steps step aside: one card says it's on, when the last email came, and what came
+ * of the recent ones (so a skipped email is never a mystery). "Show setup" brings the steps back.
+ */
 function EmailGuide({ data }: { data: CaptureView }) {
+  const [setup, setSetup] = useState(false)
+  if (data.emailReady && data.forwardingOn && !setup) return <ForwardingOn data={data} onSetup={() => setSetup(true)} />
+  return <EmailSetup data={data} onDone={data.forwardingOn ? () => setSetup(false) : undefined} />
+}
+
+function ForwardingOn({ data, onSetup }: { data: CaptureView; onSetup: () => void }) {
+  const [open, setOpen] = useState(true)
+  return (
+    <Card className="flex flex-col gap-4 p-pad" data-testid="forwarding-status">
+      <div className="flex flex-wrap items-start gap-3">
+        <span className="relative flex size-11 shrink-0 items-center justify-center rounded-full bg-good/15 text-good-text">
+          <Mail className="size-5" />
+          <CheckCircle2 className="absolute -right-0.5 -bottom-0.5 size-4 rounded-full bg-surface text-good-text" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">Email forwarding is on</p>
+          <p className="text-sm text-muted">{data.lastEmailAt ? <>Last email {ago(data.lastEmailAt)} · {data.emailsThisWeek} this week</> : 'Waiting for the first bank alert.'}</p>
+        </div>
+        <Button variant="ghost" size="sm" onClick={onSetup}><Settings2 />Show setup</Button>
+      </div>
+      <CopyBox value={data.address} label="Address" />
+      {data.recentEmails.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex items-center gap-1 self-start text-sm font-medium">
+            <ChevronDown className={cn('size-4 transition-transform', !open && '-rotate-90')} />Recent emails
+          </button>
+          {open && (
+            <ul className="flex flex-col divide-y divide-border" data-testid="recent-emails">
+              {data.recentEmails.map((e) => {
+                const o = OUTCOME[e.result] ?? { label: e.result, tone: 'muted' as const }
+                return (
+                  <li key={e.id} className="flex items-center gap-3 py-2 text-sm">
+                    <span className="w-16 shrink-0 text-xs text-subtle tabular">{ago(e.receivedAt)}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{e.subject || '(no subject)'}</span>
+                      {e.sender && <span className="block truncate text-xs text-subtle">{e.sender}</span>}
+                    </span>
+                    <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium',
+                      o.tone === 'good' ? 'bg-good/15 text-good-text' : o.tone === 'warn' ? 'bg-warning/15 text-fg' : 'bg-surface-2 text-muted')}>{o.label}</span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          <p className="text-xs text-subtle">Offers, OTPs and reminders from banks are skipped. Anything you forward by hand is always kept for you to look at.</p>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function EmailSetup({ data, onDone }: { data: CaptureView; onDone?: () => void }) {
   const reset = useResetAddress()
   const confirmed = useForwardingConfirmed()
   return (
     <Card className="flex flex-col gap-5 p-pad">
+      {onDone && <Button variant="ghost" size="sm" className="self-end" onClick={onDone}><ChevronUp />Hide setup</Button>}
       <ForwardFlow />
       {!data.emailReady ? (
         <div className="flex items-start gap-3 rounded-control bg-warning/10 p-4 text-sm" data-testid="email-not-ready">

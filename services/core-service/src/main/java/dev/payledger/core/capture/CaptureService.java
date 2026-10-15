@@ -96,7 +96,11 @@ public class CaptureService {
      *                     confirmation on record), or the person said they confirmed it. Gmail itself never tells us.
      */
     public record View(String address, boolean emailReady, Confirmation confirmation, long pending, List<Item> items, Instant lastEmailAt,
-                       boolean forwardingOn) {
+                       boolean forwardingOn, long emailsThisWeek, List<Received> recentEmails) {
+    }
+
+    /** An email that reached the address, and what came of it (added, not-a-transaction, gmail-confirmation...). */
+    public record Received(UUID id, Instant receivedAt, String sender, String subject, String result, UUID itemId) {
     }
 
     public record Confirmation(String code, String link, Instant receivedAt) {
@@ -122,12 +126,22 @@ public class CaptureService {
                 """);
         long pending = jdbc.sql("select count(*) from captured_items where user_id = :u and status = 'PENDING'").param("u", user.id())
                 .query(Long.class).single();
-        Instant last = jdbc.sql("select max(received_at) from captured_items where user_id = :u and source = 'EMAIL'").param("u", user.id())
-                .query(Instant.class).optional().orElse(null);
+        // Any email through the address counts, skipped ones too: they prove forwarding works. Gmail's own email doesn't.
+        Instant last = jdbc.sql("""
+                        select greatest(
+                          (select max(received_at) from captured_items where user_id = :u and source = 'EMAIL'),
+                          (select max(received_at) from inbound_emails where user_id = :u and result <> 'gmail-confirmation'))
+                        """).param("u", user.id()).query(Instant.class).optional().orElse(null);
+        List<Received> recent = jdbc.sql("""
+                        select id, received_at, sender, subject, result, item_id from inbound_emails where user_id = :u
+                        order by received_at desc limit 10
+                        """).param("u", user.id()).query(Received.class).list();
+        long week = jdbc.sql("select count(*) from inbound_emails where user_id = :u and received_at > now() - interval '7 days' and result <> 'gmail-confirmation'")
+                .param("u", user.id()).query(Long.class).single();
         // An email through this address after Gmail's confirmation (or after the address was made, with none on record).
         Instant after = c.confirmationAt() != null ? c.confirmationAt() : c.addressSince();
         boolean on = c.forwardingConfirmedAt() != null || last != null && last.isAfter(after);
-        return new View(token + "@" + domain, inboundEnabled, confirmation, pending, items, last, on);
+        return new View(token + "@" + domain, inboundEnabled, confirmation, pending, items, last, on, week, recent);
     }
 
     /** "I've confirmed it in Gmail": Gmail doesn't tell us, so the person does. */
@@ -268,6 +282,16 @@ public class CaptureService {
             log.warn("Inbound email unreadable: {}", e.getMessage());
             return "unreadable";
         }
+        String result = handle(owner.userId(), owner.spaceId(), text, from, subject, messageId);
+        log(owner.userId(), from, subject, result);
+        return result;
+    }
+
+    /** What an email to someone's address amounts to; recorded by the caller for the Auto-capture page. */
+    private String handle(UUID userId, UUID spaceId, String text, String from, String subject, String messageId) {
+        record Owner(UUID userId, UUID spaceId) {
+        }
+        Owner owner = new Owner(userId, spaceId);
         if (from != null && from.toLowerCase(Locale.ROOT).startsWith("forwarding-noreply@google.com")) {
             Matcher code = GMAIL_CODE.matcher(text);
             Matcher link = GMAIL_LINK.matcher(text);
@@ -285,7 +309,10 @@ public class CaptureService {
             return "over-daily-limit";
         }
         String clean = AlertParser.clean(text);
-        if (AlertParser.noise((subject == null ? "" : subject + "\n") + clean)) {
+        // Forwarded by hand (from their own address, or "Fwd:"): they want it looked at, so it's never filtered out.
+        String own = jdbc.sql("select email from users where id = :u").param("u", owner.userId()).query(String.class).single();
+        boolean deliberate = from != null && from.equalsIgnoreCase(own) || subject != null && subject.matches("(?i)^\\s*(fwd?|fw)\\s*:.*");
+        if (!deliberate && AlertParser.noise((subject == null ? "" : subject + "\n") + clean)) {
             return "not-a-transaction";
         }
         CaptureLearning.Read read = learning.read(owner.userId(), (subject == null ? "" : subject + "\n") + clean, from, today(owner.userId()));
@@ -295,12 +322,29 @@ public class CaptureService {
         if (id == null) {
             return "duplicate";
         }
-        // One bell for a burst of alerts, not one each.
-        inbox.notify(owner.userId(), Inbox.Kind.CAPTURED, p != null ? "New entries to review" : "An email to look at",
+        lastItem.set(id);
+        inbox.notify(owner.userId(), Inbox.Kind.CAPTURED, p != null ? "New entry to review" : "An email to look at",
                 p != null ? (p.kind().equals("EXPENSE") ? "Spent " : "Received ") + dev.payledger.core.notify.Reminders.money(p.amount())
                         + (p.merchant() != null ? " · " + p.merchant() : "") : "We couldn't read it; you can add it by hand.",
-                "/capture", null, "captured:" + owner.userId() + ":" + Instant.now().getEpochSecond() / 3600, null);
+                "/capture", null, "captured:" + id, null);
         return p != null ? "added" : "unreadable-kept";
+    }
+
+    /** The entry the email just made, for the log (set and read within one inbound call on one thread). */
+    private final ThreadLocal<UUID> lastItem = new ThreadLocal<>();
+
+    private void log(UUID userId, String from, String subject, String result) {
+        UUID item = "added".equals(result) || "unreadable-kept".equals(result) ? lastItem.get() : null;
+        lastItem.remove();
+        jdbc.sql("insert into inbound_emails (id, user_id, sender, subject, result, item_id) values (:id, :u, :f, :s, :r, :i)")
+                .param("id", dev.payledger.core.common.Uuid7.next()).param("u", userId)
+                .param("f", from == null ? null : from.substring(0, Math.min(254, from.length())))
+                .param("s", subject == null ? null : subject.substring(0, Math.min(200, subject.length())))
+                .param("r", result).param("i", item).update();
+        jdbc.sql("""
+                        delete from inbound_emails where user_id = :u and id not in
+                          (select id from inbound_emails where user_id = :u order by received_at desc limit 50)
+                        """).param("u", userId).update();
     }
 
     /**
