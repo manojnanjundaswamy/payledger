@@ -19,7 +19,7 @@ Each is ticked when built, tested on staging and committed to `develop`.
    preview, then the existing accounts-and-bills setup.
 9. [x] **"Shared expense" on any expense**: tick it, pick a group, who paid and the split; it becomes a group expense
    (your share lands in your budget as usual).
-10. [ ] **Admin activity in plain words**: each request as "Added a transaction", "Signed in"…, with the endpoint,
+10. [x] **Admin activity in plain words**: each request as "Added a transaction", "Signed in"…, with the endpoint,
     status, timing and any error when expanded.
 11. [x] **Theme palette**: Mode and Palette merged into one "Theme palette" picker (Classic, Bumblebee yellow, Ferrari
     orange × Light, Dark, Match device), designed like the palette cards, also in the top bar's theme menu.
