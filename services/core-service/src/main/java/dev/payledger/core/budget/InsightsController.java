@@ -16,9 +16,17 @@ import java.util.UUID;
 class InsightsController {
 
     private final InsightsService insights;
+    private final MonthReview review;
 
-    InsightsController(InsightsService insights) {
+    InsightsController(InsightsService insights, MonthReview review) {
         this.insights = insights;
+        this.review = review;
+    }
+
+    @GetMapping("/review")
+    @Operation(summary = "A month looked back on (default: last month): in, out, kept, against the month before, categories that moved, budgets kept, highlights")
+    MonthReview.Review review(CurrentUser user, @PathVariable UUID spaceId, @RequestParam(required = false) java.time.YearMonth month) {
+        return review.review(user, spaceId, month);
     }
 
     @GetMapping("/health")

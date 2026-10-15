@@ -28,6 +28,8 @@ public class Inbox {
         CAPTURED(null),
         /** A badge earned or a weekly challenge done (ProgressService). In the app (and pushed) only. */
         ACHIEVEMENT(null),
+        /** The month in review is ready (MonthReview). In the app (and pushed) only. */
+        REVIEW(null),
         /** Added to a household, or someone joined yours. */
         HOUSEHOLD(Notifications.Kind.GROUP_ACTIVITY),
         /** Monday's look back at the week. */

@@ -155,6 +155,13 @@ const goals = createRoute({
   component: lazyRouteComponent(() => import('@/pages/money/GoalsPage'), 'GoalsPage'),
 })
 
+const review = createRoute({
+  getParentRoute: () => app,
+  path: '/review',
+  validateSearch: z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional().catch(undefined) }),
+  component: lazyRouteComponent(() => import('@/pages/money/ReviewPage'), 'ReviewPage'),
+})
+
 const progress = createRoute({
   getParentRoute: () => app,
   path: '/progress',
@@ -317,7 +324,7 @@ const utilities = createRoute({
   component: lazyRouteComponent(() => import('@/pages/UtilitiesPage'), 'UtilitiesPage'),
 })
 
-const routeTree = root.addChildren([landing, guestJoin, guestGroup, app.addChildren([dashboard, dailyServices, progress, settings, accounts, categories, budgets, plan, goals, importPage, reports, groups, group, people, tax, capture, households, householdJoin, household, join, transactions, admin, welcome, utilities])])
+const routeTree = root.addChildren([landing, guestJoin, guestGroup, app.addChildren([dashboard, dailyServices, progress, review, settings, accounts, categories, budgets, plan, goals, importPage, reports, groups, group, people, tax, capture, households, householdJoin, household, join, transactions, admin, welcome, utilities])])
 
 export function createAppRouter(queryClient: QueryClient) {
   return createRouter({

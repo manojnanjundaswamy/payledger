@@ -7,7 +7,7 @@ import { api } from '@/lib/api'
 import { useGroups, type GroupBalances } from '@/state/groups'
 import {
   ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BarChart3, CalendarClock, Check, Goal, Home, ListChecks, ListOrdered,
-  HeartPulse, Inbox, Landmark, PieChart, Rocket, Scale, StickyNote, Trophy, Upload, Users, Wallet, Zap,
+  CalendarCheck, HeartPulse, Inbox, Landmark, PieChart, Rocket, Scale, Share2, StickyNote, Trophy, Upload, Users, Wallet, Zap,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
@@ -21,7 +21,7 @@ import {
 } from '@/state/money'
 import { SafeToSpendCard } from '@/pages/money/SafeToSpendCard'
 import { CountUp } from '@/components/CountUp'
-import { CanIAfford, MoneyHealth } from './insightWidgets'
+import { BringAFriend, CanIAfford, LastMonth, MoneyHealth } from './insightWidgets'
 import { ProgressWidget } from '@/pages/ProgressPage'
 import { useSetupSteps } from './setup'
 import { turnOnPush, usePushState } from '@/components/PushPrompt'
@@ -31,11 +31,12 @@ import { useHousehold, useHouseholds } from '@/state/households'
 export interface WidgetProps { widget: Widget; dashboardId: string; editing: boolean }
 
 /** What a widget shows before the user has real data and sample data is off. */
-function Empty({ children, phase = 'Phase 4' }: { children: React.ReactNode; phase?: string }) {
+/** No data yet (and sample data off): what the card will show, and the way to get there. */
+function Empty({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-full min-h-28 flex-col items-start justify-center gap-1.5 text-sm text-muted">
       {children}
-      <span className="text-xs text-subtle">Arrives with {phase}.</span>
+      <Link to="/welcome" className="text-xs text-fg underline underline-offset-4">Set up your money (2 minutes)</Link>
     </div>
   )
 }
@@ -449,8 +450,10 @@ function RealGroups() {
 
 function Groups() {
   const { sample: on, real, money } = useWidgetEnv()
-  if (real) return <RealGroups />
-  if (!on) return <Empty phase="Phase 5">Trips, flats and friends: who owes whom, settled in fewest payments.</Empty>
+  // Groups are real as soon as you're in one, accounts or not.
+  const inGroups = (useGroups().data?.length ?? 0) > 0
+  if (real || inGroups) return <RealGroups />
+  if (!on) return <Empty>Trips, flats and friends: who owes whom, settled in fewest payments.</Empty>
   const owed = sample.groups.filter((g) => g.balance > 0).reduce((s, g) => s + g.balance, 0)
   const owe = -sample.groups.filter((g) => g.balance < 0).reduce((s, g) => s + g.balance, 0)
   return (
@@ -626,6 +629,8 @@ export const WIDGETS = {
   goals: { name: 'Savings goals', description: 'Progress towards what you are saving for.', icon: Goal, defaultSize: 'm', sample: true, component: Goals },
   household: { name: 'Household', description: 'The family budget and who paid what.', icon: Home, defaultSize: 'l', sample: false, component: Household },
   toReview: { name: 'To review', description: 'Bank alerts waiting to be added (Auto-capture).', icon: Inbox, defaultSize: 's', sample: false, component: ToReview },
+  lastMonth: { name: 'Last month', description: 'Last month in review: kept or overspent, and what changed.', icon: CalendarCheck, defaultSize: 's', sample: false, component: LastMonth },
+  bringAFriend: { name: 'Bring a friend', description: 'Invite the people you split money with.', icon: Share2, defaultSize: 's', sample: false, component: BringAFriend },
   progress: { name: 'Your progress', description: 'Level, streak, badges and this week’s challenge.', icon: Trophy, defaultSize: 's', sample: false, component: ProgressWidget },
   moneyHealth: { name: 'Money health', description: 'A score from saving, cushion, card dues, budgets and balance, with what to do.', icon: HeartPulse, defaultSize: 'm', sample: false, component: MoneyHealth },
   canIAfford: { name: 'Can I afford it?', description: 'Check a purchase or a new EMI against your plan and savings.', icon: Scale, defaultSize: 'm', sample: false, component: CanIAfford },
