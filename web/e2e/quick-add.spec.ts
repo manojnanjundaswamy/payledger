@@ -83,7 +83,10 @@ async function fakeSpeech(page: import('@playwright/test').Page, phrases: string
       stop() { this.stopped = true; setTimeout(() => this.onend?.(), 20) }
       abort() { this.stop() }
     }
-    ;(window as unknown as { webkitSpeechRecognition: unknown }).webkitSpeechRecognition = FakeRecognition
+    // Newer Chrome has it without the prefix too; the app takes either.
+    for (const name of ['SpeechRecognition', 'webkitSpeechRecognition']) {
+      Object.defineProperty(window, name, { value: FakeRecognition, configurable: true, writable: true })
+    }
   }, phrases)
 }
 
