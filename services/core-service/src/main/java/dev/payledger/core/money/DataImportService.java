@@ -109,12 +109,14 @@ public class DataImportService {
         jdbc.sql("""
                         update users set locale = coalesce(:locale, locale), time_zone = coalesce(:tz, time_zone), currency = coalesce(:currency, currency),
                             budget_start_day = coalesce(:day, budget_start_day), upi_id = coalesce(:upi, upi_id),
+                            country = coalesce(:country, country), fy_start_month = coalesce(:fy, fy_start_month),
                             preferences = coalesce(cast(:prefs as jsonb), preferences), updated_at = now()
                         where id = :u
                         """)
                 .param("locale", text(p, "locale")).param("tz", text(p, "time_zone")).param("currency", text(p, "currency"))
                 .param("day", p.path("budget_start_day").isNumber() ? p.path("budget_start_day").asInt() : null)
-                .param("upi", text(p, "upi_id"))
+                .param("upi", text(p, "upi_id")).param("country", text(p, "country"))
+                .param("fy", p.path("fy_start_month").isNumber() ? p.path("fy_start_month").asInt() : null)
                 .param("prefs", p.path("preferences").isObject() ? p.path("preferences").toString() : null)
                 .param("u", user.id()).update();
     }

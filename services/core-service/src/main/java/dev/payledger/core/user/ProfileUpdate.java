@@ -19,7 +19,14 @@ public record ProfileUpdate(
         @Min(1) @Max(28) Integer budgetStartDay,
         // "" removes it.
         @Pattern(regexp = "|[a-zA-Z0-9._-]{2,64}@[a-zA-Z][a-zA-Z0-9]{1,63}", message = "must be a UPI id like name@okhdfcbank") String upiId,
-        @Size(max = 50, message = "at most 50 top-level keys") Map<String, Object> preferences) {
+        @Size(max = 50, message = "at most 50 top-level keys") Map<String, Object> preferences,
+        @Pattern(regexp = "[A-Z]{2}", message = "must be a country code like IN") String country,
+        @Min(1) @Max(12) Integer fyStartMonth) {
+
+    public ProfileUpdate(String displayName, String locale, String timeZone, String currency, Integer budgetStartDay, String upiId,
+                         Map<String, Object> preferences) {
+        this(displayName, locale, timeZone, currency, budgetStartDay, upiId, preferences, null, null);
+    }
 
     @AssertTrue(message = "timeZone must be an IANA zone like Asia/Kolkata")
     boolean isTimeZoneValid() {

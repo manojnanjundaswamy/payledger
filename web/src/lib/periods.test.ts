@@ -34,3 +34,15 @@ describe('monthsIn', () => {
     expect(monthsIn('2026-04-01', '2027-03-31')).toHaveLength(12)
   })
 })
+
+describe('financialYear by region', () => {
+  it('follows the month the year starts in', () => {
+    expect(financialYear(new Date(2026, 9, 13), 1)).toMatchObject({ label: '2026', start: new Date(2026, 0, 1), end: new Date(2026, 11, 31) })
+    const au = financialYear(new Date(2026, 9, 13), 7)
+    expect(au.label).toBe('FY 2026–27')
+    expect(au.start).toEqual(new Date(2026, 6, 1))
+    expect(au.end).toEqual(new Date(2027, 5, 30))
+    expect(financialYear(new Date(2026, 5, 30), 7).label).toBe('FY 2025–26')
+    expect(reportPeriod('this-fy', 1, new Date(2026, 9, 13), undefined, 1)).toMatchObject({ from: '2026-01-01', to: '2026-12-31' })
+  })
+})

@@ -42,7 +42,8 @@ export function ReportsPage() {
   const navigate = useNavigate({ from: '/reports' })
   const profile = useProfile().data
   const locale = profile?.settings.locale ?? 'en-IN'
-  const period = reportPeriod(search.period ?? 'this-month', profile?.settings.budgetStartDay ?? 1, new Date(), search)
+  const fyStart = profile?.settings.fyStartMonth ?? 4
+  const period = reportPeriod(search.period ?? 'this-month', profile?.settings.budgetStartDay ?? 1, new Date(), search, fyStart)
   const money = (minor: number) => formatMoneyWhole(minor, 'INR', locale)
   const spaceId = useSpaceId()
   const { data: categories = [] } = useCategories()
@@ -93,7 +94,7 @@ export function ReportsPage() {
       <ReportFilters search={search} set={set} categories={categories} accounts={accounts} />
 
       <p className="-mt-3 text-sm text-muted" data-testid="report-range">
-        {period.key.endsWith('fy') && <span className="font-medium text-fg">{financialYear(new Date(`${period.from}T00:00`)).label} · </span>}
+        {period.key.endsWith('fy') && <span className="font-medium text-fg">{financialYear(new Date(`${period.from}T00:00`), fyStart).label} · </span>}
         {range(period, locale)}
         {narrowed && <span> · narrowed by the filters above</span>}
       </p>

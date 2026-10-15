@@ -8,6 +8,7 @@ import { cn } from '@/lib/cn'
 import { usePreferences } from '@/state/PreferencesProvider'
 import { useProfile } from '@/state/profile'
 import { Logo } from './Logo'
+import { RegionSetup } from './RegionSetup'
 
 /** Where the tour points, in order. Steps whose target isn't on screen (phone vs desktop, one space only) are left out. */
 const STEPS: { target: string; title: string; text: string }[] = [
@@ -23,6 +24,7 @@ const STEPS: { target: string; title: string; text: string }[] = [
 ]
 
 const SEEN = 'payledger.tour.seen'
+const REGION_LATER = 'payledger.region.later'
 /** End-to-end tests set this so the welcome and tour don't cover what they click (the tour test clears it). */
 const TESTING = 'payledger.e2e.noTour'
 
@@ -39,8 +41,11 @@ function store(storage: () => Storage, key: string) {
  */
 export function Onboarding({ pathname }: { pathname: string }) {
   const { prefs, dispatch } = usePreferences()
-  const [stage, setStage] = useState<'welcome' | 'intro' | 'tour' | null>(() => {
+  const { data: profile } = useProfile()
+  const [stage, setStage] = useState<'region' | 'welcome' | 'intro' | 'tour' | null>(() => {
     if (stored(() => localStorage, TESTING)) return null
+    // Region first: money, dates and months can't be right without it. "Later" waits until the next sign-in.
+    if (!profile?.settings.country && !stored(() => sessionStorage, REGION_LATER)) return 'region'
     if (!prefs.welcomed) return 'welcome'
     return !prefs.tourOff && !stored(() => sessionStorage, SEEN) ? 'intro' : null
   })
@@ -56,6 +61,9 @@ export function Onboarding({ pathname }: { pathname: string }) {
   }
   return (
     <AnimatePresence>
+      {stage === 'region' && <RegionSetup key="region"
+        onDone={() => setStage(!prefs.welcomed ? 'welcome' : !prefs.tourOff && !stored(() => sessionStorage, SEEN) ? 'intro' : null)}
+        onLater={() => { store(() => sessionStorage, REGION_LATER); setStage(!prefs.welcomed ? 'welcome' : null) }} />}
       {stage === 'welcome' && <MakeItYours key="welcome" onDone={() => { dispatch({ type: 'onboarding', patch: { welcomed: true } }); setStage('intro') }} />}
       {stage === 'intro' && <TourIntro key="intro" dontShow={dontShow} onDontShow={setDontShow} onSkip={close} onStart={() => setStage('tour')} />}
       {stage === 'tour' && <Tour key="tour" dontShow={dontShow} onDontShow={setDontShow} onClose={close} />}

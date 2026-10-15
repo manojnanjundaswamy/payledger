@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { CURRENCIES, LOCALES, MONTHS, REGIONS, regionOf } from '@/lib/regions'
 import { Check, Download, ExternalLink, FileJson, LogOut, RotateCcw, Trash2, Upload } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -56,13 +57,6 @@ export function ProfileSettings() {
   )
 }
 
-const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'AUD', 'CAD']
-const LOCALES = [
-  { value: 'en-IN', label: 'English (India): 1,00,000' },
-  { value: 'hi-IN', label: 'हिन्दी (भारत)' },
-  { value: 'en-US', label: 'English (US): 100,000' },
-  { value: 'en-GB', label: 'English (UK): 100,000' },
-]
 
 export function RegionalSettings() {
   const { data: profile } = useProfile()
@@ -74,13 +68,24 @@ export function RegionalSettings() {
   const fmt = (d: Date) => d.toLocaleDateString(locale, { day: 'numeric', month: 'short' })
   return (
     <>
-    <Section title="Region & money" description="India first: rupees, lakh/crore grouping and the April–March financial year. Change anything that doesn't fit you.">
-      <Field label="Currency" hint="Your default for new accounts.">
+    <Section title="Region & money" description="Where you live sets the currency, number format, time zone and financial year. Change anything that doesn't fit you.">
+      <Field label="Where you live" hint="Choosing a place fills in its usual currency, format, time zone and financial year.">
+        <Select label="Where you live" value={profile.settings.country ?? ''} onChange={(v) => {
+          const r = regionOf(v)
+          save(r ? { country: v, currency: r.currency, locale: r.locale, timeZone: r.timeZone, fyStartMonth: r.fyStartMonth } : { country: v }, 'Region')
+        }} options={[...(profile.settings.country ? [] : [{ value: '', label: 'Not set yet' }]), ...REGIONS.map((r) => ({ value: r.code, label: `${r.flag} ${r.name}` }))]} />
+      </Field>
+      <Field label="Currency" hint="Of your money in PayLedger. Once a space has accounts or entries, it keeps the currency they were recorded in.">
         <Select label="Currency" value={currency} onChange={(v) => save({ currency: v }, 'Currency')}
-          options={CURRENCIES.map((c) => ({ value: c, label: `${c} · ${new Intl.DisplayNames([locale], { type: 'currency' }).of(c) ?? c}` }))} />
+          options={[...new Set([currency, ...CURRENCIES])].map((c) => ({ value: c, label: `${c} · ${new Intl.DisplayNames([locale], { type: 'currency' }).of(c) ?? c}` }))} />
+      </Field>
+      <Field label="Financial year starts" hint="For yearly reports. India: April; most places: January.">
+        <Select label="Financial year starts" value={String(profile.settings.fyStartMonth ?? 4)} onChange={(v) => save({ fyStartMonth: Number(v) }, 'Financial year')}
+          options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))} />
       </Field>
       <Field label="Number format" hint={`Example: ${formatMoney(12_34_567_89, currency, locale)}`}>
-        <Select label="Number format" value={locale} onChange={(v) => save({ locale: v }, 'Number format')} options={LOCALES} />
+        <Select label="Number format" value={locale} onChange={(v) => save({ locale: v }, 'Number format')}
+          options={LOCALES.some((l) => l.value === locale) ? LOCALES : [{ value: locale, label: locale }, ...LOCALES]} />
       </Field>
       <Field label="Time zone">
         <Select label="Time zone" value={timeZone} onChange={(v) => save({ timeZone: v }, 'Time zone')} options={zones.map((z) => ({ value: z, label: z.replace(/_/g, ' ') }))} />

@@ -65,6 +65,10 @@ public class InsightsService {
 
     @Transactional(readOnly = true)
     public Health health(CurrentUser user, UUID spaceId) {
+        return dev.payledger.core.notify.Reminders.inCurrency(currencyOf(spaceId), () -> healthIn(user, spaceId));
+    }
+
+    private Health healthIn(CurrentUser user, UUID spaceId) {
         Basis b = basis(user, spaceId);
         List<Part> parts = new ArrayList<>();
         if (b.months() == 0) {
@@ -126,6 +130,10 @@ public class InsightsService {
      */
     @Transactional(readOnly = true)
     public Afford afford(CurrentUser user, UUID spaceId, long amount, boolean monthly) {
+        return dev.payledger.core.notify.Reminders.inCurrency(currencyOf(spaceId), () -> affordIn(user, spaceId, amount, monthly));
+    }
+
+    private Afford affordIn(CurrentUser user, UUID spaceId, long amount, boolean monthly) {
         if (amount <= 0) {
             throw new InvalidRequestException("invalid-amount", "enter how much it costs");
         }
@@ -215,6 +223,10 @@ public class InsightsService {
                           group by 1) x
                         where coalesce(i, 0) >= coalesce(e, 0)
                         """).param("s", spaceId).param("from", thisMonth.minusMonths(MONTHS)).param("to", thisMonth).query(Integer.class).single();
+    }
+
+    private String currencyOf(UUID spaceId) {
+        return jdbc.sql("select currency from spaces where id = :s").param("s", spaceId).query(String.class).single();
     }
 
     private static String rupees(long paise) {
