@@ -1,0 +1,32 @@
+From: alerts@hdfcbank.bank.in
+To: someone@gmail.com
+Subject: =?UTF-8?q?=E2=9D=97__You_have_done_a_UPI_txn._Check_details!?=
+Date: Thu, 15 Oct 2026 19:47:13 +0530
+Message-ID: <hdfc-upi-2026-test@hdfcbank.bank.in>
+Mime-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+Content-Transfer-Encoding: quoted-printable
+
+<!doctype html>
+<html><head><title>HDFC BANK</title></head>
+<body>
+<table width=3D"600"><tbody><tr><td><a href=3D"https://trkt.aclemails.com/v1/r/%2BC7gZQw%2FdT4qyVXcHaqOKyIg6aKxxbREMZKC2a3xDp7WvpUpyuO6gpuSD%2Fl04LdKqFF1VCD71FFiKhV1sf1gQj2lw" target=3D"_blank"><img src=3D"https://img.pinchappmails.com/hdfc/images/2026/oct/HDFC-Bank-Banner-Update-2026-10-06.jpg" alt width=3D"100%"></a></td></tr>
+<tr><td><img src=3D"https://wgjpss.stripocdn.email/content/guids/CABINET_d1733/images/nmbandnew.jpg" alt></td></tr>
+<tr><td class=3D"td esd-text">Dear Customer,<br><br>Greetings from HDFC Bank!<br><br>Rs.1000=
+0.00 is debited from your account ending 1234 towards VPA ****************m=
+y-3@okhdfcbank (ASHA K) on 15-10-26.<br><br>UPI transaction reference no=
+.: 665486383803.<br><br>If you did not authorize this transaction, please r=
+eport it immediately at: <br>a. When in India (Toll free): 1800 258 6161 <b=
+r>b. When abroad:  9122 61606160 <br>c. Or SMS 'BLOCK UPI' to 7308080808.<b=
+r><br>We're here to support you in every step of the way.<br><br>Warm regar=
+ds,<br>HDFC Bank
+</td></tr>
+<tr><td><img src=3D"https://img.pinchappmails.com/hdfc/images/2025/dec/Digital-Arrest-Scam_Insta-Alert-Banner_600-x-60_Sep%2725+(1)+(1).jpg" alt></td></tr>
+<tr><td class=3D"esd-text">For more details on Service charges and Fees, <a href=3D"https://trkt.aclemails.com/v1/r/lTmjs2u343oMxAkaVMSJaAh%2F%2BuRrQeY42tLi6iraTHiaxwBv2cY0RgG7vmfTZONPL"><strong> click here.</strong></a></td></tr>
+<tr><td class=3D"esd-text">=C2=A9 HDFC Bank</td></tr>
+</tbody></table>
+</body></html>
+</content>
+</invoke>
+<invoke name="Bash">
+<parameter name="command">cd /d/GitHub_Projects/payledger/services/core-service && grep -n "static String text(\|private static String text\|String text(MimeMessage\|String text(Part" -A25 src/main/java/dev/payledger/core/capture/CaptureService.java | head -40

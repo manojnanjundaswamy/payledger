@@ -126,5 +126,8 @@ export function useResetAddress() {
   return useCaptureWrite(() => api<CaptureView>('/api/core/capture/address/reset', { method: 'POST' }))
 }
 
-/** Gmail filter for the common banks' alert senders (old domains and RBI's new .bank.in ones). */
-export const BANK_FILTER = 'from:(hdfcbank.net OR hdfcbank.bank.in OR icicibank.com OR icici.bank.in OR sbi.co.in OR sbi.bank.in OR axisbank.com OR axis.bank.in OR kotak.com OR kotak.bank.in OR yesbank.in OR idfcfirstbank.com OR indusind.com OR federalbank.co.in OR aubank.in OR americanexpress.com OR sc.com)'
+/**
+ * What goes in the From box of a Gmail filter: the common banks' alert senders (old domains and RBI's new .bank.in
+ * ones), joined with OR. No "from:(...)" around it: in the From box that would match nothing.
+ */
+export const BANK_FILTER = 'hdfcbank.net OR hdfcbank.bank.in OR icicibank.com OR icici.bank.in OR sbi.co.in OR sbi.bank.in OR axisbank.com OR axis.bank.in OR kotak.com OR kotak.bank.in OR yesbank.in OR idfcfirstbank.com OR indusind.com OR federalbank.co.in OR aubank.in OR americanexpress.com OR sc.com'
