@@ -166,8 +166,9 @@ function refreshAfterWrite(client: QueryClient, spaceId: string) {
   }
 }
 
-function useMoneyMutation<V, R>(write: (spaceId: string, vars: V) => Promise<R>) {
-  const spaceId = useSpaceId()
+function useMoneyMutation<V, R>(write: (spaceId: string, vars: V) => Promise<R>, space?: string) {
+  const current = useSpaceId()
+  const spaceId = space ?? current
   const client = useQueryClient()
   return useMutation({
     mutationFn: (vars: V) => {
@@ -178,9 +179,9 @@ function useMoneyMutation<V, R>(write: (spaceId: string, vars: V) => Promise<R>)
   })
 }
 
-export function useCreateAccount() {
+export function useCreateAccount(space?: string) {
   return useMoneyMutation((spaceId, body: { kind: AccountKind; name: string; openingBalance: number; openingDate?: string }) =>
-    api<Account>(`${base(spaceId)}/accounts`, { method: 'POST', json: body }))
+    api<Account>(`${base(spaceId)}/accounts`, { method: 'POST', json: body }), space)
 }
 
 export function useUpdateAccount() {
@@ -253,9 +254,9 @@ export interface CategoryFields {
   parentId: string | null
 }
 
-export function useCreateCategory() {
+export function useCreateCategory(space?: string) {
   return useMoneyMutation((spaceId, body: CategoryFields & { kind: Category['kind'] }) =>
-    api<Category>(`${base(spaceId)}/categories`, { method: 'POST', json: body }))
+    api<Category>(`${base(spaceId)}/categories`, { method: 'POST', json: body }), space)
 }
 
 /** Sends the whole category; hiding or showing a parent does the same to its subcategories. */

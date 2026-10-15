@@ -1,4 +1,5 @@
 import { uuid7 } from '@/lib/uuid'
+import { AccountPicker, CategoryPicker } from '@/pages/money/pickers'
 import { useGoals } from '@/state/goals'
 import { SearchSelect } from '@/components/ui/search-select'
 import { Link } from '@tanstack/react-router'
@@ -235,16 +236,16 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
         {draft.kind === 'TRANSFER' ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="From" htmlFor="txn-from">
-              <SearchSelect id="txn-from" value={draft.accountId} onChange={(v) => set('accountId', v)} options={accountOptions(accounts)} />
+              <AccountPicker id="txn-from" value={draft.accountId} onChange={(v) => set('accountId', v)} options={accountOptions(accounts)} />
             </Field>
             <Field label="To" htmlFor="txn-to">
-              <SearchSelect id="txn-to" value={draft.toAccountId} onChange={(v) => set('toAccountId', v)} options={accountOptions(accounts.filter((a) => a.id !== draft.accountId))} />
+              <AccountPicker id="txn-to" value={draft.toAccountId} onChange={(v) => set('toAccountId', v)} options={accountOptions(accounts.filter((a) => a.id !== draft.accountId))} />
             </Field>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Category" htmlFor="txn-category">
-              <SearchSelect id="txn-category" value={draft.categoryId} onChange={(v) => { set('categoryId', v); setGuessed(false) }} options={categoryOptions(choices, categories)} />
+              <CategoryPicker kind={draft.kind === 'INCOME' ? 'INCOME' : 'EXPENSE'} id="txn-category" value={draft.categoryId} onChange={(v) => { set('categoryId', v); setGuessed(false) }} options={categoryOptions(choices, categories)} />
               {guessHint && <span className="mt-1 flex items-center gap-1 text-xs text-muted" data-testid="category-guess"><Sparkles className="size-3.5 text-accent" />{guessHint}</span>}
               {canRemember && (
                 <label className="mt-1 flex items-center gap-2 text-xs text-muted">
@@ -254,7 +255,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
               )}
             </Field>
             <Field label={draft.kind === 'INCOME' ? 'Into' : 'Paid from'} htmlFor="txn-account">
-              <SearchSelect id="txn-account" value={draft.accountId} onChange={(v) => set('accountId', v)} options={accountOptions(accounts)} />
+              <AccountPicker id="txn-account" value={draft.accountId} onChange={(v) => set('accountId', v)} options={accountOptions(accounts)} />
             </Field>
           </div>
         )}

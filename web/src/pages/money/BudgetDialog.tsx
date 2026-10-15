@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { SearchSelect } from '@/components/ui/search-select'
+import { CategoryPicker } from '@/pages/money/pickers'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -89,7 +89,7 @@ export function BudgetDialog({ open, onOpenChange, month, budget }: {
       <form onSubmit={submit} className="flex flex-col gap-4 p-pad" noValidate>
         {!budget && (
           <Field label="Category" htmlFor="budget-category">
-            <SearchSelect id="budget-category" value={categoryId} onChange={setCategoryId} options={categoryOptions(choices, categories)} />
+            <CategoryPicker kind="EXPENSE" id="budget-category" value={categoryId} onChange={setCategoryId} options={categoryOptions(choices, categories)} />
           </Field>
         )}
         <Field label="Monthly limit" htmlFor="budget-amount"

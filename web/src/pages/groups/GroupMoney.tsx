@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { AccountPicker } from '@/pages/money/pickers'
 import { ArrowRight, ChevronLeft, ChevronRight, HandCoins, IndianRupee, MessageCircle, Pencil, Plus, Receipt, Search } from 'lucide-react'
 import { MonthCalendar, monthBounds } from '@/components/MonthCalendar'
 import { GroupInsights } from './GroupInsights'
@@ -16,7 +17,6 @@ import { cn } from '@/lib/cn'
 import { formatMoney, formatMoneyShort, minorToInput, parseMoney } from '@/lib/money'
 import { Field, Select, accountOptions, dayLabel, today } from '@/pages/money/parts'
 import { useAccounts, useGroupBudget, usePersonalSpaceId } from '@/state/money'
-import { SearchSelect } from '@/components/ui/search-select'
 import { useActivity, useBalances, useDeleteSettlement, useSettle, type Group, type GroupActivity, type GroupExpense } from '@/state/groups'
 import { ExpenseDialog } from './ExpenseDialog'
 
@@ -252,7 +252,8 @@ function SettleDialog({ payment, onClose, groupId, name, you }: {
   const settle = useSettle(groupId)
   const [account, setAccount] = useState('')
   const { data: bookSettings } = useGroupBudget()
-  const { data: myAccounts } = useAccounts(false, usePersonalSpaceId())
+  const personalSpace = usePersonalSpaceId()
+  const { data: myAccounts } = useAccounts(false, personalSpace)
   const payable = (myAccounts ?? []).filter((a) => a.kind !== 'OWED' && !a.archived)
   const mine = payment !== null && (payment.from === you || payment.to === you)
   const [amount, setAmount] = useState('')
@@ -282,7 +283,7 @@ function SettleDialog({ payment, onClose, groupId, name, you }: {
         </Field>
         {mine && bookSettings?.enabled && payable.length > 0 && (
           <Field label={payment?.from === you ? 'Paid from' : 'Received in'} htmlFor="settle-account">
-            <SearchSelect id="settle-account" value={account} onChange={setAccount}
+            <AccountPicker space={personalSpace} id="settle-account" value={account} onChange={setAccount}
               options={[{ value: '', label: 'My usual account' }, ...accountOptions(payable)]} />
           </Field>
         )}

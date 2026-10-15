@@ -21,7 +21,7 @@ export interface SearchOption {
  * the browser's own select for long lists (categories, accounts), keeps groups and icons, and with `allowCustom` also
  * takes a new value that isn't in the list (a group's own label, say).
  */
-export function SearchSelect({ id, value, onChange, options, placeholder = 'Choose…', allowCustom, customLabel = 'Use', className, disabled, ...aria }: {
+export function SearchSelect({ id, value, onChange, options, placeholder = 'Choose…', allowCustom, customLabel = 'Use', className, disabled, onAddNew, addNewLabel = 'Add new…', ...aria }: {
   id?: string
   value: string
   onChange: (value: string) => void
@@ -32,6 +32,9 @@ export function SearchSelect({ id, value, onChange, options, placeholder = 'Choo
   customLabel?: string
   className?: string
   disabled?: boolean
+  /** "Add new…" as the last row: opens the create form for this kind of thing, with what was typed. */
+  onAddNew?: (typed: string) => void
+  addNewLabel?: string
   'aria-label'?: string
 }) {
   const [open, setOpen] = useState(false)
@@ -44,7 +47,12 @@ export function SearchSelect({ id, value, onChange, options, placeholder = 'Choo
   const shown = useMemo(() => !needle ? options
     : options.filter((o) => `${o.label} ${o.group ?? ''} ${o.keywords ?? ''}`.toLowerCase().includes(needle)), [options, needle])
   const custom = allowCustom && q.trim() && !options.some((o) => o.label.toLowerCase() === needle) ? q.trim() : null
-  const count = shown.length + (custom ? 1 : 0)
+  const addAt = shown.length + (custom ? 1 : 0)
+  const count = addAt + (onAddNew ? 1 : 0)
+  const addNew = () => {
+    setOpen(false)
+    onAddNew?.(q.trim())
+  }
 
   useEffect(() => {
     if (!open) return
@@ -89,7 +97,8 @@ export function SearchSelect({ id, value, onChange, options, placeholder = 'Choo
                 if (e.key === 'Enter') {
                   e.preventDefault()
                   if (active < shown.length) pick(shown[active]!.value)
-                  else if (custom) pick(custom)
+                  else if (custom && active === shown.length) pick(custom)
+                  else if (onAddNew && active === addAt) addNew()
                 }
               }} />
           </label>
@@ -118,7 +127,17 @@ export function SearchSelect({ id, value, onChange, options, placeholder = 'Choo
                 </div>
               </li>
             )}
-            {count === 0 && <li className="px-2.5 py-3 text-sm text-muted">Nothing matches “{q.trim()}”.</li>}
+            {shown.length === 0 && !custom && <li className="px-2.5 py-3 text-sm text-muted">Nothing matches “{q.trim()}”.</li>}
+            {onAddNew && (
+              <li className="sticky bottom-0 -mx-1 -mb-1 border-t border-border bg-surface p-1">
+                <div id={`${listId}-${addAt}`} data-index={addAt} role="option" aria-selected={false} aria-label={addNewLabel}
+                  onMouseMove={() => setActive(addAt)} onClick={addNew}
+                  className={cn('flex cursor-pointer items-center gap-2 rounded-[calc(var(--radius-sm)-3px)] px-2.5 py-2 text-sm font-medium text-accent [&_svg]:size-4',
+                    active === addAt && 'bg-surface-2')}>
+                  <Plus className="shrink-0" />{addNewLabel}{q.trim() && <span className="truncate font-normal text-muted">“{q.trim()}”</span>}
+                </div>
+              </li>
+            )}
           </ul>
         </Popover.Content>
       </Popover.Portal>

@@ -5,7 +5,7 @@ Each is ticked when built, tested on staging and committed to `develop`.
 1. [x] **Phone menu shows where you are**: a page opened from More (Plan, Household…) highlights More and names the page.
 2. [x] **Filters carry into Add**: adding from a filtered list (a category, account, tag, date) starts with those, with a
    small "From your filter" note that can be cleared.
-3. [ ] **"Add new…" at the end of every dropdown** (category, account, group, person…): opens the create form, and the new
+3. [x] **"Add new…" at the end of every dropdown** (category, account, group, person…): opens the create form, and the new
    one is chosen when it closes.
 4. [x] **Unlinking a paid bill**: "Mark paid" records an expense; unlinking it left that expense behind with no way to
    remove it there. Unlinking now asks: keep the expense, or delete it (it was a mistake).

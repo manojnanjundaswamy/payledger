@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { AccountPicker, CategoryPicker } from '@/pages/money/pickers'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Check, ChevronDown, Copy, ExternalLink, FileUp, Inbox, Loader2, RefreshCw, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge, Card, Skeleton } from '@/components/ui/card'
 import { Input, Segmented } from '@/components/ui/controls'
-import { SearchSelect } from '@/components/ui/search-select'
 import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatMoneyWhole, minorToInput, parseMoney } from '@/lib/money'
@@ -153,8 +153,9 @@ function ReviewList({ items }: { items: CapturedItem[] }) {
 }
 
 function ReviewCard({ item }: { item: CapturedItem }) {
-  const { data: accounts } = useAccounts(false, usePersonalSpaceId())
-  const { data: categories } = useCategories(usePersonalSpaceId())
+  const personalSpace = usePersonalSpaceId()
+  const { data: accounts } = useAccounts(false, personalSpace)
+  const { data: categories } = useCategories(personalSpace)
   const add = useAddCaptured()
   const dismiss = useDismissCaptured()
   const money = useMoneyFormat()
@@ -214,8 +215,8 @@ function ReviewCard({ item }: { item: CapturedItem }) {
         <Segmented label="Spent or received" value={kind} onChange={(k) => { setKind(k); setCategory('') }} className="w-full"
           options={[{ value: 'EXPENSE', label: 'Spent' }, { value: 'INCOME', label: 'Received' }]} />
         <Input aria-label="Description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={120} placeholder="Who or what" />
-        <SearchSelect aria-label="Account" value={account} onChange={setAccount} options={accountOptions(payable)} placeholder="Which account?" />
-        <SearchSelect aria-label="Category" value={category} onChange={setCategory} options={categoryOptions(choices, categories ?? [])}
+        <AccountPicker space={personalSpace} aria-label="Account" value={account} onChange={setAccount} options={accountOptions(payable)} placeholder="Which account?" />
+        <CategoryPicker space={personalSpace} kind={kind} aria-label="Category" value={category} onChange={setCategory} options={categoryOptions(choices, categories ?? [])}
           placeholder="Category (else Other)" />
         <Input aria-label="Amount" inputMode="decimal" className="tabular" value={amount} onChange={(e) => setAmount(e.target.value)} />
         <Input aria-label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -409,7 +410,8 @@ function ShareGuide() {
 /** A statement file from net banking: every row goes into To review, from the account chosen here. */
 function StatementBox() {
   const statement = useStatement()
-  const { data: accounts } = useAccounts(false, usePersonalSpaceId())
+  const personalSpace = usePersonalSpaceId()
+  const { data: accounts } = useAccounts(false, personalSpace)
   const money = useMoneyFormat()
   const [file, setFile] = useState<File | null>(null)
   const [account, setAccount] = useState('')
@@ -457,7 +459,7 @@ function StatementBox() {
             <input type="file" accept=".csv,.txt,.xls,.xlsx,.pdf" className="sr-only" aria-label="Statement file" onChange={(e) => pick(e.target.files?.[0])} />
           </label>
           <div className="grid gap-2 sm:grid-cols-2">
-            <SearchSelect aria-label="Statement account" value={account} onChange={setAccount} options={accountOptions(payable)} placeholder="Which account is it for?" />
+            <AccountPicker space={personalSpace} aria-label="Statement account" value={account} onChange={setAccount} options={accountOptions(payable)} placeholder="Which account is it for?" />
             {(pdf || needsPassword) && (
               <Input type="password" aria-label="PDF password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off"
                 placeholder="PDF password, if it has one" />
