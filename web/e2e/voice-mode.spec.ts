@@ -47,7 +47,10 @@ test('voice mode: one sentence becomes several cards, "add them" saves them, "un
   const space = me.spaces.find((s) => s.kind === 'PERSONAL')!.id
   const account = await callApi<{ id: string }>(page, 'POST', `/api/core/spaces/${space}/accounts`, { kind: 'CASH', name: `E2E Voice wallet ${run}`, openingBalance: 0 })
   const goalName = `E2E Voice goal ${tag}`
-  const day = new Date().toISOString().slice(0, 10)
+  const categories = await callApi<{ id: string; name: string; kind: string }[]>(page, 'GET', `/api/core/spaces/${space}/categories`)
+  const other = categories.find((c) => c.kind === 'EXPENSE' && c.name === 'Other')!.id
+  const d = new Date()
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
   await page.route('**/api/core/ai/assistant', (route) => route.fulfill({
     contentType: 'application/json',
@@ -57,7 +60,7 @@ test('voice mode: one sentence becomes several cards, "add them" saves them, "un
       proposals: [
         { id: 'p1', type: 'TRANSACTION', title: `E2E voice petrol ${tag}`, summary: '₹450 · cash · today', amount: 45000, currency: 'INR', confidence: 0.97,
           ready: true, why: [], replaces: null, page: '/transactions',
-          body: { kind: 'EXPENSE', amount: 45000, accountId: account.id, toAccountId: null, categoryId: null, occurredOn: day, description: `E2E voice petrol ${tag}`, tags: ['ai', 'voice'] } },
+          body: { kind: 'EXPENSE', amount: 45000, accountId: account.id, toAccountId: null, categoryId: other, occurredOn: day, description: `E2E voice petrol ${tag}`, tags: ['ai', 'voice'] } },
         { id: 'p2', type: 'GOAL', title: `Goal: ${goalName}`, summary: '₹50,000', amount: 5000000, currency: 'INR', confidence: 0.97,
           ready: true, why: [], replaces: null, page: '/goals', body: { name: goalName, target: 5000000, targetDate: null } },
       ],

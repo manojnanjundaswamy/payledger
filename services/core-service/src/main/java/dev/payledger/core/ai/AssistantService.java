@@ -105,6 +105,16 @@ public class AssistantService {
         }
         Known known = known(space);
         String message = message(user, ctx, known, recent, shown, page, said);
+        // Amounts are checked against everything the person said in this conversation: "put it on HDFC" has none.
+        StringBuilder everything = new StringBuilder(said);
+        for (Turn t : recent) {
+            if (!"assistant".equals(t.role()) && t.text() != null) {
+                everything.append(" \n").append(t.text());
+            }
+        }
+        if (shown != null) {
+            shown.forEach(x -> everything.append(" \n").append(x.summary()));
+        }
         AiReader.Raw raw = reader.ask(user.id(), "ASSISTANT", channel, SYSTEM, message, true, 2_500);
         JsonNode root;
         try {
@@ -122,7 +132,7 @@ public class AssistantService {
             Integer replaces = a.path("replaces").isInt() ? a.path("replaces").asInt() : null;
             try {
                 switch (type) {
-                    case "add_transaction" -> proposals.add(transaction(user, ctx, a, said, replaces));
+                    case "add_transaction" -> proposals.add(transaction(user, ctx, a, everything.toString(), replaces));
                     case "set_budget" -> proposals.add(budget(user, ctx, a, replaces));
                     case "add_bill" -> proposals.add(bill(user, ctx, a, replaces));
                     case "pay_bill" -> proposals.add(payBill(ctx, known, a, replaces));
@@ -208,7 +218,8 @@ public class AssistantService {
             {"type":"add_goal","name":"Goa trip","amount":"50000","by":"YYYY-MM-DD"|null,"confidence":0..1}
             {"type":"ask_spending","metric":"spent"|"earned","category":NAME|null,"merchant":string|null,"from":"YYYY-MM-DD","to":"YYYY-MM-DD"}
             {"type":"ask_budget","category":NAME|null}
-            To change something already proposed (SHOWN), send the full corrected action with "replaces": its index.
+            To change something already proposed (SHOWN), send ONLY the changed ones, each as the full corrected action with
+            "replaces": its index. Never send SHOWN items again unchanged.
 
             Rules:
             - Names (accounts, categories, bills) must be copied exactly from the lists given, or null. Never make one up.

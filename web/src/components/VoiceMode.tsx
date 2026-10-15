@@ -168,7 +168,10 @@ function Assistant({ onClose }: { onClose: () => void }) {
         // Merged here, not in a state updater: a "yes" in the same breath must see the new list at once.
         const next = [...state.current.proposals]
         for (const p of r.proposals) {
-          if (p.replaces != null && next[p.replaces]) next[p.replaces] = p
+          // The model says which card it corrects; if it forgets, the same kind, name and amount is the same card.
+          const same = next.findIndex((x) => x.type === p.type && x.title === p.title && (x.amount === p.amount || !x.ready))
+          const at = p.replaces != null && next[p.replaces] ? p.replaces : same
+          if (at >= 0) next[at] = p
           else next.push(p)
         }
         state.current.proposals = next
