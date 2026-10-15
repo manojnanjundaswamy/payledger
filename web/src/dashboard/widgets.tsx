@@ -7,7 +7,7 @@ import { api } from '@/lib/api'
 import { useGroups, type GroupBalances } from '@/state/groups'
 import {
   ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BarChart3, CalendarClock, Check, Goal, Home, ListChecks, ListOrdered,
-  HeartPulse, Inbox, Landmark, PieChart, Rocket, Scale, StickyNote, Upload, Users, Wallet, Zap,
+  HeartPulse, Inbox, Landmark, PieChart, Rocket, Scale, StickyNote, Trophy, Upload, Users, Wallet, Zap,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
@@ -22,6 +22,7 @@ import {
 import { SafeToSpendCard } from '@/pages/money/SafeToSpendCard'
 import { CountUp } from '@/components/CountUp'
 import { CanIAfford, MoneyHealth } from './insightWidgets'
+import { ProgressWidget } from '@/pages/ProgressPage'
 import { useSetupSteps } from './setup'
 import { turnOnPush, usePushState } from '@/components/PushPrompt'
 import { useCapture } from '@/state/capture'
@@ -625,6 +626,7 @@ export const WIDGETS = {
   goals: { name: 'Savings goals', description: 'Progress towards what you are saving for.', icon: Goal, defaultSize: 'm', sample: true, component: Goals },
   household: { name: 'Household', description: 'The family budget and who paid what.', icon: Home, defaultSize: 'l', sample: false, component: Household },
   toReview: { name: 'To review', description: 'Bank alerts waiting to be added (Auto-capture).', icon: Inbox, defaultSize: 's', sample: false, component: ToReview },
+  progress: { name: 'Your progress', description: 'Level, streak, badges and this week’s challenge.', icon: Trophy, defaultSize: 's', sample: false, component: ProgressWidget },
   moneyHealth: { name: 'Money health', description: 'A score from saving, cushion, card dues, budgets and balance, with what to do.', icon: HeartPulse, defaultSize: 'm', sample: false, component: MoneyHealth },
   canIAfford: { name: 'Can I afford it?', description: 'Check a purchase or a new EMI against your plan and savings.', icon: Scale, defaultSize: 'm', sample: false, component: CanIAfford },
   netWorth: { name: 'Net worth', description: 'What you have minus what you owe, by kind of account.', icon: Landmark, defaultSize: 'm', sample: false, component: NetWorth },

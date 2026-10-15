@@ -9,6 +9,7 @@ export type PrefsAction =
   | { type: 'sidebar'; collapsed: boolean }
   | { type: 'onboarding'; patch: Partial<Pick<Preferences, 'welcomed' | 'tourOff'>> }
   | { type: 'notifications'; patch: Partial<Pick<Preferences, 'chime' | 'pushPromptHidden'>> }
+  | { type: 'gamification'; on: boolean }
   | { type: 'selectDashboard'; id: string }
   | { type: 'addDashboard'; template: TemplateKey; name?: string }
   | { type: 'renameDashboard'; id: string; name: string }
@@ -36,6 +37,8 @@ export function prefsReducer(prefs: Preferences, action: PrefsAction): Preferenc
       return { ...prefs, sampleData: action.value }
     case 'sidebar':
       return { ...prefs, sidebarCollapsed: action.collapsed }
+    case 'gamification':
+      return { ...prefs, gamification: action.on }
     case 'notifications':
       return { ...prefs, chime: action.patch.chime ?? prefs.chime, pushPromptHidden: action.patch.pushPromptHidden ?? prefs.pushPromptHidden }
     case 'onboarding':

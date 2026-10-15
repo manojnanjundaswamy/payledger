@@ -148,6 +148,9 @@ export function DashboardSettings() {
       <Field label="Sample data" hint="Show realistic example numbers until your own accounts are connected.">
         <Switch label="Sample data" checked={prefs.sampleData} onCheckedChange={(v) => dispatch({ type: 'sampleData', value: v })} />
       </Field>
+      <Field label="Streaks and badges" hint="A streak for recording your money, badges for good habits, and a small challenge each week.">
+        <Switch label="Streaks and badges" checked={prefs.gamification} onCheckedChange={(v) => dispatch({ type: 'gamification', on: v })} />
+      </Field>
       <Field label="Your dashboards" hint="Double-click a tab on the dashboard to rename it.">
         <ul className="flex w-full flex-col gap-1 sm:w-72">
           {prefs.dashboards.map((d) => (

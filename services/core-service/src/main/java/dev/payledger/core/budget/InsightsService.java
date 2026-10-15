@@ -189,7 +189,7 @@ public class InsightsService {
 
     // ---------------------------------------------------------------- the numbers
 
-    Basis basis(CurrentUser user, UUID spaceId) {
+    public Basis basis(CurrentUser user, UUID spaceId) {
         access.read(user, spaceId);
         LocalDate thisMonth = budgets.now(user).today().withDayOfMonth(1);
         LocalDate from = thisMonth.minusMonths(MONTHS);

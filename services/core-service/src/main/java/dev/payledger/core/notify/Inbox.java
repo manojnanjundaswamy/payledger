@@ -26,6 +26,8 @@ public class Inbox {
         AUTO_PAID(null),
         /** Bank alerts forwarded or Gmail's forwarding code arrived (Auto-capture). In the app only. */
         CAPTURED(null),
+        /** A badge earned or a weekly challenge done (ProgressService). In the app (and pushed) only. */
+        ACHIEVEMENT(null),
         /** Added to a household, or someone joined yours. */
         HOUSEHOLD(Notifications.Kind.GROUP_ACTIVITY),
         /** Monday's look back at the week. */

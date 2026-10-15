@@ -9,7 +9,7 @@ import { z } from 'zod'
 export const WIDGET_TYPES = [
   'safeToSpend', 'budgets', 'spendingByCategory', 'cashFlow', 'recentTransactions',
   'upcomingBills', 'groups', 'goals', 'household', 'gettingStarted', 'quickActions', 'note', 'toReview', 'netWorth',
-  'moneyHealth', 'canIAfford',
+  'moneyHealth', 'canIAfford', 'progress',
 ] as const
 export type WidgetType = (typeof WIDGET_TYPES)[number]
 
@@ -92,7 +92,7 @@ export function newId(prefix: string): string {
 export const DASHBOARD_TEMPLATES = {
   overview: { name: 'Overview', widgets: [
     ['gettingStarted', 'm'], ['safeToSpend', 'm'], ['budgets', 'm'], ['spendingByCategory', 'm'],
-    ['cashFlow', 'l'], ['upcomingBills', 's'], ['recentTransactions', 'm'], ['groups', 'm'], ['netWorth', 'm'], ['moneyHealth', 'm'], ['canIAfford', 'm'], ['toReview', 's'],
+    ['cashFlow', 'l'], ['upcomingBills', 's'], ['recentTransactions', 'm'], ['groups', 'm'], ['netWorth', 'm'], ['progress', 's'], ['moneyHealth', 'm'], ['canIAfford', 'm'], ['toReview', 's'],
   ] },
   household: { name: 'Household', widgets: [
     ['household', 'l'], ['budgets', 's'], ['upcomingBills', 'm'], ['spendingByCategory', 'm'], ['goals', 'm'],
@@ -132,6 +132,8 @@ export const PreferencesSchema = z.object({
   chime: z.boolean().catch(true),
   /** "Not now" on the turn-on-notifications card. */
   pushPromptHidden: z.boolean().catch(false),
+  /** Streaks, badges, levels and the weekly challenge. */
+  gamification: z.boolean().catch(true),
 })
 export type Preferences = Omit<z.infer<typeof PreferencesSchema>, 'activeDashboard'> & { activeDashboard: string }
 
