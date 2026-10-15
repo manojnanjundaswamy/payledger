@@ -23,13 +23,17 @@ class SessionController {
     Session session(@AuthenticationPrincipal OidcUser user, CsrfToken csrf) {
         csrf.getToken(); // tokens are deferred; reading it writes the XSRF-TOKEN cookie
         if (user == null) {
-            return new Session(false, null, null, "/oauth2/authorization/keycloak", "/oauth2/authorization/keycloak?signup", null);
+            return new Session(false, null, null, "/oauth2/authorization/keycloak", "/oauth2/authorization/keycloak?signup", null,
+                    props.google() ? "/oauth2/authorization/keycloak?idp=google" : null);
         }
         // Password, email and sign-in methods are managed in Keycloak's account console.
-        return new Session(true, user.getEmail(), user.getFullName(), null, null, props.keycloakRealmUrl() + "/account");
+        return new Session(true, user.getEmail(), user.getFullName(), null, null, props.keycloakRealmUrl() + "/account", null);
     }
 
-    /** @param accountUrl where a signed-in user changes their password or email */
-    record Session(boolean authenticated, String email, String name, String loginUrl, String signupUrl, String accountUrl) {
+    /**
+     * @param accountUrl where a signed-in user changes their password or email
+     * @param googleUrl  "Continue with Google", when Google sign-in is set up
+     */
+    record Session(boolean authenticated, String email, String name, String loginUrl, String signupUrl, String accountUrl, String googleUrl) {
     }
 }

@@ -213,6 +213,8 @@ services:
       FRONTEND_URL: ${PUBLIC_URL:-http://localhost:${WEB_PORT:-5173}}
       # Hosted over https: the session cookie is only ever sent over https.
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # "Continue with Google" shows when Google sign-in is set up (the client id only; the secret goes to Keycloak).
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       # Locally every browser test signs in as the demo user, so one "user" makes all the calls; production keeps 600/120.
       PAYLEDGER_RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-3000}
       PAYLEDGER_RATE_LIMIT_WRITES_PER_MINUTE: ${RATE_LIMIT_WRITES_PER_MINUTE:-600}

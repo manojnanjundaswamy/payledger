@@ -8,6 +8,8 @@ export interface Session {
   loginUrl: string | null
   signupUrl: string | null
   accountUrl: string | null
+  /** "Continue with Google", when Google sign-in is set up on this server */
+  googleUrl?: string | null
 }
 
 export const sessionQuery = queryOptions({

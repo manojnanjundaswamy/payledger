@@ -77,6 +77,12 @@ class GatewaySecurityTest {
 
         String signup = redirect(mvc.perform(get("/oauth2/authorization/keycloak").param("signup", "")).andReturn());
         assertThat(signup).contains("prompt=create", "code_challenge_method=S256");
+
+        // Straight to Google; an unknown provider name is ignored.
+        String google = redirect(mvc.perform(get("/oauth2/authorization/keycloak").param("idp", "google")).andReturn());
+        assertThat(google).contains("kc_idp_hint=google", "code_challenge_method=S256").doesNotContain("prompt=create");
+        String other = redirect(mvc.perform(get("/oauth2/authorization/keycloak").param("idp", "evil")).andReturn());
+        assertThat(other).doesNotContain("kc_idp_hint");
     }
 
     @Test

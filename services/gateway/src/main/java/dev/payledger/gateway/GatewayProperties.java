@@ -9,7 +9,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param realm             Keycloak realm
  */
 @ConfigurationProperties("payledger")
-public record GatewayProperties(String frontendUrl, String coreServiceUrl, String keycloakPublicUrl, String realm) {
+public record GatewayProperties(String frontendUrl, String coreServiceUrl, String keycloakPublicUrl, String realm, String googleClientId) {
+
+    /** "Continue with Google" is offered when Keycloak has Google set up (GOOGLE_CLIENT_ID in .env, keycloak-sync). */
+    boolean google() {
+        return googleClientId != null && !googleClientId.isBlank();
+    }
 
     String keycloakRealmUrl() {
         return keycloakPublicUrl + "/realms/" + realm;
