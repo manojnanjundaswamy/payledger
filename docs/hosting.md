@@ -71,6 +71,16 @@ subdomain and hands it to a small Worker, which posts it to PayLedger (`/inbound
 People then follow the guide on the Auto-capture page (forwarding address, Gmail's confirmation code, a filter
 for bank senders). Pasting SMS works without any of this.
 
+A working Gmail filter looks like this (Settings → Filters and Blocked Addresses). In the **From** box the senders
+are joined with **OR**, not commas, and without `from:(…)` around them; Gmail adds that itself:
+
+```
+Matches: from:(alerts@hdfcbank.bank.in OR emailstatements.cards@hdfcbank.bank.in OR hdfcbanksmartstatement@hdfcbank.bank.in OR alerts@axis.bank.in)
+Do this: Forward to <your address>@in.example.com, Mark it as important, Categorize as Primary
+```
+
+The forwarding address must be confirmed first (Settings → Forwarding and POP/IMAP), or Gmail won't offer it.
+
 ## Google sign-in ("Continue with Google")
 
 1. [Google Cloud Console](https://console.cloud.google.com/projectcreate): create a project (e.g. "PayLedger").
