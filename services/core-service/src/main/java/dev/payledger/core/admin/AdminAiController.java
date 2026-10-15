@@ -115,7 +115,7 @@ class AdminAiController {
     @Operation(summary = "Staff: AI requests, newest first, with the masked text sent and the answer (texts are cleared after the retention period)")
     List<Request> requests(CurrentUser user,
                            @RequestParam(required = false) UUID userId,
-                           @RequestParam(required = false) @Pattern(regexp = "QUICK_ADD|CAPTURE|TRANSCRIBE") String feature,
+                           @RequestParam(required = false) @Pattern(regexp = "QUICK_ADD|CAPTURE|ASSISTANT|TRANSCRIBE") String feature,
                            @RequestParam(required = false) @Pattern(regexp = "OK|ERROR|INVALID|REFUSED") String status,
                            @RequestParam(required = false) @Size(max = 200) String q,
                            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime before,

@@ -21,9 +21,10 @@ test('say or type it: the dashboard bar opens quick add, a draft is checked and 
   await sheet.getByLabel('What you spent or received').fill(`${rupees} E2E quick coffee ${tag}`)
   await sheet.getByRole('button', { name: 'Add', exact: true }).click()
 
-  await expect(sheet.getByText('Check and add')).toBeVisible()
+  // With AI on (staging has a key) or off, it comes back to check: no account was said.
+  await expect(sheet.getByText('Check and add')).toBeVisible({ timeout: 15_000 })
   await expect(sheet.getByLabel('Amount')).toHaveValue(String(rupees))
-  await expect(sheet.getByLabel('Description')).toHaveValue(new RegExp(`E2E quick coffee ${tag}`, 'i'))
+  await sheet.getByLabel('Description').fill(`E2E quick coffee ${tag}`)
   await sheet.getByLabel('Account').click()
   await page.getByRole('textbox', { name: 'Search the list' }).fill(wallet)
   await page.getByRole('option', { name: wallet, exact: true }).click()

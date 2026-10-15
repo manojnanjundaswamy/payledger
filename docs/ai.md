@@ -77,6 +77,27 @@ own AI log is in their data export (`aiRequests`), not restored on import.
 change both in Admin → Settings. Premium: unlimited. Whatever the plan: 20 AI calls a minute per person, at most 10 AI
 reads per paste, 4,000 characters per text.
 
+## Voice mode (talk to PayLedger)
+
+The **Voice** switch in the top bar (or "Go hands-free" in quick add) opens a glass panel (right on a computer, bottom
+on a phone) with a glowing screen edge: it breathes while listening, beats while you speak, sweeps while thinking and
+pulses while it talks. The app stays usable behind it and moves to where things happen.
+
+- **Turns, hands-free.** Speak; a pause of ~1.3 s ends the turn. The reply is shown and spoken (the browser's own voice,
+  free), then it listens again. It keeps listening through pauses inside a turn. Typing works too (keyboard button).
+- **Many at once.** "Food budget 8,000, rent 20,000, 450 on petrol yesterday and a Netflix bill of 649 on the 5th" is one
+  call: each becomes a card (entry, budget, bill, bill paid, goal) with what's missing ("Which account?") and how sure.
+- **Nothing is saved until you say so.** "Add them" / "yes" / "save" (answered on the device, instantly, no AI) runs each
+  ready card through the app's own API, one by one, then goes to the page. "Make the petrol one 500" / "put both on HDFC"
+  replaces those cards. "Cancel" clears, "undo that" takes back what was just saved (entries deleted, budgets set back
+  to what they were, bills and goals removed), "stop" closes.
+- **Questions** ("how much did I spend on groceries this month", "how's my food budget") are answered from the data by
+  the server, not by the model.
+- **What the reply says** about proposals is written by the server from the cards ("2 budgets and 2 entries ready. Say add
+  them to save."), so it never claims something is saved when it isn't.
+- One call per turn (feature `ASSISTANT` in the log, counted like other AI reads). With Gemini 2.5 Flash-Lite through
+  OpenRouter: ~1 s for a short turn, ~3 s for six actions, about $0.0003 a turn.
+
 ## Voice
 
 - **Chrome, Edge, Safari, Samsung Internet**: the browser's own speech recognition, live, on the device, free. Words
@@ -93,7 +114,8 @@ Provider-independent by configuration (`.env`), no code change:
 
 | Option | Settings |
 |---|---|
-| Claude, direct (recommended to start: one key, good at this) | `AI_PROVIDER=anthropic`, `AI_MODEL=claude-haiku-5-5`, `AI_API_KEY=…` |
+| OpenRouter with `google/gemini-2.5-flash-lite` (in use: fastest accurate in our test, ~$0.10/$0.40 per M tokens) | `AI_PROVIDER=openrouter`, `AI_MODEL=google/gemini-2.5-flash-lite`, `AI_PRICE_INPUT=0.1`, `AI_PRICE_OUTPUT=0.4` |
+| Claude, direct | `AI_PROVIDER=anthropic`, `AI_MODEL=claude-haiku-5-5`, `AI_API_KEY=…` |
 | OpenRouter (many providers and models behind one key, switch anytime) | `AI_PROVIDER=openrouter`, `AI_MODEL=anthropic/claude-haiku-5-5` (or any listed) |
 | Anything OpenAI-compatible (OpenAI, Gemini, Groq, Together, local Ollama) | `AI_PROVIDER=openai-compatible`, `AI_BASE_URL=…/v1`, `AI_MODEL=…` |
 

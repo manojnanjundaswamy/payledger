@@ -79,6 +79,12 @@ public class AiAudit {
                 .update());
     }
 
+    /** The answer couldn't be used (not the JSON asked for). */
+    public void invalid(UUID requestId, String error) {
+        own.executeWithoutResult(t -> jdbc.sql("update ai_requests set status = 'INVALID', error = :e, outcome = 'FAILED' where id = :id")
+                .param("e", cut(error, 500)).param("id", requestId).update());
+    }
+
     /** Requests in the last minute: a person (or a script on their account) can't run up a bill. */
     public long lastMinute(UUID userId) {
         return jdbc.sql("select count(*) from ai_requests where user_id = :u and at > now() - interval '1 minute'")

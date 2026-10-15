@@ -24,7 +24,7 @@ interface Request {
 const usd = (micros: number) => micros >= 1_000_000 ? `$${(micros / 1_000_000).toFixed(2)}` : `$${(micros / 1_000_000).toFixed(4)}`
 const tokens = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}k` : String(n)
 const OUTCOME: Record<string, string> = { AUTO_ADDED: 'Added on its own', PARTLY_ADDED: 'Partly added', TO_REVIEW: 'Left to check', NOT_A_TRANSACTION: 'Not a transaction', FAILED: 'Failed' }
-const FEATURE: Record<string, string> = { QUICK_ADD: 'Quick add', CAPTURE: 'Bank alerts', TRANSCRIBE: 'Speech to text' }
+const FEATURE: Record<string, string> = { QUICK_ADD: 'Quick add', CAPTURE: 'Bank alerts', ASSISTANT: 'Voice mode', TRANSCRIBE: 'Speech to text' }
 
 /** Every AI call: what it cost, for whom, why, and what came of it; each one opens to show what was sent (masked) and answered. */
 export function AdminAi() {
@@ -110,7 +110,7 @@ function Table({ head, rows }: { head: string[]; rows: string[][] }) {
 }
 
 function Requests({ from, locale }: { from: string; locale: string }) {
-  const [feature, setFeature] = useState<'' | 'QUICK_ADD' | 'CAPTURE' | 'TRANSCRIBE'>('')
+  const [feature, setFeature] = useState<'' | 'QUICK_ADD' | 'CAPTURE' | 'ASSISTANT' | 'TRANSCRIBE'>('')
   const [open, setOpen] = useState<string | null>(null)
   const q = useQuery({
     queryKey: ['admin', 'ai-requests', feature],
@@ -121,7 +121,7 @@ function Requests({ from, locale }: { from: string; locale: string }) {
       <div className="flex flex-wrap items-center gap-3 border-b border-border px-pad py-3">
         <h3 className="text-sm font-medium">Requests</h3>
         <Segmented label="Feature" value={feature} onChange={setFeature}
-          options={[{ value: '', label: 'All' }, { value: 'QUICK_ADD', label: 'Quick add' }, { value: 'CAPTURE', label: 'Bank alerts' }, { value: 'TRANSCRIBE', label: 'Speech' }]} />
+          options={[{ value: '', label: 'All' }, { value: 'QUICK_ADD', label: 'Quick add' }, { value: 'CAPTURE', label: 'Bank alerts' }, { value: 'ASSISTANT', label: 'Voice mode' }, { value: 'TRANSCRIBE', label: 'Speech' }]} />
         <span className="text-xs text-subtle">Texts are masked before sending, and cleared after the retention period.</span>
       </div>
       {q.isPending ? <Skeleton className="m-pad h-24" /> : !q.data?.length ? <p className="p-pad text-sm text-muted">No AI requests{from ? ' yet' : ''}.</p> : (

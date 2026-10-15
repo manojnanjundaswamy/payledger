@@ -22,13 +22,15 @@ class AiController {
     private static final long MAX_AUDIO = 4 * 1024 * 1024;
 
     private final QuickAddService quickAdd;
+    private final AssistantService assistant;
     private final AiReader reader;
     private final SpeechToText stt;
     private final AiAudit audit;
     private final AiConfig.Prices prices;
 
-    AiController(QuickAddService quickAdd, AiReader reader, SpeechToText stt, AiAudit audit, AiConfig.Prices prices) {
+    AiController(QuickAddService quickAdd, AssistantService assistant, AiReader reader, SpeechToText stt, AiAudit audit, AiConfig.Prices prices) {
         this.quickAdd = quickAdd;
+        this.assistant = assistant;
         this.reader = reader;
         this.stt = stt;
         this.audit = audit;
@@ -48,6 +50,15 @@ class AiController {
     @Operation(summary = "Read what you typed or said into entries: at least 95% sure ones are added (and can be undone), the rest come back to check")
     QuickAddService.Result quickAdd(CurrentUser user, @RequestBody QuickAdd body) {
         return quickAdd.add(user, body.text(), "VOICE".equals(body.channel()) ? "VOICE" : "TYPED");
+    }
+
+    record Talk(java.util.List<AssistantService.Turn> turns, java.util.List<AssistantService.Shown> shown, String page, String channel) {
+    }
+
+    @PostMapping("/api/core/ai/assistant")
+    @Operation(summary = "Voice mode: what was said becomes proposed actions (checked, not done), answers, a page to open, or a yes/no")
+    AssistantService.Reply talk(CurrentUser user, @RequestBody Talk body) {
+        return assistant.talk(user, body.turns(), body.shown(), body.page(), "TYPED".equals(body.channel()) ? "TYPED" : "VOICE");
     }
 
     @PostMapping(value = "/api/core/ai/transcribe", consumes = "multipart/form-data")

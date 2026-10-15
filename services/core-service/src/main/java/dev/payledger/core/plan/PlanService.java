@@ -166,7 +166,7 @@ public class PlanService {
             case AI, AI_EXTRAS -> """
                     select count(*) from ai_requests r join spaces s on s.created_by = r.user_id
                     where s.id = :spaceId and r.counted and r.at >= date_trunc('month', now())
-                      and (r.feature in ('QUICK_ADD', 'CAPTURE')) = %s
+                      and (r.feature in ('QUICK_ADD', 'CAPTURE', 'ASSISTANT')) = %s
                     """.formatted(limit == Limit.AI ? "true" : "false");
             case IMPORTS -> """
                     select count(*) from imports where space_id = :spaceId and undone_at is null
