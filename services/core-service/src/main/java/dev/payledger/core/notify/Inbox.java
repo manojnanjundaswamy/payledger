@@ -48,8 +48,10 @@ public class Inbox {
 
     private final JdbcClient jdbc;
     private final Notifications notifications;
+    private final dev.payledger.core.push.PushService push;
 
-    Inbox(JdbcClient jdbc, Notifications notifications) {
+    Inbox(JdbcClient jdbc, Notifications notifications, dev.payledger.core.push.PushService push) {
+        this.push = push;
         this.jdbc = jdbc;
         this.notifications = notifications;
     }
@@ -72,6 +74,10 @@ public class Inbox {
                 .param("id", id).param("userId", userId).param("kind", kind.name()).param("title", cut(title, 200))
                 .param("body", body == null ? null : cut(body, 500)).param("link", link).param("actor", actorId).param("dedupe", dedupeKey)
                 .update();
+        if (added > 0) {
+            // Everything in the bell also reaches their phones and browsers, after this is saved.
+            push.publish(userId, cut(title, 200), body == null ? null : cut(body, 300), link, kind.name());
+        }
         if (added == 0 || kind.email == null) {
             return added > 0;
         }

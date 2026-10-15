@@ -295,12 +295,16 @@ function EmailGuide({ data }: { data: CaptureView }) {
   return (
     <Card className="flex flex-col gap-5 p-pad">
       <ForwardFlow />
-      {!data.emailReady && (
-        <p className="flex items-start gap-2 rounded-control bg-warning/10 px-3 py-2 text-sm">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
-          Email forwarding isn't switched on for this site yet, so emails sent to the address won't arrive. Pasting SMS works now.
-        </p>
-      )}
+      {!data.emailReady ? (
+        <div className="flex items-start gap-3 rounded-control bg-warning/10 p-4 text-sm" data-testid="email-not-ready">
+          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-warning" />
+          <div>
+            <p className="font-medium">Email forwarding isn’t set up on this site yet</p>
+            <p className="mt-1 text-muted">Your address would be on a domain that can’t receive mail yet, so Gmail’s confirmation and your bank
+              alerts wouldn’t arrive. The site’s owner is setting it up. Meanwhile, pasting bank SMS and importing a statement work now.</p>
+          </div>
+        </div>
+      ) : (
       <ol className="flex flex-col gap-3">
         <Step n={1} title="Your own PayLedger address">
           <CopyBox value={data.address} label="Address" />
@@ -346,6 +350,7 @@ function EmailGuide({ data }: { data: CaptureView }) {
           <p className="text-xs text-subtle">Only these emails are forwarded: the rest of your mailbox stays yours. To stop, delete the filter in Gmail.</p>
         </Step>
       </ol>
+      )}
     </Card>
   )
 }

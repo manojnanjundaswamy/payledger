@@ -128,6 +128,10 @@ export const PreferencesSchema = z.object({
   welcomed: z.boolean().catch(false),
   /** "Don't show the tour again" was ticked; otherwise it's offered at each sign-in. */
   tourOff: z.boolean().catch(false),
+  /** Play the chime for new notifications while the app is open. */
+  chime: z.boolean().catch(true),
+  /** "Not now" on the turn-on-notifications card. */
+  pushPromptHidden: z.boolean().catch(false),
 })
 export type Preferences = Omit<z.infer<typeof PreferencesSchema>, 'activeDashboard'> & { activeDashboard: string }
 

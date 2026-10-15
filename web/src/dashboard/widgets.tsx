@@ -10,7 +10,6 @@ import {
 } from 'lucide-react'
 import { Badge } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
-import type { SettingsTab } from '@/pages/settings/tabs'
 import type { Widget } from '@/state/preferences'
 import { usePreferences } from '@/state/PreferencesProvider'
 import { BarList, BUDGET_STATUS, budgetStatus, GroupedBars, Progress } from './charts'
@@ -22,6 +21,8 @@ import {
 import { SafeToSpendCard } from '@/pages/money/SafeToSpendCard'
 import { CountUp } from '@/components/CountUp'
 import { CanIAfford, MoneyHealth } from './insightWidgets'
+import { useSetupSteps } from './setup'
+import { turnOnPush, usePushState } from '@/components/PushPrompt'
 import { useCapture } from '@/state/capture'
 import { useHousehold, useHouseholds } from '@/state/households'
 
@@ -530,31 +531,29 @@ function Household() {
   )
 }
 
+/** The setup checklist (dashboard/setup.ts): each step ticks itself when done; the dashboard hides the card once all are. */
 function GettingStarted() {
-  const { prefs, profile, real } = useWidgetEnv()
-  const steps: { done: boolean; label: string; tab: SettingsTab | null; to?: '/welcome' }[] = [
-    { done: true, label: 'Create your account', tab: null },
-    { done: prefs.theme.accent !== null || prefs.theme.palette !== 'classic' || prefs.theme.mode !== 'system', label: 'Make it yours: pick a theme', tab: 'appearance' },
-    { done: profile.settings.budgetStartDay !== 1, label: 'Set the day your month starts (payday)', tab: 'regional' },
-    { done: prefs.dashboards.length > 1 || prefs.dashboards.some((d) => d.widgets.some((w) => w.title || w.type === 'note')), label: 'Customize a dashboard', tab: 'dashboards' },
-    { done: real, label: 'Set up your accounts and bills (2 minutes)', tab: null, to: '/welcome' },
-  ]
-  const done = steps.filter((s) => s.done).length
+  const { steps, done } = useSetupSteps()
+  const [, setPush] = usePushState()
+  const [turning, setTurning] = useState(false)
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
         <div className="flex-1"><Progress value={done / steps.length} label="Setup progress" /></div>
         <span className="text-xs text-muted tabular">{done}/{steps.length}</span>
       </div>
-      <ul className="flex flex-col gap-1">
+      <ul className="flex flex-col gap-1" data-testid="setup-steps">
         {steps.map((s) => (
-          <li key={s.label}>
-            {s.tab && !s.done ? (
-              <Link to="/settings" search={{ tab: s.tab }} className="flex items-center gap-2.5 rounded-control px-1 py-1.5 text-sm hover:bg-surface-2"><StepDot done={s.done} />{s.label}</Link>
-            ) : s.to && !s.done ? (
-              <Link to={s.to} className="flex items-center gap-2.5 rounded-control px-1 py-1.5 text-sm hover:bg-surface-2"><StepDot done={s.done} />{s.label}</Link>
+          <li key={s.key} data-done={s.done}>
+            {s.done ? (
+              <span className="flex items-center gap-2.5 px-1 py-1.5 text-sm text-muted line-through decoration-border-strong"><StepDot done />{s.label}</span>
+            ) : s.action === 'push' ? (
+              <button type="button" disabled={turning} onClick={async () => { setTurning(true); await turnOnPush(setPush); setTurning(false); window.dispatchEvent(new Event('focus')) }}
+                className="flex w-full items-center gap-2.5 rounded-control px-1 py-1.5 text-left text-sm hover:bg-surface-2"><StepDot done={false} />{s.label}</button>
+            ) : s.tab ? (
+              <Link to="/settings" search={{ tab: s.tab }} className="flex items-center gap-2.5 rounded-control px-1 py-1.5 text-sm hover:bg-surface-2"><StepDot done={false} />{s.label}</Link>
             ) : (
-              <span className={cn('flex items-center gap-2.5 px-1 py-1.5 text-sm', s.done && 'text-muted line-through decoration-border-strong')}><StepDot done={s.done} />{s.label}</span>
+              <Link to={s.to!} className="flex items-center gap-2.5 rounded-control px-1 py-1.5 text-sm hover:bg-surface-2"><StepDot done={false} />{s.label}</Link>
             )}
           </li>
         ))}
