@@ -2,7 +2,7 @@
  * Small drawings for the auto-capture guide. Drawn in SVG and HTML with the theme's colours (no image files), so
  * they look right in light and dark mode and stay crisp on any screen.
  */
-import { ArrowRight, Check, Mail, MessageSquareText, Settings, Share2 } from 'lucide-react'
+import { ArrowRight, Check, FileSpreadsheet, Mail, MessageSquareText, Settings, Share2 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
 /** A bank's email travelling to PayLedger and becoming an entry. */
@@ -90,7 +90,7 @@ export function GmailSettings({ step }: { step: 'forwarding' | 'filter' }) {
   )
 }
 
-export function MethodIcon({ method }: { method: 'email' | 'paste' | 'share' }) {
-  const Icon = method === 'email' ? Mail : method === 'paste' ? MessageSquareText : Share2
+export function MethodIcon({ method }: { method: 'email' | 'paste' | 'share' | 'statement' }) {
+  const Icon = method === 'email' ? Mail : method === 'paste' ? MessageSquareText : method === 'statement' ? FileSpreadsheet : Share2
   return <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent"><Icon className="size-5" /></span>
 }

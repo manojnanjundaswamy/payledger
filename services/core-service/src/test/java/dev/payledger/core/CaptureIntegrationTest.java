@@ -115,6 +115,44 @@ class CaptureIntegrationTest {
                 .andExpect(jsonPath("$.result").value("unknown-address"));
     }
 
+    @Test
+    void aBankStatementGoesIntoToReviewOnceAndAddAllAddsWhatsReady() throws Exception {
+        var me = user();
+        String space = JsonPath.read(body(get("/api/core/me"), me, null), "$.spaces[0].id");
+        String hdfc = JsonPath.read(body(post("/api/core/spaces/" + space + "/accounts"), me, "{\"kind\":\"BANK\",\"name\":\"HDFC\",\"openingBalance\":500000,\"openingDate\":\"2026-01-01\"}"), "$.id");
+        String csv = """
+                Date,Narration,Chq./Ref.No.,Value Dt,Withdrawal Amt.,Deposit Amt.,Closing Balance
+                01/10/26,NEFT CR-ACME SOFTWARE PVT LTD-SALARY OCT,N274264,01/10/26,,"1,20,000.00","1,25,000.00"
+                02/10/26,UPI-SWIGGY-swiggy@icici-ICIC0DC0099-428910283746-PAYMENT,0000428910283746,02/10/26,450.00,,"1,24,550.00"
+                03/10/26,ATW-512345XXXXXX1234-S1ANBG12-BANGALORE,0000001234,03/10/26,"3,000.00",,"1,21,550.00"
+                """;
+        var file = new org.springframework.mock.web.MockMultipartFile("file", "Acct_Statement_HDFC.csv", "text/csv", csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String result = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/core/capture/statement")
+                        .file(file).param("accountId", hdfc).with(me))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rows").value(3)).andExpect(jsonPath("$.added").value(3))
+                .andExpect(jsonPath("$.adds").value(true)).andExpect(jsonPath("$.bank").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(result).contains("\"from\":\"2026-10-01\"");
+        // The same file again: nothing new.
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/core/capture/statement")
+                        .file(file).param("accountId", hdfc).with(me))
+                .andExpect(jsonPath("$.added").value(0)).andExpect(jsonPath("$.duplicates").value(3));
+        // Someone else's account: no.
+        var other = user();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/core/capture/statement")
+                        .file(file).param("accountId", hdfc).with(other))
+                .andExpect(status().isUnprocessableContent()).andExpect(jsonPath("$.code").value("invalid-account"));
+
+        String view = body(get("/api/core/capture"), me, null);
+        List<String> ids = JsonPath.read(view, "$.items[?(@.source == 'STATEMENT')].id");
+        assertThat(JsonPath.<List<String>>read(view, "$.items[?(@.source == 'STATEMENT')].accountId")).containsOnly(hdfc);
+        assertThat(JsonPath.<List<String>>read(view, "$.items[?(@.source == 'STATEMENT')].merchant")).contains("Swiggy", "Acme Software");
+        String added = body(post("/api/core/capture/items/add"), me, "{\"ids\":[\"" + String.join("\",\"", ids) + "\"]}");
+        assertThat(JsonPath.<Integer>read(added, "$.added")).isEqualTo(3);
+        assertThat(jdbc.sql("select count(*) from transactions where space_id = ?::uuid and account_id = ?::uuid and 'captured' = any(tags)")
+                .params(UUID.fromString(space), UUID.fromString(hdfc)).query(Long.class).single()).isEqualTo(3);
+    }
+
     private static String json(String s) {
         return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\"";
     }
