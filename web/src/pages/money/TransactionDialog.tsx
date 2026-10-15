@@ -3,7 +3,7 @@ import { useGoals } from '@/state/goals'
 import { SearchSelect } from '@/components/ui/search-select'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Trash2, Sparkles } from 'lucide-react'
+import { Trash2, Sparkles, Filter } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input, Segmented } from '@/components/ui/controls'
@@ -11,8 +11,7 @@ import { Dialog } from '@/components/ui/overlay'
 import { ApiError } from '@/lib/api'
 import { minorToInput, parseMoney } from '@/lib/money'
 import {
-  useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useUpdateTransaction, type Transaction, type TransactionFields, type TxnKind, useSpaceId, useSaveCategoryRule, fetchCategoryGuess, ruleWords, type CategoryGuess,
-} from '@/state/money'
+  useAccounts, useCategories, useCreateTransaction, useDeleteTransaction, useUpdateTransaction, type Transaction, type TransactionFields, type TxnKind, useSpaceId, useSaveCategoryRule, fetchCategoryGuess, ruleWords, type CategoryGuess, type TransactionFilter } from '@/state/money'
 import { Field, TXN_KINDS, today, accountOptions, categoryOptions } from './parts'
 
 interface Draft {
@@ -40,7 +39,7 @@ function draftOf(t: Transaction | undefined, kind: TxnKind, accountId: string, d
  * Add or edit an expense, income or transfer. Amount first: most entries are small UPI payments,
  * so the fastest path is amount, category, Enter.
  */
-export function TransactionDialog({ open, onOpenChange, transaction, initialKind = 'EXPENSE', initialAccountId, initialDate, prefill }: {
+export function TransactionDialog({ open, onOpenChange, transaction, initialKind = 'EXPENSE', initialAccountId, initialDate, prefill, fromFilter }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   transaction?: Transaction
@@ -50,6 +49,8 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
   initialDate?: string
   /** A new one's amount, description and category (by name), e.g. from a calculator's answer. */
   prefill?: { amount?: string; description?: string; categoryName?: string; note?: string; goalId?: string }
+  /** The list's filter: a new one starts with its category, account, goal, tag and (one) day. */
+  fromFilter?: TransactionFilter
 }) {
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
@@ -62,6 +63,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
   // One id per new transaction: resubmitting after an error or a double tap can't add it twice.
   const [clientId, setClientId] = useState(() => uuid7())
   const [error, setError] = useState<string>()
+  const [carried, setCarried] = useState<string[]>([])
 
   useEffect(() => {
     if (open) {
@@ -71,6 +73,20 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
         const category = wanted ? categories.find((c) => c.kind === initialKind && !c.hidden && c.name.toLowerCase() === wanted) : undefined
         Object.assign(draft, { amount: prefill.amount ?? '', description: prefill.description ?? '', note: prefill.note ?? '', categoryId: category?.id ?? '', goalId: prefill.goalId ?? '' })
       }
+      // Adding from a filtered list: start with what the list is showing, and say so (one tap to start blank).
+      const carried: string[] = []
+      if (!transaction && !prefill && fromFilter) {
+        const category = fromFilter.categoryId ? categories.find((c) => c.id === fromFilter.categoryId && c.kind === initialKind) : undefined
+        if (category) { draft.categoryId = category.id; carried.push(category.name) }
+        if (fromFilter.accountId) {
+          const a = accounts.find((x) => x.id === fromFilter.accountId)
+          if (a) { draft.accountId = a.id; carried.push(a.name) }
+        }
+        if (fromFilter.goalId) { draft.goalId = fromFilter.goalId; carried.push('the goal') }
+        if (fromFilter.from && fromFilter.from === fromFilter.to && !initialDate) { draft.occurredOn = fromFilter.from; carried.push(fromFilter.from) }
+        if (fromFilter.tag) carried.push(`#${fromFilter.tag}`)
+      }
+      setCarried(carried)
       setDraft(draft)
       setClientId(uuid7())
       setError(undefined)
@@ -146,6 +162,7 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
       description: draft.description.trim() || defaultDescription(draft, categories, accounts),
       note: draft.note.trim() || null,
       goalId: draft.goalId || null,
+      ...(!transaction && carried.length && fromFilter?.tag ? { tags: [fromFilter.tag] } : {}),
     }
     try {
       if (transaction) {
@@ -182,6 +199,16 @@ export function TransactionDialog({ open, onOpenChange, transaction, initialKind
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={title}>
       <form onSubmit={submit} className="flex flex-col gap-4 p-pad" noValidate>
+        {carried.length > 0 && (
+          <p className="flex flex-wrap items-center gap-2 rounded-control bg-accent-soft/60 px-3 py-2 text-xs" data-testid="carried">
+            <Filter className="size-3.5 text-accent" />
+            <span className="min-w-0 flex-1">Filled from your filter: <b>{carried.join(' · ')}</b></span>
+            <button type="button" className="underline underline-offset-4" onClick={() => {
+              setDraft(draftOf(undefined, draft.kind, initialAccountId ?? accounts[0]?.id ?? '', initialDate))
+              setCarried([])
+            }}>Start blank</button>
+          </p>
+        )}
         <Segmented
           label="Kind"
           value={draft.kind}

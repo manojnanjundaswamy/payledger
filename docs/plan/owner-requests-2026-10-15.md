@@ -3,7 +3,7 @@
 Each is ticked when built, tested on staging and committed to `develop`.
 
 1. [x] **Phone menu shows where you are**: a page opened from More (Plan, Household…) highlights More and names the page.
-2. [ ] **Filters carry into Add**: adding from a filtered list (a category, account, tag, date) starts with those, with a
+2. [x] **Filters carry into Add**: adding from a filtered list (a category, account, tag, date) starts with those, with a
    small "From your filter" note that can be cleared.
 3. [ ] **"Add new…" at the end of every dropdown** (category, account, group, person…): opens the create form, and the new
    one is chosen when it closes.
@@ -23,3 +23,6 @@ Each is ticked when built, tested on staging and committed to `develop`.
     status, timing and any error when expanded.
 11. [x] **Theme palette**: Mode and Palette merged into one "Theme palette" picker (Classic, Bumblebee yellow, Ferrari
     orange × Light, Dark, Match device), designed like the palette cards, also in the top bar's theme menu.
+12. [ ] **Import your data back**: Settings > Account can restore a PayLedger export into this account (after deleting
+    and signing up again, or moving). Export and import share one versioned format, and a round-trip test (export,
+    import into a fresh account, export again, compare) fails the build if either side falls behind.

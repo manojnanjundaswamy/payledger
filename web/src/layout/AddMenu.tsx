@@ -1,4 +1,4 @@
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Goal, Plus, Upload, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from '@/components/ui/overlay'
@@ -6,7 +6,11 @@ import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } fr
 /** The one button that adds money things: an entry, money for a goal, a shared expense, or a file. */
 export function AddMenu({ compact, trigger }: { compact?: boolean; trigger?: React.ReactNode }) {
   const navigate = useNavigate()
-  const add = (kind: 'EXPENSE' | 'INCOME' | 'TRANSFER') => void navigate({ to: '/transactions', search: { add: kind } })
+  const onTransactions = useRouterState({ select: (r) => r.location.pathname === '/transactions' })
+  // On a filtered transactions list, keep the filter: the new entry starts with it.
+  const add = (kind: 'EXPENSE' | 'INCOME' | 'TRANSFER') => void navigate(onTransactions
+    ? { to: '/transactions', search: (s: Record<string, unknown>) => ({ ...s, add: kind }) }
+    : { to: '/transactions', search: { add: kind } })
   return (
     <Menu>
       <MenuTrigger asChild>

@@ -160,6 +160,7 @@ export function TransactionsPage() {
         initialKind={adding ?? 'EXPENSE'}
         initialAccountId={search.account}
         initialDate={search.date}
+        fromFilter={toFilter(search)}
       />
     </div>
   )
