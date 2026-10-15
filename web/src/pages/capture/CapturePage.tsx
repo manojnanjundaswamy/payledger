@@ -64,7 +64,13 @@ export function CapturePage() {
       {isPending && <Skeleton className="h-48" />}
 
       {pending.length > 0 && <ReviewList items={pending} />}
-      {unreadable.length > 0 && <Unreadable items={unreadable} />}
+      {unreadable.length > 0 && (
+        <section className="flex flex-col gap-3" aria-label="Couldn't read">
+          <h2 className="text-base font-semibold">Couldn't read {unreadable.length === 1 ? 'this one' : 'these'}</h2>
+          <p className="-mt-2 text-sm text-muted">Fill one in once: alerts like it are read by themselves after that.</p>
+          {unreadable.map((i) => <ReviewCard key={i.id} item={i} />)}
+        </section>
+      )}
 
       <section className="flex flex-col gap-3" aria-label="Ways to bring entries in">
         <h2 className="text-base font-semibold">{pending.length ? 'Bring more in' : 'Set it up once'}</h2>
@@ -167,7 +173,8 @@ function ReviewCard({ item }: { item: CapturedItem }) {
   const [category, setCategory] = useState(item.categoryId ?? '')
   // "NEHA SHARMA sent you 1,500": the sender is who it was with.
   const [person, setPerson] = useState(item.kind === 'INCOME' ? item.merchant ?? '' : '')
-  const [open, setOpen] = useState(false)
+  // An unread message shows its text at once: it's what you fill the form from.
+  const [open, setOpen] = useState(item.status === 'UNREADABLE')
   const [error, setError] = useState<string>()
   const payable = (accounts ?? []).filter((a) => a.kind !== 'OWED' && !a.archived)
   const choices = useMemo(() => (categories ?? []).filter((c) => c.kind === kind && !c.hidden), [categories, kind])
@@ -179,9 +186,12 @@ function ReviewCard({ item }: { item: CapturedItem }) {
     if (value === null || value <= 0) return setError('Check the amount.')
     if (!account) return setError('Which account was it?')
     try {
-      await add.mutateAsync({ id: item.id, kind, amount: value, accountId: account, categoryId: category || null, occurredOn: date,
+      const saved = await add.mutateAsync({ id: item.id, kind, amount: value, accountId: account, categoryId: category || null, occurredOn: date,
         description: description.trim() || (out ? 'Spent' : 'Received'), counterparty: person.trim() || null })
-      toast.success(`${description || 'Entry'} added`)
+      toast.success(`${description || 'Entry'} added`, {
+        description: saved.learned === 'pattern' ? 'Learned: alerts like this one are read by themselves from now on.'
+          : saved.learned === 'name' ? `Learned: it'll be called ${description.trim()} next time.` : undefined,
+      })
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not add it. Try again.')
     }
@@ -194,17 +204,26 @@ function ReviewCard({ item }: { item: CapturedItem }) {
           {out ? <ArrowUpRight className="size-5" /> : <ArrowDownLeft className="size-5" />}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{item.merchant ?? 'Someone'}</span>
+          <span className="block truncate font-medium">{item.merchant ?? (item.status === 'UNREADABLE' ? 'A message to fill in' : 'Someone')}</span>
           <span className="block truncate text-xs text-subtle">
             {[item.bank, item.accountHint && `••${item.accountHint}`, item.occurredOn && dayLabel(item.occurredOn),
               item.source === 'EMAIL' ? 'email' : item.source === 'STATEMENT' ? 'statement' : 'SMS'].filter(Boolean).join(' · ')}
           </span>
         </span>
         <span className={cn('shrink-0 text-lg font-semibold tabular', out ? 'text-[var(--flow-out)]' : 'text-[var(--flow-in)]')}>
-          {out ? '−' : '+'}{money(item.amount ?? 0)}
+          {item.amount === null ? '' : `${out ? '−' : '+'}${money(item.amount)}`}
         </span>
       </div>
 
+      {item.status === 'UNREADABLE' && (
+        <p className="flex items-start gap-2 rounded-control bg-surface-2 px-3 py-2 text-xs text-muted">
+          <Sparkles className="mt-0.5 size-3.5 shrink-0 text-accent" />
+          <span><b className="text-fg">Teach it this one.</b> Fill in the amount and who it was with; next time an alert like it comes, it's read for you.</span>
+        </p>
+      )}
+      {item.readBy === 'LEARNED' && (
+        <p className="flex items-center gap-1.5 text-xs text-subtle"><Sparkles className="size-3.5 text-accent" />Read with what you taught it.</p>
+      )}
       {item.duplicateOf && (
         <p className="flex flex-wrap items-center gap-2 rounded-control bg-warning/10 px-3 py-2 text-xs">
           <AlertTriangle className="size-3.5 shrink-0 text-warning" />
@@ -243,26 +262,6 @@ function ReviewCard({ item }: { item: CapturedItem }) {
       </div>
       {open && item.body && <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-control bg-surface-2 p-3 text-xs text-muted">{item.subject ? `${item.subject}\n\n` : ''}{item.body}</pre>}
     </Card>
-  )
-}
-
-function Unreadable({ items }: { items: CapturedItem[] }) {
-  const dismiss = useDismissCaptured()
-  return (
-    <section className="flex flex-col gap-2" aria-label="Couldn't read">
-      <h2 className="text-sm font-medium text-muted">Couldn't read these</h2>
-      <Card className="divide-y divide-border">
-        {items.map((i) => (
-          <div key={i.id} className="flex flex-col gap-2 px-pad py-3">
-            <p className="line-clamp-3 text-xs text-muted">{i.subject ?? i.body}</p>
-            <span className="flex gap-2 self-end">
-              <Button size="sm" variant="ghost" onClick={() => dismiss.mutate(i.id)}>Dismiss</Button>
-              <Link to="/transactions" search={{ add: 'EXPENSE' }}><Button size="sm" variant="outline">Add by hand</Button></Link>
-            </span>
-          </div>
-        ))}
-      </Card>
-    </section>
   )
 }
 

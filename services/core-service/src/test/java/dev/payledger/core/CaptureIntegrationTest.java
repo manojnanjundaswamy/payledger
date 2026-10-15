@@ -153,6 +153,37 @@ class CaptureIntegrationTest {
                 .params(UUID.fromString(space), UUID.fromString(hdfc)).query(Long.class).single()).isEqualTo(3);
     }
 
+    @Test
+    void whatYouFixOnceIsReadByItselfNextTime() throws Exception {
+        var me = user();
+        String space = JsonPath.read(body(get("/api/core/me"), me, null), "$.spaces[0].id");
+        String bank = JsonPath.read(body(post("/api/core/spaces/" + space + "/accounts"), me, "{\"kind\":\"BANK\",\"name\":\"Kotak\",\"openingBalance\":0}"), "$.id");
+
+        // A shape the rules can't read: no "debited", no "spent".
+        String first = body(post("/api/core/capture/paste"), me, "{\"text\":\"ZEPPO order 4321: amount INR 750.00, card x9876, 14-10-26\"}");
+        assertThat(JsonPath.<Integer>read(first, "$.unreadable")).isEqualTo(1);
+        String id = JsonPath.<List<String>>read(first, "$.items[*].id").getFirst();
+        String added = body(post("/api/core/capture/items/" + id + "/add"), me,
+                "{\"kind\":\"EXPENSE\",\"amount\":75000,\"accountId\":\"" + bank + "\",\"occurredOn\":\"2026-10-14\",\"description\":\"ZEPPO\"}");
+        assertThat(JsonPath.<String>read(added, "$.learned")).isEqualTo("pattern");
+
+        // The next one like it reads itself: its own amount and name.
+        String next = body(post("/api/core/capture/paste"), me, "{\"text\":\"BLINKIT order 5555: amount INR 320.00, card x9876, 15-10-26\"}");
+        assertThat(JsonPath.<Integer>read(next, "$.added")).isEqualTo(1);
+        assertThat(JsonPath.<String>read(next, "$.items[0].readBy")).isEqualTo("LEARNED");
+        assertThat(JsonPath.<Integer>read(next, "$.items[0].amount")).isEqualTo(32000);
+        assertThat(JsonPath.<String>read(next, "$.items[0].merchant")).isEqualTo("Blinkit");
+
+        // A corrected name is used next time.
+        String swiggy = body(post("/api/core/capture/paste"), me, "{\"text\":\"Rs.450.00 debited from a/c **1234 on 14-10-26 to VPA swiggyltd@icici - HDFC Bank\"}");
+        String sid = JsonPath.<List<String>>read(swiggy, "$.items[*].id").getFirst();
+        assertThat(JsonPath.<String>read(swiggy, "$.items[0].merchant")).isEqualTo("Swiggyltd");
+        assertThat(JsonPath.<String>read(body(post("/api/core/capture/items/" + sid + "/add"), me,
+                "{\"accountId\":\"" + bank + "\",\"description\":\"Swiggy\"}"), "$.learned")).isEqualTo("name");
+        String again = body(post("/api/core/capture/paste"), me, "{\"text\":\"Rs.280.00 debited from a/c **1234 on 15-10-26 to VPA swiggyltd@icici - HDFC Bank\"}");
+        assertThat(JsonPath.<String>read(again, "$.items[0].merchant")).isEqualTo("Swiggy");
+    }
+
     private static String json(String s) {
         return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\"";
     }

@@ -70,6 +70,9 @@ delete from imports i where i.space_id in (select id from kept_spaces) and i.fil
   and not exists (select 1 from transactions t where t.import_id = i.id);
 
 delete from captured_items where user_id in (select id from keep_user) and (merchant ~* '^E2E' or body ~* 'e2e');
+-- What the tests taught auto-capture.
+delete from capture_aliases where name ~* '^E2E' or raw ~* 'e2e';
+delete from capture_patterns where pattern ~* 'e2e|zeppo|blinkit';
 
 -- Everything the other users owned.
 delete from commitment_payments where commitment_id in (select id from commitments where space_id in (select id from gone_spaces));
@@ -77,6 +80,8 @@ delete from commitment_payments where transaction_id in (select id from transact
 delete from commitments where space_id in (select id from gone_spaces);
 delete from captured_items where user_id in (select id from gone_users) or space_id in (select id from gone_spaces);
 delete from capture_addresses where user_id in (select id from gone_users);
+delete from capture_patterns where user_id in (select id from gone_users);
+delete from capture_aliases where user_id in (select id from gone_users);
 delete from transactions where space_id in (select id from gone_spaces);
 delete from budget_limits where space_id in (select id from gone_spaces);
 delete from space_invites where space_id in (select id from gone_spaces);

@@ -58,16 +58,18 @@ public class CaptureService {
     private final TransactionService transactions;
     private final CategoryRuleService rules;
     private final Inbox inbox;
+    private final CaptureLearning learning;
     private final String domain;
     private final boolean inboundEnabled;
 
-    CaptureService(JdbcClient jdbc, TransactionService transactions, CategoryRuleService rules, Inbox inbox,
+    CaptureService(JdbcClient jdbc, TransactionService transactions, CategoryRuleService rules, Inbox inbox, CaptureLearning learning,
                    @Value("${payledger.capture.domain:in.payledger.local}") String domain,
                    @Value("${payledger.capture.inbound-secret:}") String secret) {
         this.jdbc = jdbc;
         this.transactions = transactions;
         this.rules = rules;
         this.inbox = inbox;
+        this.learning = learning;
         this.domain = domain;
         this.inboundEnabled = !secret.isBlank();
     }
@@ -75,7 +77,12 @@ public class CaptureService {
     /** @param accountId the account it most likely came from (its bank or last digits in the account's name) */
     public record Item(UUID id, String source, String status, String sender, String subject, String body, String kind, Long amount,
                        LocalDate occurredOn, String merchant, String bank, String accountHint, Long balance, UUID transactionId,
-                       Instant receivedAt, UUID accountId, UUID categoryId, String categorySource, UUID duplicateOf) {
+                       Instant receivedAt, UUID accountId, UUID categoryId, String categorySource, UUID duplicateOf, String readBy, String learned) {
+
+        Item withLearned(String lesson) {
+            return new Item(id, source, status, sender, subject, body, kind, amount, occurredOn, merchant, bank, accountHint, balance, transactionId,
+                    receivedAt, accountId, categoryId, categorySource, duplicateOf, readBy, lesson);
+        }
     }
 
     /**
@@ -143,11 +150,12 @@ public class CaptureService {
         List<UUID> ids = new ArrayList<>();
         LocalDate today = today(user.id());
         for (String message : AlertParser.split(text)) {
-            AlertParser.Parsed p = AlertParser.parse(message, null, today);
+            CaptureLearning.Read read = learning.read(user.id(), message, null, today);
+            AlertParser.Parsed p = read.parsed();
             if (p == null && (AlertParser.noise(message) || !looksLikeMoney(message))) {
                 continue;
             }
-            UUID id = store(user.id(), user.personalSpaceId(), source, null, null, message, fingerprint(AlertParser.clean(message)), p);
+            UUID id = store(user.id(), user.personalSpaceId(), source, null, null, message, fingerprint(AlertParser.clean(message)), p, null, null, read.by());
             if (id == null) {
                 duplicates++;
             } else {
@@ -187,9 +195,15 @@ public class CaptureService {
                 category, a.occurredOn() != null ? a.occurredOn() : item.occurredOn(),
                 description.length() > 120 ? description.substring(0, 120) : description, null, List.of("captured"), null,
                 a.counterparty() == null || a.counterparty().isBlank() ? null : a.counterparty().strip())).transaction();
+        // Your answer teaches it: a misread (or unread) alert becomes a pattern, a corrected name an alias.
+        String lesson = item.source().equals("STATEMENT") ? null : learning.learn(user.id(), item.body(),
+                "PENDING".equals(item.status()) && item.amount() != null
+                        ? new AlertParser.Parsed(item.kind(), item.amount(), item.occurredOn(), item.merchant(), item.bank(), item.accountHint(), item.balance())
+                        : null,
+                kind, t.amount(), description);
         jdbc.sql("update captured_items set status = 'ADDED', transaction_id = :t, body = null, decided_at = now() where id = :id")
                 .param("t", t.id()).param("id", id).update();
-        return own(user, id);
+        return own(user, id).withLearned(lesson);
     }
 
     @Transactional
@@ -256,9 +270,10 @@ public class CaptureService {
         if (AlertParser.noise((subject == null ? "" : subject + "\n") + clean)) {
             return "not-a-transaction";
         }
-        AlertParser.Parsed p = AlertParser.parse((subject == null ? "" : subject + "\n") + clean, from, today(owner.userId()));
+        CaptureLearning.Read read = learning.read(owner.userId(), (subject == null ? "" : subject + "\n") + clean, from, today(owner.userId()));
+        AlertParser.Parsed p = read.parsed();
         String print = fingerprint(messageId != null ? messageId : clean);
-        UUID id = store(owner.userId(), owner.spaceId(), "EMAIL", from, subject, clean, print, p);
+        UUID id = store(owner.userId(), owner.spaceId(), "EMAIL", from, subject, clean, print, p, null, null, read.by());
         if (id == null) {
             return "duplicate";
         }
@@ -304,7 +319,7 @@ public class CaptureService {
                     + (l.balance() == null ? n : ""));
             n++;
             // No clear name in the narration: the narration itself (shortened) says more than nothing.
-            String who = StatementParser.merchant(l.narration());
+            String who = learning.alias(user.id(), StatementParser.merchant(l.narration()));
             if (who == null) {
                 String plain = l.narration().replaceAll("[0-9]{4,}", "").replaceAll("[/_*|-]+", " ").replaceAll("\\s+", " ").strip();
                 who = plain.isEmpty() ? null : plain.length() > 60 ? plain.substring(0, 60) : plain;
@@ -350,19 +365,20 @@ public class CaptureService {
 
     // ---------------------------------------------------------------- internals
 
-    private UUID store(UUID userId, UUID spaceId, String source, String sender, String subject, String body, String print, AlertParser.Parsed p) {
-        return store(userId, spaceId, source, sender, subject, body, print, p, null, null);
+    private UUID store(UUID userId, UUID spaceId, String source, String sender, String subject, String body, String print, AlertParser.Parsed p,
+                       UUID accountId, String batch) {
+        return store(userId, spaceId, source, sender, subject, body, print, p, accountId, batch, p == null ? null : "RULES");
     }
 
     private UUID store(UUID userId, UUID spaceId, String source, String sender, String subject, String body, String print, AlertParser.Parsed p,
-                       UUID accountId, String batch) {
+                       UUID accountId, String batch, String readBy) {
         UUID id = Uuid7.next();
         String b = body.length() > MAX_BODY ? body.substring(0, MAX_BODY) : body;
         int n = jdbc.sql("""
                         insert into captured_items (id, user_id, space_id, source, status, sender, subject, body, fingerprint, kind, amount,
-                                                    occurred_on, merchant, bank, account_hint, balance, account_id, batch)
+                                                    occurred_on, merchant, bank, account_hint, balance, account_id, batch, read_by)
                         values (:id, :u, :s, :source, :status, :sender, :subject, :body, :print, :kind, :amount, :on, :merchant, :bank, :hint, :balance,
-                                :account, :batch)
+                                :account, :batch, :readBy)
                         on conflict (user_id, fingerprint) do nothing
                         """)
                 .param("id", id).param("u", userId).param("s", spaceId).param("source", source).param("status", p == null ? "UNREADABLE" : "PENDING")
@@ -370,7 +386,7 @@ public class CaptureService {
                 .param("kind", p == null ? null : p.kind()).param("amount", p == null ? null : p.amount()).param("on", p == null ? null : p.on())
                 .param("merchant", p == null ? null : cut(p.merchant(), 120)).param("bank", p == null ? null : p.bank())
                 .param("hint", p == null ? null : p.accountHint()).param("balance", p == null ? null : p.balance())
-                .param("account", accountId).param("batch", cut(batch, 120))
+                .param("account", accountId).param("batch", cut(batch, 120)).param("readBy", p == null ? null : readBy)
                 .update();
         return n == 0 ? null : id;
     }
@@ -381,7 +397,7 @@ public class CaptureService {
 
     private record Row(UUID id, String source, String status, String sender, String subject, String body, String kind, Long amount,
                        LocalDate occurredOn, String merchant, String bank, String accountHint, Long balance, UUID transactionId, Instant receivedAt,
-                       UUID accountId) {
+                       UUID accountId, String readBy) {
     }
 
     private record Acct(UUID id, String name, String kind) {
@@ -422,7 +438,7 @@ public class CaptureService {
                         .param("on", r.occurredOn() != null ? r.occurredOn() : LocalDate.now()).query(UUID.class).optional().orElse(null);
             }
             out.add(new Item(r.id(), r.source(), r.status(), r.sender(), r.subject(), r.body(), r.kind(), r.amount(), r.occurredOn(), r.merchant(),
-                    r.bank(), r.accountHint(), r.balance(), r.transactionId(), r.receivedAt(), account, category, categorySource, twin));
+                    r.bank(), r.accountHint(), r.balance(), r.transactionId(), r.receivedAt(), account, category, categorySource, twin, r.readBy(), null));
         }
         return out;
     }

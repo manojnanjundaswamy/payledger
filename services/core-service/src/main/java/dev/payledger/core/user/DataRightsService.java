@@ -111,6 +111,8 @@ public class DataRightsService {
         // Auto-capture: your address and anything waiting to be reviewed.
         jdbc.sql("delete from captured_items where user_id = :u").param("u", u).update();
         jdbc.sql("delete from capture_addresses where user_id = :u").param("u", u).update();
+        jdbc.sql("delete from capture_patterns where user_id = :u").param("u", u).update();
+        jdbc.sql("delete from capture_aliases where user_id = :u").param("u", u).update();
 
         // Group bookings: which of your accounts you paid from.
         jdbc.sql("delete from group_entry_accounts where user_id = :u").param("u", u).update();

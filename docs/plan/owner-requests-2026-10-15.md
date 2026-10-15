@@ -11,7 +11,7 @@ Each is ticked when built, tested on staging and committed to `develop`.
    remove it there. Unlinking now asks: keep the expense, or delete it (it was a mistake).
 5. [x] **Who it was with**: an optional "From whom / To whom" on entries (incomes especially), from your people or a new
    name; shown in lists, filterable, used by captured alerts ("Neha sent you 1,500").
-6. [ ] **Capture learns from corrections**: what you fix in To review (the name, in or out, an alert it couldn't read)
+6. [x] **Capture learns from corrections**: what you fix in To review (the name, in or out, an alert it couldn't read)
    becomes a pattern used next time, so accuracy keeps improving (and any future AI reading feeds the same patterns).
 7. [ ] **A tour for new people**: an animated, spotlighted walk through the layout and features; Skip any time;
    "Don't show again" — otherwise it offers itself again at each sign-in.
