@@ -45,7 +45,7 @@ forwarded files are deleted after parsing.
    - **Bill suggestions**, from repeated payments (#51).
    - **Budget suggestions**, from the average of each category.
 3. **Staying up to date without typing:**
-   - Forward bank alerts once with a Gmail filter.
+   - Forward bank alerts once with a Gmail filter (senders joined with OR in the From box; example in `docs/hosting.md`).
    - Or share an SMS to PayLedger.
    - Or quick-add like "250 swiggy".
    - New items land in a **"To review"** list. Swipe to accept the category. Nothing is booked twice: the

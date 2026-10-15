@@ -11,7 +11,7 @@ import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { formatMoneyWhole, minorToInput, parseMoney } from '@/lib/money'
 import { accountOptions, categoryOptions, dayLabel, today, useMoneyFormat } from '@/pages/money/parts'
-import { BANK_FILTER, type CaptureView, type CapturedItem, type ReceivedEmail, useAddAll, useAddCaptured, useCapture, useDismissCaptured, useForwardingConfirmed, usePaste, useResetAddress, useStatement } from '@/state/capture'
+import { BANK_SENDERS, bankFilter, type CaptureView, type CapturedItem, type ReceivedEmail, useAddAll, useAddCaptured, useCapture, useDismissCaptured, useForwardingConfirmed, usePaste, useResetAddress, useStatement } from '@/state/capture'
 import { useAccounts, useCategories, usePersonalSpaceId } from '@/state/money'
 import { ForwardFlow, GmailSettings, MethodIcon, PhoneSms } from './illustrations'
 
@@ -418,23 +418,61 @@ function EmailSetup({ data, onDone }: { data: CaptureView; onDone?: () => void }
           )}
         </Step>
         <Step n={4} title="Forward only bank alerts, with a filter" done={!!data.lastEmailAt}>
-          <div className="grid gap-3 sm:grid-cols-[1fr_16rem] sm:items-start">
-            <ol className="list-decimal space-y-1 pl-4 text-sm text-muted">
-              <li>In Gmail's search box, open the filter options (the sliders icon).</li>
-              <li>Paste this into the <b className="text-fg">From</b> box, as it is:</li>
-            </ol>
-            <GmailSettings step="filter" />
-          </div>
-          <CopyBox value={BANK_FILTER} label="Filter" />
-          <ol start={3} className="list-decimal space-y-1 pl-4 text-sm text-muted">
-            <li>Click <b className="text-fg">Create filter</b>, tick <b className="text-fg">Forward it to</b> and choose your PayLedger address.</li>
-            <li>Bank missing? Add its alert address to the list, like <span className="font-mono">OR alerts@yourbank.com</span>.</li>
-          </ol>
-          <p className="text-xs text-subtle">Only these emails are forwarded: the rest of your mailbox stays yours. To stop, delete the filter in Gmail.</p>
+          <BankFilter />
         </Step>
       </ol>
       )}
     </Card>
+  )
+}
+
+/** The Gmail filter, built from the banks you tick: their alert addresses joined with OR, for the From box. */
+function BankFilter() {
+  const [banks, setBanks] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('payledger.capture.banks') ?? '') as string[] } catch { return ['HDFC Bank'] }
+  })
+  const pick = (bank: string) => {
+    const next = banks.includes(bank) ? banks.filter((b) => b !== bank) : [...banks, bank]
+    setBanks(next)
+    try { localStorage.setItem('payledger.capture.banks', JSON.stringify(next)) } catch { /* only a convenience */ }
+  }
+  const filter = bankFilter(banks)
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
+        <span className="text-sm text-muted">1. Tick your banks:</span>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Your banks">
+          {BANK_SENDERS.map((b) => (
+            <button key={b.bank} type="button" aria-pressed={banks.includes(b.bank)} onClick={() => pick(b.bank)}
+              className={cn('rounded-full border px-3 py-1 text-xs', banks.includes(b.bank) ? 'border-accent bg-accent-soft font-medium' : 'border-border text-muted hover:border-border-strong')}>
+              {banks.includes(b.bank) && <Check className="mr-1 inline size-3" />}{b.bank}</button>
+          ))}
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-[1fr_16rem] sm:items-start">
+        <ol start={2} className="list-decimal space-y-1 pl-4 text-sm text-muted">
+          <li>In Gmail, open the search options (the sliders icon in the search box).</li>
+          <li>Paste this into the <b className="text-fg">From</b> box, as it is:</li>
+        </ol>
+        <GmailSettings step="filter" />
+      </div>
+      {filter ? (
+        <>
+          <CopyBox value={filter} label="Filter" />
+          <p className="text-xs text-subtle">Gmail then shows the filter as <span className="break-all font-mono">Matches: from:({filter})</span>.</p>
+        </>
+      ) : <p className="text-sm text-critical">Tick at least one bank.</p>}
+      <ol start={4} className="list-decimal space-y-1 pl-4 text-sm text-muted">
+        <li>Click <b className="text-fg">Create filter</b>, then tick:
+          <ul className="mt-1 list-disc space-y-0.5 pl-4">
+            <li><b className="text-fg">Forward it to</b>: your PayLedger address</li>
+            <li><b className="text-fg">Never send it to Spam</b>, and if you like <b className="text-fg">Mark it as important</b> and <b className="text-fg">Categorise as: Primary</b>, so alerts stay in view in Gmail too</li>
+          </ul>
+        </li>
+        <li>Your bank's alert address not listed? Add it at the end, like <span className="font-mono">OR alerts@yourbank.com</span> (OR between addresses, not commas). It's the "From" address on any alert email from them.</li>
+      </ol>
+      <p className="text-xs text-subtle">Only these emails are forwarded: the rest of your mailbox stays yours. To stop, delete the filter in Gmail.</p>
+    </div>
   )
 }
 

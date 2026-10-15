@@ -127,7 +127,31 @@ export function useResetAddress() {
 }
 
 /**
- * What goes in the From box of a Gmail filter: the common banks' alert senders (old domains and RBI's new .bank.in
- * ones), joined with OR. No "from:(...)" around it: in the From box that would match nothing.
+ * Banks' alert senders, for the Gmail filter (exact addresses where known: they don't match the banks' offers and
+ * newsletters; a domain where a bank uses many). The .bank.in ones are RBI's new domains, which banks are moving to.
  */
-export const BANK_FILTER = 'hdfcbank.net OR hdfcbank.bank.in OR icicibank.com OR icici.bank.in OR sbi.co.in OR sbi.bank.in OR axisbank.com OR axis.bank.in OR kotak.com OR kotak.bank.in OR yesbank.in OR idfcfirstbank.com OR indusind.com OR federalbank.co.in OR aubank.in OR americanexpress.com OR sc.com'
+export const BANK_SENDERS: { bank: string; senders: string[] }[] = [
+  { bank: 'HDFC Bank', senders: ['alerts@hdfcbank.bank.in', 'alerts@hdfcbank.net', 'emailstatements.cards@hdfcbank.bank.in', 'hdfcbanksmartstatement@hdfcbank.bank.in'] },
+  { bank: 'Axis Bank', senders: ['alerts@axis.bank.in', 'alerts@axisbank.com'] },
+  { bank: 'ICICI Bank', senders: ['alerts@icici.bank.in', 'alerts@icicibank.com', 'credit_cards@icicibank.com'] },
+  { bank: 'SBI', senders: ['alerts.sbi.co.in', 'sbi.bank.in', 'sbicard.com'] },
+  { bank: 'Kotak', senders: ['kotak.com', 'kotak.bank.in'] },
+  { bank: 'Yes Bank', senders: ['yesbank.in', 'yes.bank.in'] },
+  { bank: 'IDFC First', senders: ['idfcfirstbank.com', 'idfcfirst.bank.in'] },
+  { bank: 'IndusInd', senders: ['indusind.com', 'indusind.bank.in'] },
+  { bank: 'Federal Bank', senders: ['federalbank.co.in', 'federal.bank.in'] },
+  { bank: 'AU Bank', senders: ['aubank.in', 'au.bank.in'] },
+  { bank: 'American Express', senders: ['americanexpress.com'] },
+  { bank: 'Standard Chartered', senders: ['sc.com'] },
+]
+
+/**
+ * What goes in the filter's From box: the senders joined with OR (not commas, and no from:(...) around them).
+ * Gmail then shows the filter as "Matches: from:(a OR b)".
+ */
+export function bankFilter(banks: string[]): string {
+  return BANK_SENDERS.filter((b) => banks.includes(b.bank)).flatMap((b) => b.senders).join(' OR ')
+}
+
+/** Every bank, for the guide's example. */
+export const BANK_FILTER = bankFilter(BANK_SENDERS.map((b) => b.bank))

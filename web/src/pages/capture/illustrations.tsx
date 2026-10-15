@@ -79,8 +79,8 @@ export function GmailSettings({ step }: { step: 'forwarding' | 'filter' }) {
         </div>
       ) : (
         <div className="flex flex-col gap-1.5 p-3">
-          <span className="text-muted">Has the words / From</span>
-          <span className="truncate rounded-control border border-border bg-surface-2 px-2 py-1 font-mono text-[0.625rem]">hdfcbank.net OR hdfcbank.bank.in OR icicibank.com …</span>
+          <span className="text-muted">From</span>
+          <span className="truncate rounded-control border border-border bg-surface-2 px-2 py-1 font-mono text-[0.625rem]">alerts@hdfcbank.bank.in OR alerts@axis.bank.in …</span>
           <span className="flex items-center gap-1.5"><span className="flex size-3.5 items-center justify-center rounded-[3px] bg-accent text-accent-fg"><Check className="size-2.5" /></span>
             <span className="font-medium text-fg">Forward it to:</span><span className="truncate text-muted">your PayLedger address</span></span>
           <span className="self-end rounded-control bg-[#1a73e8] px-2 py-1 font-medium text-white">Create filter</span>
