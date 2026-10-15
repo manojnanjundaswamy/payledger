@@ -30,6 +30,13 @@ export interface CapturedItem {
   learned?: 'pattern' | 'name' | null
 }
 
+/** An email that reached your address: added, kept to look at, skipped as not a transaction, Gmail's confirmation… */
+export interface ReceivedEmail {
+  id: string; receivedAt: string; sender: string | null; subject: string | null
+  result: 'added' | 'unreadable-kept' | 'not-a-transaction' | 'duplicate' | 'gmail-confirmation' | 'over-daily-limit' | 'unreadable'
+  itemId: string | null
+}
+
 export interface CaptureView {
   address: string
   /** Email forwarding is switched on for this site (Cloudflare Email Routing and the Worker are set up). */
@@ -40,6 +47,10 @@ export interface CaptureView {
   pending: number
   items: CapturedItem[]
   lastEmailAt: string | null
+  /** Emails that reached the address in the last 7 days (Gmail's own confirmation aside). */
+  emailsThisWeek: number
+  /** The latest emails and what came of each. */
+  recentEmails: ReceivedEmail[]
 }
 
 export interface Pasted { added: number; duplicates: number; unreadable: number; items: CapturedItem[] }

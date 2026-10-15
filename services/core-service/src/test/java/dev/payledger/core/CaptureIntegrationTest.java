@@ -201,6 +201,46 @@ class CaptureIntegrationTest {
         return mvc.perform(request.with(who)).andExpect(status().is2xxSuccessful()).andReturn().getResponse().getContentAsString();
     }
 
+    @Test
+    void everyEmailIsLoggedForwardsByHandAreKeptAndEachEntryRingsTheBell() throws Exception {
+        String subject = UUID.randomUUID().toString();
+        String myEmail = subject + "@example.com";
+        RequestPostProcessor me = jwt().jwt(j -> j.subject(subject).claim("email", myEmail).claim("email_verified", true));
+        String address = JsonPath.read(body(get("/api/core/capture"), me, null), "$.address");
+        UUID user = jdbc.sql("select id from users where subject = :s").param("s", subject).query(UUID.class).single();
+
+        // A bank's offer: skipped, but the page says it came and why it was left out.
+        mvc.perform(post("/inbound/email").header("X-Inbound-Secret", "test-inbound-secret").header("X-Envelope-To", address).content("""
+                From: offers@hdfcbank.net
+                Subject: Pre-approved personal loan offer just for you
+
+                Get a pre-approved loan at 10.5%. Apply now. T&C apply.
+                """)).andExpect(jsonPath("$.result").value("not-a-transaction"));
+        // Forwarded by hand from their own Gmail, not a bank alert: kept for them to look at, never filtered out.
+        mvc.perform(post("/inbound/email").header("X-Inbound-Secret", "test-inbound-secret").header("X-Envelope-To", address).content("""
+                From: %s
+                Subject: Fwd: Plumber invoice
+
+                Paid the plumber, please note it. Pre-approved offer inside too.
+                """.formatted(myEmail))).andExpect(jsonPath("$.result").value("unreadable-kept"));
+        // Two alerts in the same minute: two bells, not one an hour.
+        for (String amount : new String[]{"120.00", "340.00"}) {
+            mvc.perform(post("/inbound/email").header("X-Inbound-Secret", "test-inbound-secret").header("X-Envelope-To", address).content("""
+                    From: alerts@hdfcbank.net
+                    Subject: You have done a UPI txn
+
+                    Rs.%s has been debited from account **1234 to VPA shop%s@okicici on 15-10-26. UPI ref 5290%s.
+                    """.formatted(amount, amount.charAt(0), amount.replace(".", "")))).andExpect(jsonPath("$.result").value("added"));
+        }
+        assertThat(jdbc.sql("select count(*) from inbox where user_id = :u and kind = 'CAPTURED'").param("u", user).query(Long.class).single()).isEqualTo(3);
+
+        String view = body(get("/api/core/capture"), me, null);
+        assertThat(JsonPath.<List<String>>read(view, "$.recentEmails[*].result")).containsExactly("added", "added", "unreadable-kept", "not-a-transaction");
+        assertThat(JsonPath.<String>read(view, "$.recentEmails[3].subject")).isEqualTo("Pre-approved personal loan offer just for you");
+        assertThat(JsonPath.<Integer>read(view, "$.emailsThisWeek")).isEqualTo(4);
+        assertThat(JsonPath.<Boolean>read(view, "$.forwardingOn")).isTrue();
+    }
+
     private static RequestPostProcessor user() {
         String subject = UUID.randomUUID().toString();
         return jwt().jwt(j -> j.subject(subject).claim("email", subject + "@example.com").claim("email_verified", true));
