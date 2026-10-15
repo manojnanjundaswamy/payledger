@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/card'
 import { DashboardPage } from '@/dashboard/DashboardPage'
 import { AppShell } from '@/layout/AppShell'
-import { ComingSoon, COMING } from '@/pages/ComingSoon'
 import { ADMIN_TABS_KEYS } from '@/pages/admin/tabs'
 import { TOOL_IDS } from '@/utilities/registry'
 import { SETTINGS_TAB_KEYS } from '@/pages/settings/tabs'
@@ -194,6 +193,25 @@ const tax = createRoute({
   component: lazyRouteComponent(() => import('@/pages/money/TaxPage'), 'TaxPage'),
 })
 
+const households = createRoute({
+  getParentRoute: () => app,
+  path: '/household',
+  component: lazyRouteComponent(() => import('@/pages/household/HouseholdPage'), 'HouseholdsPage'),
+})
+
+const householdJoin = createRoute({
+  getParentRoute: () => app,
+  path: '/household/join',
+  validateSearch: z.object({ token: z.string().max(200).optional().catch(undefined) }),
+  component: lazyRouteComponent(() => import('@/pages/household/HouseholdPage'), 'JoinHouseholdPage'),
+})
+
+const household = createRoute({
+  getParentRoute: () => app,
+  path: '/household/$householdId',
+  component: lazyRouteComponent(() => import('@/pages/household/HouseholdPage'), 'HouseholdDetail'),
+})
+
 const people = createRoute({
   getParentRoute: () => app,
   path: '/people',
@@ -267,10 +285,7 @@ const utilities = createRoute({
   component: lazyRouteComponent(() => import('@/pages/UtilitiesPage'), 'UtilitiesPage'),
 })
 
-const comingSoon = (Object.keys(COMING) as (keyof typeof COMING)[]).map((page) =>
-  createRoute({ getParentRoute: () => app, path: `/${page}`, component: () => <ComingSoon page={page} /> }))
-
-const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, categories, budgets, plan, goals, importPage, reports, groups, group, people, tax, capture, join, transactions, admin, welcome, utilities, ...comingSoon])])
+const routeTree = root.addChildren([landing, app.addChildren([dashboard, settings, accounts, categories, budgets, plan, goals, importPage, reports, groups, group, people, tax, capture, households, householdJoin, household, join, transactions, admin, welcome, utilities])])
 
 export function createAppRouter(queryClient: QueryClient) {
   return createRouter({

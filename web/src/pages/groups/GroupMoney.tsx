@@ -15,7 +15,7 @@ import { Dialog } from '@/components/ui/overlay'
 import { cn } from '@/lib/cn'
 import { formatMoney, formatMoneyShort, minorToInput, parseMoney } from '@/lib/money'
 import { Field, Select, accountOptions, dayLabel, today } from '@/pages/money/parts'
-import { useAccounts, useGroupBudget } from '@/state/money'
+import { useAccounts, useGroupBudget, usePersonalSpaceId } from '@/state/money'
 import { SearchSelect } from '@/components/ui/search-select'
 import { useActivity, useBalances, useDeleteSettlement, useSettle, type Group, type GroupActivity, type GroupExpense } from '@/state/groups'
 import { ExpenseDialog } from './ExpenseDialog'
@@ -252,7 +252,7 @@ function SettleDialog({ payment, onClose, groupId, name, you }: {
   const settle = useSettle(groupId)
   const [account, setAccount] = useState('')
   const { data: bookSettings } = useGroupBudget()
-  const { data: myAccounts } = useAccounts()
+  const { data: myAccounts } = useAccounts(false, usePersonalSpaceId())
   const payable = (myAccounts ?? []).filter((a) => a.kind !== 'OWED' && !a.archived)
   const mine = payment !== null && (payment.from === you || payment.to === you)
   const [amount, setAmount] = useState('')

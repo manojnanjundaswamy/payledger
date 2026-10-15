@@ -26,6 +26,8 @@ public class Inbox {
         AUTO_PAID(null),
         /** Bank alerts forwarded or Gmail's forwarding code arrived (Auto-capture). In the app only. */
         CAPTURED(null),
+        /** Added to a household, or someone joined yours. */
+        HOUSEHOLD(Notifications.Kind.GROUP_ACTIVITY),
         /** Monday's look back at the week. */
         RECAP(Notifications.Kind.WEEKLY_RECAP),
         /** Security: a sign-in. In the app only; an email for every sign-in would be noise. */

@@ -16,6 +16,7 @@ import { EdgeDock } from '@/utilities/EdgeDock'
 import { UtilityWindowsProvider } from '@/utilities/windows'
 import { AnnouncementBanner } from './AnnouncementBanner'
 import { NotificationBell } from './NotificationBell'
+import { SpaceSwitcher } from './SpaceSwitcher'
 import { CommandPalette, useCommandPaletteShortcut } from './CommandPalette'
 import { Logo } from './Logo'
 import { useNav, type NavItem } from './nav'
@@ -176,6 +177,7 @@ function Topbar({ title, onSearch }: { title: string; onSearch: () => void }) {
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-bg/80 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
       <span className="md:hidden"><Logo withName={false} /></span>
       <h1 className="truncate text-[1.0625rem] font-semibold tracking-tight">{title}</h1>
+      <SpaceSwitcher />
       <div className="ml-auto flex items-center gap-1.5">
         <button
           onClick={onSearch}

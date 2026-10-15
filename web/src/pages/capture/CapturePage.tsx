@@ -11,7 +11,7 @@ import { cn } from '@/lib/cn'
 import { minorToInput, parseMoney } from '@/lib/money'
 import { accountOptions, categoryOptions, dayLabel, today, useMoneyFormat } from '@/pages/money/parts'
 import { BANK_FILTER, useAddCaptured, useCapture, useDismissCaptured, usePaste, useResetAddress, type CaptureView, type CapturedItem } from '@/state/capture'
-import { useAccounts, useCategories } from '@/state/money'
+import { useAccounts, useCategories, usePersonalSpaceId } from '@/state/money'
 import { ForwardFlow, GmailSettings, MethodIcon, PhoneSms } from './illustrations'
 
 type Method = 'email' | 'paste' | 'share'
@@ -155,8 +155,8 @@ function ReviewList({ items }: { items: CapturedItem[] }) {
 }
 
 function ReviewCard({ item }: { item: CapturedItem }) {
-  const { data: accounts } = useAccounts()
-  const { data: categories } = useCategories()
+  const { data: accounts } = useAccounts(false, usePersonalSpaceId())
+  const { data: categories } = useCategories(usePersonalSpaceId())
   const add = useAddCaptured()
   const dismiss = useDismissCaptured()
   const money = useMoneyFormat()

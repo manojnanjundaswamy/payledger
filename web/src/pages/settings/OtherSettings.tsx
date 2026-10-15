@@ -12,7 +12,7 @@ import { usePreferences, useUndoable } from '@/state/PreferencesProvider'
 import { useProfile, useUpdateProfile, type ProfileUpdate } from '@/state/profile'
 import { signOut, useSession } from '@/state/session'
 import { UPI_ID } from '@/lib/upi'
-import { useAccounts, useGroupBudget, useSetGroupBudget } from '@/state/money'
+import { useAccounts, useGroupBudget, useSetGroupBudget, usePersonalSpaceId } from '@/state/money'
 import { Field, Section, Select } from './parts'
 
 function useSaveSetting() {
@@ -97,7 +97,7 @@ export function RegionalSettings() {
 /** Whether your share of group expenses counts in your budget, and the account you usually pay friends from. */
 function GroupBudgetSettings() {
   const { data } = useGroupBudget()
-  const { data: accounts } = useAccounts()
+  const { data: accounts } = useAccounts(false, usePersonalSpaceId())
   const set = useSetGroupBudget()
   if (!data) return null
   const save = (enabled: boolean, accountId: string | null, what: string) =>
