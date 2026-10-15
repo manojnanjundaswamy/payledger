@@ -1,4 +1,6 @@
 import { Outlet, createRootRouteWithContext, createRoute, createRouter, lazyRouteComponent, redirect, useRouter } from '@tanstack/react-router'
+import { setMoneyDefaults } from '@/lib/money'
+import { useSpaceId } from '@/state/money'
 import type { QueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
@@ -78,7 +80,10 @@ function recall(): string | null {
 
 function AppRoot() {
   const { data: profile } = useProfile()
+  const spaceId = useSpaceId()
   if (!profile) return <AppPending />
+  // Every amount on screen is in the space being looked at (a household can use another currency than you).
+  setMoneyDefaults(profile.spaces.find((s) => s.id === spaceId)?.currency ?? profile.settings.currency, profile.settings.locale)
   return (
     <PreferencesProvider key={profile.id} initial={profile.preferences}>
       <AppShell />
@@ -148,6 +153,19 @@ const goals = createRoute({
   getParentRoute: () => app,
   path: '/goals',
   component: lazyRouteComponent(() => import('@/pages/money/GoalsPage'), 'GoalsPage'),
+})
+
+const review = createRoute({
+  getParentRoute: () => app,
+  path: '/review',
+  validateSearch: z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional().catch(undefined) }),
+  component: lazyRouteComponent(() => import('@/pages/money/ReviewPage'), 'ReviewPage'),
+})
+
+const progress = createRoute({
+  getParentRoute: () => app,
+  path: '/progress',
+  component: lazyRouteComponent(() => import('@/pages/ProgressPage'), 'ProgressPage'),
 })
 
 const dailyServices = createRoute({
@@ -306,7 +324,7 @@ const utilities = createRoute({
   component: lazyRouteComponent(() => import('@/pages/UtilitiesPage'), 'UtilitiesPage'),
 })
 
-const routeTree = root.addChildren([landing, guestJoin, guestGroup, app.addChildren([dashboard, dailyServices, settings, accounts, categories, budgets, plan, goals, importPage, reports, groups, group, people, tax, capture, households, householdJoin, household, join, transactions, admin, welcome, utilities])])
+const routeTree = root.addChildren([landing, guestJoin, guestGroup, app.addChildren([dashboard, dailyServices, progress, review, settings, accounts, categories, budgets, plan, goals, importPage, reports, groups, group, people, tax, capture, households, householdJoin, household, join, transactions, admin, welcome, utilities])])
 
 export function createAppRouter(queryClient: QueryClient) {
   return createRouter({

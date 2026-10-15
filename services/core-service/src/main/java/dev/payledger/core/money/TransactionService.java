@@ -267,6 +267,25 @@ public class TransactionService {
         return alreadyUsed ? accounts.find(space.id(), accountId, false) : accounts.requireOpen(space.id(), accountId);
     }
 
+    /**
+     * Re-books an entry after its account moved to another currency (CurrencyChange): the new amount, a new version,
+     * the old ledger entry reversed and the new one posted in the account's (new) currency.
+     */
+    void changeCurrency(Space space, UUID id, long amount) {
+        Row before = find(space.id(), id, true);
+        Transaction t = before.transaction();
+        TransactionRequests.Fields f = new TransactionRequests.Fields(t.kind(), Math.max(amount, 1), t.accountId(), t.toAccountId(),
+                t.categoryId(), t.occurredOn(), t.description(), t.note(), t.tags(), t.goalId(), t.counterparty());
+        Resolved r = resolve(space, f, t);
+        int version = t.version() + 1;
+        jdbc.sql("update transactions set amount = :amount, currency = :currency, version = :version, ledger_version = :version, updated_at = now() where id = :id")
+                .param("amount", f.amount()).param("currency", r.from().currency()).param("version", version).param("id", id).update();
+        if (before.ledgerVersion() > 0) {
+            reverseInLedger(space, id, before.ledgerVersion(), "Currency changed: " + t.description());
+        }
+        postToLedger(space, id, version, r);
+    }
+
     private void postToLedger(Space space, UUID id, int version, Resolved r) {
         ledger.post(space, key(id, version), r.fields().kind(), r.fields().occurredOn(), r.fields().description(),
                 Transaction.ledgerRef(id), r.legs());

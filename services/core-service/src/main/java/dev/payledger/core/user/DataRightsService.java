@@ -44,7 +44,7 @@ public class DataRightsService {
     public Map<String, String> export(CurrentUser user) {
         UUID u = user.id();
         Map<String, String> out = new LinkedHashMap<>();
-        out.put("profile", rows("select id, email, display_name, locale, time_zone, currency, budget_start_day, upi_id, preferences, email_prefs, created_at from users where id = :u", u));
+        out.put("profile", rows("select id, email, display_name, locale, time_zone, currency, budget_start_day, upi_id, country, fy_start_month, preferences, email_prefs, created_at from users where id = :u", u));
         out.put("spaces", rows("select * from spaces where id in (" + MY_SPACES + ")", u));
         out.put("accounts", rows("select * from money_accounts where space_id in (" + MY_SPACES + ") order by created_at", u));
         out.put("categories", rows("select * from categories where space_id in (" + MY_SPACES + ") order by kind, name", u));

@@ -2,7 +2,7 @@ import { CountUp } from '@/components/CountUp'
 import { Progress } from '@/dashboard/charts'
 import { Link } from '@tanstack/react-router'
 import { cn } from '@/lib/cn'
-import { formatMoneyWhole } from '@/lib/money'
+import { formatMoneyWhole, moneyDefaults } from '@/lib/money'
 import { useSafeToSpend } from '@/state/money'
 import { useProfile } from '@/state/profile'
 
@@ -13,7 +13,7 @@ import { useProfile } from '@/state/profile'
 export function SafeToSpendCard({ compact }: { compact?: boolean }) {
   const { data: s, isPending, isError } = useSafeToSpend()
   const locale = useProfile().data?.settings.locale ?? 'en-IN'
-  const money = (minor: number) => formatMoneyWhole(minor, s?.currency ?? 'INR', locale)
+  const money = (minor: number) => formatMoneyWhole(minor, s?.currency ?? moneyDefaults().currency, locale)
 
   if (isPending) return <div className="h-28 animate-pulse rounded-control bg-surface-2" />
   if (isError || !s) return <p className="text-sm text-muted">Safe to spend is unavailable right now; it will be back shortly.</p>

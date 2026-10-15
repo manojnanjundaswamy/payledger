@@ -72,7 +72,7 @@ export function TransactionCalendar({ month, filter, locale, money, onOpen }: {
       </div>
       {isPending ? <Skeleton className="h-96" /> : (
         <MonthCalendar start={start} end={end} locale={locale} label="Transactions calendar"
-          flows={(day) => ({ in: earnedOn(day), out: spentOn(day) })} formatFlow={(m) => formatMoneyShort(m, 'INR', locale)}
+          flows={(day) => ({ in: earnedOn(day), out: spentOn(day) })} formatFlow={(m) => formatMoneyShort(m, undefined, locale)}
           chips={(day) => (byDay.get(day) ?? []).map((t) => ({
             id: t.id,
             label: `${t.description} ${formatMoneyShort(t.amount, t.currency, locale)}`,

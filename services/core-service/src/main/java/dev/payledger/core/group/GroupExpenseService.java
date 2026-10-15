@@ -413,6 +413,17 @@ public class GroupExpenseService {
 
     /** Everyone with an account who is part of the expense (paid or shares), except whoever did it. */
     private void tell(Doer user, UUID groupId, Map<UUID, Long[]> parts, String verb, String description, long amount) {
+        dev.payledger.core.notify.Reminders.inCurrency(groupCurrency(groupId), () -> {
+            tellInCurrency(user, groupId, parts, verb, description, amount);
+            return null;
+        });
+    }
+
+    private String groupCurrency(UUID groupId) {
+        return jdbc.sql("select currency from groups where id = :id").param("id", groupId).query(String.class).single();
+    }
+
+    private void tellInCurrency(Doer user, UUID groupId, Map<UUID, Long[]> parts, String verb, String description, long amount) {
         String group = groupName(groupId);
         String who = user.displayName();
         for (var e : parts.entrySet()) {
@@ -431,6 +442,13 @@ public class GroupExpenseService {
     }
 
     private void tellPayment(Doer user, UUID groupId, UUID from, UUID to, long amount, boolean undone) {
+        dev.payledger.core.notify.Reminders.inCurrency(groupCurrency(groupId), () -> {
+            tellPaymentInCurrency(user, groupId, from, to, amount, undone);
+            return null;
+        });
+    }
+
+    private void tellPaymentInCurrency(Doer user, UUID groupId, UUID from, UUID to, long amount, boolean undone) {
         String group = groupName(groupId);
         String title = undone
                 ? user.displayName() + " undid a payment of " + money(amount) + " in " + group

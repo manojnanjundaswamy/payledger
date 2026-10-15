@@ -26,7 +26,7 @@ export function BudgetsPage() {
   if (isPending || !month) return <div className="mx-auto max-w-3xl"><Skeleton className="h-64" /></div>
 
   const current = month.daysElapsed > 0 && month.daysElapsed < month.days
-  const money = (minor: number) => formatMoneyWhole(minor, 'INR', locale)
+  const money = (minor: number) => formatMoneyWhole(minor, undefined, locale)
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">

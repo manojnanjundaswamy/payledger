@@ -70,9 +70,10 @@ public class Reminders {
         int alerts = 0;
         for (CurrentUser u : users) {
             try {
-                Integer b = tx.execute(s -> bills(u) ? 1 : 0);
-                Integer a = tx.execute(s -> budgetAlerts(u));
-                tx.executeWithoutResult(s -> loans(u));
+                String currency = currencyOf(u);
+                Integer b = inCurrency(currency, () -> tx.execute(s -> bills(u) ? 1 : 0));
+                Integer a = inCurrency(currency, () -> tx.execute(s -> budgetAlerts(u)));
+                inCurrency(currency, () -> { tx.executeWithoutResult(s -> loans(u)); return null; });
                 bills += b == null ? 0 : b;
                 alerts += a == null ? 0 : a;
             } catch (RuntimeException e) {
@@ -181,15 +182,68 @@ public class Reminders {
         return sent;
     }
 
+    private String currencyOf(CurrentUser u) {
+        return jdbc.sql("select currency from spaces where id = :s").param("s", u.personalSpaceId()).query(String.class).optional().orElse("INR");
+    }
+
     private LocalDate today(CurrentUser u) {
         String zone = jdbc.sql("select time_zone from users where id = :id").param("id", u.id()).query(String.class).single();
         return LocalDate.now(ZoneId.of(zone));
     }
 
-    /** ₹1,23,456 (whole rupees: an email is a nudge, not a statement). */
-    public static String money(long paise) {
-        NumberFormat f = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("en-IN"));
+    /** The currency messages are being written in, for {@link #money(long)}: set by {@link #inCurrency}. */
+    private static final ThreadLocal<String> CURRENCY = new ThreadLocal<>();
+
+    /**
+     * Writes messages in the reader's currency: every {@link #money(long)} inside {@code body} uses {@code currency}
+     * (a person's space, or a group's). Messages are built in many places; this keeps their signatures as they are.
+     */
+    public static <T> T inCurrency(String currency, java.util.function.Supplier<T> body) {
+        String before = CURRENCY.get();
+        CURRENCY.set(currency);
+        try {
+            return body.get();
+        } finally {
+            if (before == null) {
+                CURRENCY.remove();
+            } else {
+                CURRENCY.set(before);
+            }
+        }
+    }
+
+    /** ₹1,23,456 (whole units: an email is a nudge, not a statement), in the currency set by {@link #inCurrency}, else rupees. */
+    public static String money(long minor) {
+        String c = CURRENCY.get();
+        return money(minor, c == null ? "INR" : c);
+    }
+
+    /** AED 1,234 or ₹1,23,456: whole units of {@code currency}, Indian grouping for rupees. */
+    public static String money(long minor, String currency) {
+        java.util.Currency cur = java.util.Currency.getInstance(currency);
+        if ("INR".equals(currency)) {
+            // Java's formats can't group the Indian way (1,23,456), so it's done here.
+            long rupees = Math.round(minor / 100.0);
+            String digits = Long.toString(Math.abs(rupees));
+            StringBuilder out = new StringBuilder();
+            int head = digits.length() - 3;
+            if (head > 0) {
+                String front = digits.substring(0, head);
+                for (int i = 0; i < front.length(); i++) {
+                    out.append(front.charAt(i));
+                    if ((front.length() - i - 1) % 2 == 0 && i < front.length() - 1) {
+                        out.append(',');
+                    }
+                }
+                out.append(',').append(digits.substring(head));
+            } else {
+                out.append(digits);
+            }
+            return (rupees < 0 ? "-" : "") + "₹" + out;
+        }
+        NumberFormat f = NumberFormat.getCurrencyInstance("INR".equals(currency) ? Locale.forLanguageTag("en-IN") : Locale.US);
+        f.setCurrency(cur);
         f.setMaximumFractionDigits(0);
-        return f.format(Math.round(paise / 100.0));
+        return f.format(Math.round(minor / Math.pow(10, Math.max(cur.getDefaultFractionDigits(), 0))));
     }
 }

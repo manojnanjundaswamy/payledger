@@ -10,11 +10,15 @@ export const PALETTE_LOOK: Record<PaletteId, Record<'light' | 'dark', { bg: stri
   classic: { light: { bg: '#ffffff', card: '#f6f6f5', accent: '#0a0a0a', ink: '#0a0a0a' }, dark: { bg: '#0a0a0a', card: '#1a1a1a', accent: '#f5f5f4', ink: '#f5f5f4' } },
   bumblebee: { light: { bg: '#fffcf0', card: '#ffffff', accent: '#ffc800', ink: '#14120b' }, dark: { bg: '#0c0b07', card: '#1d1a0e', accent: '#ffd000', ink: '#fff8e1' } },
   ferrari: { light: { bg: '#fff8f4', card: '#ffffff', accent: '#ea5000', ink: '#1a0e09' }, dark: { bg: '#0b0807', card: '#1c1513', accent: '#ff6a1a', ink: '#fff3ec' } },
+  sky: { light: { bg: '#f3faff', card: '#ffffff', accent: '#1aa7ec', ink: '#06192b' }, dark: { bg: '#04101b', card: '#0d2133', accent: '#38bdf8', ink: '#eaf6ff' } },
+  purple: { light: { bg: '#faf7ff', card: '#ffffff', accent: '#7c3aed', ink: '#1a1030' }, dark: { bg: '#0d0816', card: '#1d142e', accent: '#a78bfa', ink: '#f5efff' } },
 }
 
 const STRIPE: Partial<Record<PaletteId, string>> = {
   bumblebee: 'repeating-linear-gradient(-45deg,#ffc800 0 5px,#14120b 5px 10px)',
   ferrari: 'linear-gradient(90deg,#ff8a1f,#ea5000 45%,#d40000)',
+  sky: 'linear-gradient(90deg,#7dd3fc,#1aa7ec 50%,#2563eb)',
+  purple: 'linear-gradient(90deg,#e9d5ff,#a855f7 40%,#6d28d9 75%,#3b0764)',
 }
 
 /** A tiny screen: sidebar, a card with a line of text, and the accent button. */
@@ -50,7 +54,7 @@ export function ThemePalettePicker({ palette, mode, onChange, className }: {
         { value: 'dark', label: <><Moon />Dark</> },
         { value: 'system', label: <><Monitor />Match device</> },
       ]} />
-      <div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Theme palette">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5" role="radiogroup" aria-label="Theme palette">
         {PALETTES.map((p) => {
           const on = palette === p.id
           return (

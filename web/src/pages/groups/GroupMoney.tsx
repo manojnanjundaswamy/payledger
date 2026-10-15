@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { MoneyInput } from '@/components/ui/money-input'
 import { AccountPicker } from '@/pages/money/pickers'
 import { ArrowRight, MessageSquare, ChevronLeft, ChevronRight, HandCoins, IndianRupee, MessageCircle, Pencil, Plus, Receipt, Search } from 'lucide-react'
 import { MonthCalendar, monthBounds } from '@/components/MonthCalendar'
@@ -98,7 +99,7 @@ export function GroupMoney({ group, tab, month, onTab }: {
                 <span className="font-medium">{name(p.from)}</span><ArrowRight className="size-4 text-muted" /><span className="font-medium">{name(p.to)}</span>
                 <span className="flex-1 tabular">{formatMoney(p.amount)}</span>
                 {/* You owe them and they have a UPI id: pay in one tap from a phone's UPI app. */}
-                {p.from === group.you && upiOf(p.to) && (
+                {p.from === group.you && group.currency === 'INR' && upiOf(p.to) && (
                   <Button asChild size="sm" variant="primary">
                     <a href={upiPayLink(upiOf(p.to)!, name(p.to), p.amount, `${group.name} settle-up`)} aria-label={`Pay ${name(p.to)} via UPI`}
                       title={`Opens your UPI app to pay ${upiOf(p.to)}. On a computer, open PayLedger on your phone.`}>
@@ -195,9 +196,9 @@ export function GroupMoney({ group, tab, month, onTab }: {
         </section>
       )}
 
-      <ExpenseDialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)} groupId={group.id} initialDate={newDate}
+      <ExpenseDialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)} groupId={group.id} initialDate={newDate} currency={group.currency}
         members={group.members} you={group.you} expense={editing === 'new' || editing === null ? undefined : editing} />
-      <SettleDialog payment={settling} onClose={() => setSettling(null)} groupId={group.id} name={name} you={group.you} />
+      <SettleDialog payment={settling} onClose={() => setSettling(null)} groupId={group.id} name={name} you={group.you} currency={group.currency} />
     </div>
   )
 }
@@ -251,9 +252,11 @@ function YourPart({ expense, you }: { expense: GroupExpense; you: string }) {
     : <span className="block text-xs text-critical">you borrowed {formatMoney(-net)}</span>
 }
 
-function SettleDialog({ payment, onClose, groupId, name, you }: {
+function SettleDialog({ payment, onClose, groupId, name, you, currency }: {
   payment: { from: string; to: string; amount: number } | null; onClose: () => void; groupId: string; name: (id: string) => string; you: string
+  currency: string
 }) {
+  const group = { currency }
   const settle = useSettle(groupId)
   const [account, setAccount] = useState('')
   const { data: bookSettings } = useGroupBudget()
@@ -269,7 +272,7 @@ function SettleDialog({ payment, onClose, groupId, name, you }: {
   async function submit(e: FormEvent) {
     e.preventDefault()
     if (!payment) return
-    const value = parseMoney(amount || minorToInput(payment.amount, 'INR'))
+    const value = parseMoney(amount || minorToInput(payment.amount))
     if (value === null || value <= 0) return setError('Enter the amount paid.')
     await settle.mutateAsync({ fromMemberId: payment.from, toMemberId: payment.to, amount: value, occurredOn: today(), note: note.trim() || undefined, accountId: mine && account ? account : null })
     toast.success('Payment recorded', { description: `${name(payment.from)} paid ${name(payment.to)} ${formatMoney(value)}.` })
@@ -283,7 +286,7 @@ function SettleDialog({ payment, onClose, groupId, name, you }: {
       description={payment ? `${name(payment.from)} paid ${name(payment.to)}` : undefined}>
       <form onSubmit={submit} className="flex flex-col gap-4 p-pad" noValidate>
         <Field label="Amount" htmlFor="settle-amount" hint="A part payment is fine too.">
-          <Input id="settle-amount" inputMode="decimal" className="tabular" placeholder={payment ? minorToInput(payment.amount, 'INR') : ''}
+          <MoneyInput currency={group?.currency} id="settle-amount" className="tabular" placeholder={payment ? minorToInput(payment.amount) : ''}
             value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>
         {mine && bookSettings?.enabled && payable.length > 0 && (

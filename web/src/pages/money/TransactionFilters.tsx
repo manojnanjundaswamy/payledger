@@ -55,7 +55,8 @@ export function TransactionFilters({ search, onChange, accounts, categories }: {
   categories: Category[]
 }) {
   const locale = useProfile().data?.settings.locale ?? 'en-IN'
-  const startDay = useProfile().data?.settings.budgetStartDay ?? 1
+  const settings = useProfile().data?.settings
+  const startDay = settings?.budgetStartDay ?? 1
   const money = useMoneyFormat()
   const spaceId = useSpaceId()
   const { data: goals = [] } = useGoals(true)
@@ -134,7 +135,7 @@ export function TransactionFilters({ search, onChange, accounts, categories }: {
           <label className="flex flex-col gap-1.5 text-sm font-medium">Dates
             <Select value="" onChange={(e) => {
               if (!e.target.value) return
-              const p = reportPeriod(e.target.value as PeriodKey, startDay)
+              const p = reportPeriod(e.target.value as PeriodKey, startDay, new Date(), undefined, settings?.fyStartMonth ?? 4)
               onChange({ from: p.from, to: p.to })
             }}>
               <option value="">Pick a period…</option>

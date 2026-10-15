@@ -22,6 +22,8 @@ import { WidgetEnvContext, type WidgetEnv } from './context'
 import { dashboardEvents } from './events'
 import { WidgetCard } from './WidgetCard'
 import { WIDGETS } from './widgets'
+import { PushPrompt } from '@/components/PushPrompt'
+import { useSetupSteps } from './setup'
 
 export function DashboardPage() {
   const { prefs, dispatch } = usePreferences()
@@ -90,6 +92,8 @@ export function DashboardPage() {
           </div>
         </div>
 
+        {prefs.welcomed && <PushPrompt />}
+
         <DashboardTabs dashboard={dashboard} onNew={() => setNewDashboard(true)} />
 
         <AnimatePresence initial={false}>
@@ -130,6 +134,8 @@ function greeting() {
 }
 
 function WidgetGrid({ dashboard, editing, onAdd }: { dashboard: Dashboard; editing: boolean; onAdd: () => void }) {
+  // Getting started goes away once every step is done (it comes back in Customize, should someone want it).
+  const setupComplete = useSetupSteps().complete
   const { dispatch } = usePreferences()
   const [activeId, setActiveId] = useState<string | null>(null)
   const sensors = useSensors(
@@ -183,7 +189,7 @@ function WidgetGrid({ dashboard, editing, onAdd }: { dashboard: Dashboard; editi
     >
       <SortableContext items={dashboard.widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
         <div className="grid grid-cols-1 gap-gap sm:grid-cols-2 xl:grid-cols-4" data-testid="widget-grid">
-          {dashboard.widgets.map((w, i) => (
+          {dashboard.widgets.filter((w) => editing || !(w.type === 'gettingStarted' && setupComplete)).map((w, i) => (
             <SortableWidget key={w.id} widget={w} dashboardId={dashboard.id} editing={editing} index={i} />
           ))}
         </div>

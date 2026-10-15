@@ -22,7 +22,7 @@ export function GroupsPage() {
   const [show, setShow] = useState<Show>('all')
   const navigate = useNavigate()
   const locale = useProfile().data?.settings.locale ?? 'en-IN'
-  const money = (m: number) => formatMoneyWhole(m, 'INR', locale)
+  const money = (m: number) => formatMoneyWhole(m, undefined, locale)
 
   const live = (groups ?? []).filter((g) => !g.archived)
   const owe = live.filter((g) => g.net > 0).reduce((s, g) => s + g.net, 0)

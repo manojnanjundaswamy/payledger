@@ -17,7 +17,8 @@ export interface Profile {
   id: string
   email: string
   displayName: string
-  settings: { locale: string; timeZone: string; currency: string; budgetStartDay: number; upiId?: string | null }
+  /** country: null until the region is set up (the app asks at sign-in); fyStartMonth: 4 = April–March, 1 = calendar year */
+  settings: { locale: string; timeZone: string; currency: string; budgetStartDay: number; upiId?: string | null; country?: string | null; fyStartMonth?: number }
   preferences: Record<string, unknown>
   spaces: Space[]
   /** PayLedger staff: their admin-console role and what it allows. Absent for customers. */

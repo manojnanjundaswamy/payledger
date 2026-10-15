@@ -1,10 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { SearchSelect } from '@/components/ui/search-select'
+import { MoneyInput } from '@/components/ui/money-input'
 import { Archive, ArchiveRestore } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/overlay'
-import { minorToInput, parseMoney } from '@/lib/money'
+import { allCurrencies, currencySymbol, minorToInput, moneyDefaults, parseMoney } from '@/lib/money'
 import { useCreateAccount, useUpdateAccount, type Account, type AccountKind } from '@/state/money'
 import { ACCOUNT_KINDS, Field, today, NEW_ACCOUNT_KINDS } from './parts'
 
@@ -26,6 +28,9 @@ export function AccountDialog({ open, onOpenChange, account, initialName, space,
   const [name, setName] = useState('')
   const [opening, setOpening] = useState('')
   const [openingDate, setOpeningDate] = useState(today())
+  // New accounts start in the space's currency; a foreign account (a USD card, an AED salary account) picks its own.
+  const [newCurrency, setNewCurrency] = useState(moneyDefaults().currency)
+  const currency = account?.currency ?? newCurrency
   const [error, setError] = useState<string>()
 
   useEffect(() => {
@@ -34,6 +39,7 @@ export function AccountDialog({ open, onOpenChange, account, initialName, space,
     setName(account?.name ?? initialName ?? '')
     setOpening(account ? minorToInput(account.openingBalance, account.currency) : '')
     setOpeningDate(account?.openingDate ?? today())
+    setNewCurrency(moneyDefaults().currency)
     setError(undefined)
   }, [open, account])
 
@@ -43,14 +49,14 @@ export function AccountDialog({ open, onOpenChange, account, initialName, space,
     e.preventDefault()
     setError(undefined)
     if (!name.trim()) return setError('Give the account a name, like "HDFC savings".')
-    const openingBalance = opening.trim() === '' ? 0 : parseMoney(opening, account?.currency ?? 'INR')
+    const openingBalance = opening.trim() === '' ? 0 : parseMoney(opening, currency)
     if (openingBalance === null) return setError('Enter the balance as a number, like 25,000 or 1200.50.')
     try {
       if (account) {
         await update.mutateAsync({ id: account.id, name: name.trim(), openingBalance, openingDate })
         toast.success('Saved')
       } else {
-        const made = await create.mutateAsync({ kind, name: name.trim(), openingBalance, openingDate })
+        const made = await create.mutateAsync({ kind, name: name.trim(), openingBalance, openingDate, currency })
         toast.success(`${name.trim()} added`)
         onCreated?.(made)
       }
@@ -90,10 +96,16 @@ export function AccountDialog({ open, onOpenChange, account, initialName, space,
           <Input id="account-name" maxLength={60} autoFocus placeholder={card ? 'ICICI Amazon Pay' : 'HDFC savings'} value={name}
             onChange={(e) => setName(e.target.value)} />
         </Field>
+        {!account && (
+          <Field label="Currency" htmlFor="account-currency" hint={currency === moneyDefaults().currency ? 'Like the rest of your money.' : 'Kept in its own currency; totals in your main currency leave it out.'}>
+            <SearchSelect id="account-currency" aria-label="Currency" value={newCurrency} onChange={setNewCurrency}
+              options={allCurrencies().map((c) => ({ value: c.code, label: `${c.code} · ${c.name}`, icon: <span className="w-6 text-center text-xs font-semibold" aria-hidden>{currencySymbol(c.code)}</span> }))} />
+          </Field>
+        )}
         <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
           <Field label={card ? 'Amount owed' : 'Balance'} htmlFor="account-opening"
             hint={card ? 'What you owe on the card on this date' : 'What is in it on this date'}>
-            <Input id="account-opening" inputMode="decimal" autoComplete="off" placeholder="0" value={opening}
+            <MoneyInput currency={currency} id="account-opening" autoComplete="off" placeholder="0" value={opening}
               onChange={(e) => setOpening(e.target.value)} className="tabular" />
           </Field>
           <Field label="On" htmlFor="account-opening-date">

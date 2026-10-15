@@ -1,6 +1,6 @@
 # Not done yet (kept up to date)
 
-What is still open after release v0.10.0 (2026-10-15), so nothing is lost. Tick or remove items as they ship.
+What is still open after release v0.11.0 (2026-10-15), so nothing is lost. Tick or remove items as they ship.
 The full roadmap is in [product-plan.md](product-plan.md) (section 7); the owner's own lists are
 [owner-requests-2026-10-15.md](owner-requests-2026-10-15.md) (all 12 done) and [ideas-2026-10-b.md](ideas-2026-10-b.md).
 
@@ -11,17 +11,17 @@ The full roadmap is in [product-plan.md](product-plan.md) (section 7); the owner
   the weekly recap go only to the local Mailpit (http://localhost:8025), not to people's inboxes.
 - [ ] **Google sign-in.** Create the OAuth client (links in `docs/hosting.md`), put `GOOGLE_CLIENT_ID` and
   `GOOGLE_CLIENT_SECRET` in `.env`.
-- [ ] **Forwarding addresses for bank alerts.** OK to set up Cloudflare Email Routing for `in.manojnanjundaswamy.com`
-  and the Worker (`deploy/cloudflare/email-worker.js`, `INBOUND_SECRET`, `CAPTURE_DOMAIN`).
+- [ ] **Forwarding addresses for bank alerts.** The live site has no mail domain yet (it used the placeholder
+  `in.payledger.local`, which is why Gmail's code never came; the page now says it isn't set up instead). Needs your
+  OK to set up Cloudflare Email Routing for `in.manojnanjundaswamy.com` and the Worker (`deploy/cloudflare/
+  email-worker.js`), then `CAPTURE_DOMAIN` and `INBOUND_SECRET` in `.env`. Then in Gmail: remove the old
+  `...@in.payledger.local` address and add the new one.
 - [ ] Change the demo account's password and the Keycloak admin password before sharing the site.
 - [ ] Decide: prices, the product name ([naming.md](naming.md)), payments (Razorpay) before charging.
 - [ ] Keycloak upgrade PR #33 (sign-up asks for the password after email verification; works, needs your OK).
 
 ## Product: from the roadmap, not built yet
 
-- [ ] **Month in review**: a page for last month (in, out, kept, against the month before, categories that moved,
-  budgets kept, biggest spends, no-spend days) and an in-app notice on the 1st. Designed; the endpoint was drafted
-  but not merged.
 - [ ] **Households, the rest of 2.4**: dependents without a login (children, parents) with spending assigned to them;
   marking an account shared or personal inside a household; sharing only a summary of personal spending; reports
   per member and per dependent.
@@ -31,7 +31,14 @@ The full roadmap is in [product-plan.md](product-plan.md) (section 7); the owner
 - [ ] **Transactions**: split one transaction across several categories; receipt attachments.
 - [ ] **Reports**: custom report builder; year in review.
 - [ ] **Bank sync** through Account Aggregator (needs a licensed partner; statements, SMS and forwarding cover it now).
-- [ ] **Languages**: UI text in translation files, and currency conversion in reports (India first works today).
+- [ ] **Languages**: UI text in translation files (English only today; every currency, number format and financial
+  year already works).
+- [ ] **Multi-currency totals**: accounts kept in another currency on purpose show their own balance but are left out of
+  totals in your main currency (net worth, safe to spend); converting them at today's rate in totals is next.
+- [ ] **Emails in the reader's currency**: bill reminders, budget alerts, the weekly recap, group and insight messages
+  are done; bank-statement summaries still say rupees (they come from Indian banks).
+- [ ] **Push on iPhone**: works only when PayLedger is added to the Home Screen (Apple's rule); Android and desktop work
+  from the browser. A notification's sound is the phone's own (browsers can't set one); the chime plays in the app.
 
 ## Operations (Phase 7)
 

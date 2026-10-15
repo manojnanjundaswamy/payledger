@@ -15,13 +15,17 @@ function parse(isoDate: string): Date {
   return new Date(y!, m! - 1, d!)
 }
 
-/** India's financial year, April to March: "FY 2026–27" runs from 1 Apr 2026 to 31 Mar 2027. */
-export function financialYear(day: Date): { start: Date; end: Date; label: string } {
-  const startYear = day.getMonth() >= 3 ? day.getFullYear() : day.getFullYear() - 1
+/**
+ * The financial year containing {@code day}, starting in month {@code startMonth} (1–12; India's is April, 4):
+ * "FY 2026–27" runs from 1 Apr 2026 to 31 Mar 2027. A year starting in January is just "2026".
+ */
+export function financialYear(day: Date, startMonth = 4): { start: Date; end: Date; label: string } {
+  const m = startMonth - 1
+  const startYear = day.getMonth() >= m ? day.getFullYear() : day.getFullYear() - 1
   return {
-    start: new Date(startYear, 3, 1),
-    end: new Date(startYear + 1, 2, 31),
-    label: `FY ${startYear}–${String((startYear + 1) % 100).padStart(2, '0')}`,
+    start: new Date(startYear, m, 1),
+    end: new Date(startYear + 1, m, 0),
+    label: m === 0 ? String(startYear) : `FY ${startYear}–${String((startYear + 1) % 100).padStart(2, '0')}`,
   }
 }
 
@@ -29,7 +33,7 @@ export function financialYear(day: Date): { start: Date; end: Date; label: strin
  * The named periods. "This month" is the budget month (it may start on payday); the financial years
  * and the last 12 months are calendar ranges, as tax and bank statements use.
  */
-export function reportPeriod(key: PeriodKey, budgetStartDay: number, today = new Date(), custom?: { from?: string; to?: string }): Period {
+export function reportPeriod(key: PeriodKey, budgetStartDay: number, today = new Date(), custom?: { from?: string; to?: string }, fyStartMonth = 4): Period {
   switch (key) {
     case 'this-month': {
       const p = budgetPeriod(budgetStartDay, today)
@@ -41,11 +45,11 @@ export function reportPeriod(key: PeriodKey, budgetStartDay: number, today = new
       return { key, from: iso(before.start), to: iso(before.end), label: 'Last month' }
     }
     case 'this-fy': {
-      const fy = financialYear(today)
+      const fy = financialYear(today, fyStartMonth)
       return { key, from: iso(fy.start), to: iso(fy.end), label: `This year (${fy.label})` }
     }
     case 'last-fy': {
-      const fy = financialYear(new Date(today.getFullYear() - 1, today.getMonth(), 1))
+      const fy = financialYear(new Date(today.getFullYear() - 1, today.getMonth(), 1), fyStartMonth)
       return { key, from: iso(fy.start), to: iso(fy.end), label: `Last year (${fy.label})` }
     }
     case 'last-12': {

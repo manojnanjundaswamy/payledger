@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { MoneyInput } from '@/components/ui/money-input'
 import { CategoryPicker } from '@/pages/money/pickers'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Input, Switch } from '@/components/ui/controls'
+import { Switch } from '@/components/ui/controls'
 import { Dialog } from '@/components/ui/overlay'
 import { formatMoneyWhole, minorToInput, parseMoney } from '@/lib/money'
 import {
@@ -93,13 +94,13 @@ export function BudgetDialog({ open, onOpenChange, month, budget }: {
           </Field>
         )}
         <Field label="Monthly limit" htmlFor="budget-amount"
-          hint={average ? `You spent about ${formatMoneyWhole(average, 'INR', locale)} a month on it over the last three months.` : undefined}>
-          <Input id="budget-amount" inputMode="decimal" autoComplete="off" placeholder="12,000" value={amount} autoFocus={!!budget}
+          hint={average ? `You spent about ${formatMoneyWhole(average, undefined, locale)} a month on it over the last three months.` : undefined}>
+          <MoneyInput id="budget-amount" autoComplete="off" placeholder="12,000" value={amount} autoFocus={!!budget}
             onChange={(e) => setAmount(e.target.value)} className="tabular" />
         </Field>
         {average !== null && average > 0 && amount.trim() === '' && (
-          <Button variant="outline" size="sm" className="self-start" onClick={() => setAmount(minorToInput(roundUp(average), 'INR'))}>
-            Use {formatMoneyWhole(roundUp(average), 'INR', locale)}
+          <Button variant="outline" size="sm" className="self-start" onClick={() => setAmount(minorToInput(roundUp(average)))}>
+            Use {formatMoneyWhole(roundUp(average), undefined, locale)}
           </Button>
         )}
         <div className="flex items-start gap-3 text-sm">

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { MoneyInput } from '@/components/ui/money-input'
 import { AccountPicker, CategoryPicker } from '@/pages/money/pickers'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -134,7 +135,7 @@ export function CommitmentDialog({ open, onOpenChange, commitment, initialDue, p
               onChange={(e) => set('name', e.target.value)} />
           </Field>
           <Field label="Amount" htmlFor="commitment-amount">
-            <Input id="commitment-amount" inputMode="decimal" autoComplete="off" placeholder="12,500" value={d.amount}
+            <MoneyInput id="commitment-amount" autoComplete="off" placeholder="12,500" value={d.amount}
               onChange={(e) => set('amount', e.target.value)} className="tabular" />
           </Field>
         </div>

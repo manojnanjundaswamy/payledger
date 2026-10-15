@@ -1,4 +1,5 @@
 import { useGoals } from '@/state/goals'
+import { moneyDefaults } from '@/lib/money'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQueries } from '@tanstack/react-query'
@@ -6,11 +7,10 @@ import { api } from '@/lib/api'
 import { useGroups, type GroupBalances } from '@/state/groups'
 import {
   ArrowDownLeft, ArrowLeftRight, ArrowUpRight, BarChart3, CalendarClock, Check, Goal, Home, ListChecks, ListOrdered,
-  HeartPulse, Inbox, Landmark, PieChart, Rocket, Scale, StickyNote, Upload, Users, Wallet, Zap,
+  CalendarCheck, HeartPulse, Inbox, Landmark, PieChart, Rocket, Scale, Share2, StickyNote, Trophy, Upload, Users, Wallet, Zap,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/card'
 import { cn } from '@/lib/cn'
-import type { SettingsTab } from '@/pages/settings/tabs'
 import type { Widget } from '@/state/preferences'
 import { usePreferences } from '@/state/PreferencesProvider'
 import { BarList, BUDGET_STATUS, budgetStatus, GroupedBars, Progress } from './charts'
@@ -21,18 +21,22 @@ import {
 } from '@/state/money'
 import { SafeToSpendCard } from '@/pages/money/SafeToSpendCard'
 import { CountUp } from '@/components/CountUp'
-import { CanIAfford, MoneyHealth } from './insightWidgets'
+import { BringAFriend, CanIAfford, LastMonth, MoneyHealth } from './insightWidgets'
+import { ProgressWidget } from '@/pages/ProgressPage'
+import { useSetupSteps } from './setup'
+import { turnOnPush, usePushState } from '@/components/PushPrompt'
 import { useCapture } from '@/state/capture'
 import { useHousehold, useHouseholds } from '@/state/households'
 
 export interface WidgetProps { widget: Widget; dashboardId: string; editing: boolean }
 
 /** What a widget shows before the user has real data and sample data is off. */
-function Empty({ children, phase = 'Phase 4' }: { children: React.ReactNode; phase?: string }) {
+/** No data yet (and sample data off): what the card will show, and the way to get there. */
+function Empty({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-full min-h-28 flex-col items-start justify-center gap-1.5 text-sm text-muted">
       {children}
-      <span className="text-xs text-subtle">Arrives with {phase}.</span>
+      <Link to="/welcome" className="text-xs text-fg underline underline-offset-4">Set up your money (2 minutes)</Link>
     </div>
   )
 }
@@ -446,8 +450,10 @@ function RealGroups() {
 
 function Groups() {
   const { sample: on, real, money } = useWidgetEnv()
-  if (real) return <RealGroups />
-  if (!on) return <Empty phase="Phase 5">Trips, flats and friends: who owes whom, settled in fewest payments.</Empty>
+  // Groups are real as soon as you're in one, accounts or not.
+  const inGroups = (useGroups().data?.length ?? 0) > 0
+  if (real || inGroups) return <RealGroups />
+  if (!on) return <Empty>Trips, flats and friends: who owes whom, settled in fewest payments.</Empty>
   const owed = sample.groups.filter((g) => g.balance > 0).reduce((s, g) => s + g.balance, 0)
   const owe = -sample.groups.filter((g) => g.balance < 0).reduce((s, g) => s + g.balance, 0)
   return (
@@ -530,31 +536,29 @@ function Household() {
   )
 }
 
+/** The setup checklist (dashboard/setup.ts): each step ticks itself when done; the dashboard hides the card once all are. */
 function GettingStarted() {
-  const { prefs, profile, real } = useWidgetEnv()
-  const steps: { done: boolean; label: string; tab: SettingsTab | null; to?: '/welcome' }[] = [
-    { done: true, label: 'Create your account', tab: null },
-    { done: prefs.theme.accent !== null || prefs.theme.palette !== 'classic' || prefs.theme.mode !== 'system', label: 'Make it yours: pick a theme', tab: 'appearance' },
-    { done: profile.settings.budgetStartDay !== 1, label: 'Set the day your month starts (payday)', tab: 'regional' },
-    { done: prefs.dashboards.length > 1 || prefs.dashboards.some((d) => d.widgets.some((w) => w.title || w.type === 'note')), label: 'Customize a dashboard', tab: 'dashboards' },
-    { done: real, label: 'Set up your accounts and bills (2 minutes)', tab: null, to: '/welcome' },
-  ]
-  const done = steps.filter((s) => s.done).length
+  const { steps, done } = useSetupSteps()
+  const [, setPush] = usePushState()
+  const [turning, setTurning] = useState(false)
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
         <div className="flex-1"><Progress value={done / steps.length} label="Setup progress" /></div>
         <span className="text-xs text-muted tabular">{done}/{steps.length}</span>
       </div>
-      <ul className="flex flex-col gap-1">
+      <ul className="flex flex-col gap-1" data-testid="setup-steps">
         {steps.map((s) => (
-          <li key={s.label}>
-            {s.tab && !s.done ? (
-              <Link to="/settings" search={{ tab: s.tab }} className="flex items-center gap-2.5 rounded-control px-1 py-1.5 text-sm hover:bg-surface-2"><StepDot done={s.done} />{s.label}</Link>
-            ) : s.to && !s.done ? (
-              <Link to={s.to} className="flex items-center gap-2.5 rounded-control px-1 py-1.5 text-sm hover:bg-surface-2"><StepDot done={s.done} />{s.label}</Link>
+          <li key={s.key} data-done={s.done}>
+            {s.done ? (
+              <span className="flex items-center gap-2.5 px-1 py-1.5 text-sm text-muted line-through decoration-border-strong"><StepDot done />{s.label}</span>
+            ) : s.action === 'push' ? (
+              <button type="button" disabled={turning} onClick={async () => { setTurning(true); await turnOnPush(setPush); setTurning(false); window.dispatchEvent(new Event('focus')) }}
+                className="flex w-full items-center gap-2.5 rounded-control px-1 py-1.5 text-left text-sm hover:bg-surface-2"><StepDot done={false} />{s.label}</button>
+            ) : s.tab ? (
+              <Link to="/settings" search={{ tab: s.tab }} className="flex items-center gap-2.5 rounded-control px-1 py-1.5 text-sm hover:bg-surface-2"><StepDot done={false} />{s.label}</Link>
             ) : (
-              <span className={cn('flex items-center gap-2.5 px-1 py-1.5 text-sm', s.done && 'text-muted line-through decoration-border-strong')}><StepDot done={s.done} />{s.label}</span>
+              <Link to={s.to!} className="flex items-center gap-2.5 rounded-control px-1 py-1.5 text-sm hover:bg-surface-2"><StepDot done={false} />{s.label}</Link>
             )}
           </li>
         ))}
@@ -625,6 +629,9 @@ export const WIDGETS = {
   goals: { name: 'Savings goals', description: 'Progress towards what you are saving for.', icon: Goal, defaultSize: 'm', sample: true, component: Goals },
   household: { name: 'Household', description: 'The family budget and who paid what.', icon: Home, defaultSize: 'l', sample: false, component: Household },
   toReview: { name: 'To review', description: 'Bank alerts waiting to be added (Auto-capture).', icon: Inbox, defaultSize: 's', sample: false, component: ToReview },
+  lastMonth: { name: 'Last month', description: 'Last month in review: kept or overspent, and what changed.', icon: CalendarCheck, defaultSize: 's', sample: false, component: LastMonth },
+  bringAFriend: { name: 'Bring a friend', description: 'Invite the people you split money with.', icon: Share2, defaultSize: 's', sample: false, component: BringAFriend },
+  progress: { name: 'Your progress', description: 'Level, streak, badges and this week’s challenge.', icon: Trophy, defaultSize: 's', sample: false, component: ProgressWidget },
   moneyHealth: { name: 'Money health', description: 'A score from saving, cushion, card dues, budgets and balance, with what to do.', icon: HeartPulse, defaultSize: 'm', sample: false, component: MoneyHealth },
   canIAfford: { name: 'Can I afford it?', description: 'Check a purchase or a new EMI against your plan and savings.', icon: Scale, defaultSize: 'm', sample: false, component: CanIAfford },
   netWorth: { name: 'Net worth', description: 'What you have minus what you owe, by kind of account.', icon: Landmark, defaultSize: 'm', sample: false, component: NetWorth },
@@ -671,7 +678,7 @@ function NetWorth() {
   const { money } = useWidgetEnv()
   const { data: accounts, isPending } = useAccounts()
   if (isPending) return <div className="h-24 animate-pulse rounded-control bg-surface-2" />
-  const live = (accounts ?? []).filter((a) => !a.archived && a.currency === 'INR' && a.balance !== null)
+  const live = (accounts ?? []).filter((a) => !a.archived && a.currency === moneyDefaults().currency && a.balance !== null)
   if (live.length === 0) {
     return <div className="flex min-h-24 flex-col items-start justify-center gap-1.5 text-sm text-muted">Add your accounts to see your net worth.<Link to="/accounts" className="text-fg underline underline-offset-4">Accounts</Link></div>
   }
